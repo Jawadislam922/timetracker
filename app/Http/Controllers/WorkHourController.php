@@ -5,19 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\WorkHour;
 use App\Models\User;
+use App\Models\UpworkProfile;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class WorkHourController extends Controller
 {
-
-    private $trackers;
-
-    public function __construct()
-    {
-        $this->trackers = config('workhours.trackers', []);
-    }
-
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -89,8 +82,14 @@ class WorkHourController extends Controller
         $clients = Client::select('id', 'name')
             ->orderBy('name')
             ->get();
+        
+        $trackers = UpworkProfile::active()
+            ->orderBy('name')
+            ->pluck('name')
+            ->toArray();
+            
         return Inertia::render('WorkHourCreate', [
-            'trackers' => $this->trackers,
+            'trackers' => $trackers,
             'clients' => $clients,
         ]);
     }
@@ -122,9 +121,15 @@ class WorkHourController extends Controller
         $clients = Client::select('id', 'name')
             ->orderBy('name')
             ->get();
+        
+        $trackers = UpworkProfile::active()
+            ->orderBy('name')
+            ->pluck('name')
+            ->toArray();
+            
         return Inertia::render('WorkHourEdit', [
             'workHour' => $workHour,
-            'trackers' => $this->trackers,
+            'trackers' => $trackers,
             'clients' => $clients,
         ]);
     }
@@ -299,38 +304,36 @@ class WorkHourController extends Controller
         $query = WorkHour::with('user', 'client');
         $filter = $request->input('filter', 'all');
         $startDate = $request->input('startDate');
-            $endDate = $request->input('endDate');
-            $workType = $request->input('workType', 'all');
-            $userId = $request->input('userId', 'all');
-            $designation = $request->input('designation', 'all');
-            $tracker = $request->input('tracker', 'all');
-            $client = $request->input('client', 'all');
-            $perPage = $request->input('perPage', 15);
+        $endDate = $request->input('endDate');
+        $workType = $request->input('workType', 'all');
+        $userId = $request->input('userId', 'all');
+        $designation = $request->input('designation', 'all');
+        $tracker = $request->input('tracker', 'all');
+        $client = $request->input('client', 'all');
+        $perPage = $request->input('perPage', 15);
 
-            // Fetch all available filter options
-            $availableDesignations = \App\Models\User::whereNotNull('designation')
-                ->distinct()
-                ->pluck('designation')
-                ->filter()
-                ->sort()
-                ->values();
+        // Fetch all available filter options - use UpworkProfile model
+        $availableDesignations = \App\Models\User::whereNotNull('designation')
+            ->distinct()
+            ->pluck('designation')
+            ->filter()
+            ->sort()
+            ->values();
 
-            $availableTrackers = \App\Models\WorkHour::whereNotNull('tracker')
-                ->distinct()
-                ->pluck('tracker')
-                ->filter()
-                ->sort()
-                ->values();
+        $availableTrackers = UpworkProfile::active()
+            ->orderBy('name')
+            ->pluck('name')
+            ->toArray();
 
-            $availableClients = \App\Models\WorkHour::with('client')
-                ->whereHas('client')
-                ->get()
-                ->pluck('client.name')
-                ->unique()
-                ->filter()
-                ->sort()
-                ->values();
-        
+        $availableClients = \App\Models\WorkHour::with('client')
+            ->whereHas('client')
+            ->get()
+            ->pluck('client.name')
+            ->unique()
+            ->filter()
+            ->sort()
+            ->values();
+    
         // Validate perPage to prevent abuse
         $allowedPerPage = [15, 25, 50, 100];
         if (!in_array($perPage, $allowedPerPage)) {
@@ -391,9 +394,9 @@ class WorkHourController extends Controller
             'tracker' => $tracker,
             'client' => $client,
             'perPage' => $perPage,
-                'availableDesignations' => $availableDesignations,
-                'availableTrackers' => $availableTrackers,
-                'availableClients' => $availableClients,
+            'availableDesignations' => $availableDesignations,
+            'availableTrackers' => $availableTrackers,
+            'availableClients' => $availableClients,
         ]);
     }
 }

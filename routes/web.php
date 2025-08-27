@@ -41,7 +41,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('users', UserController::class)->except(['show']);
         Route::get('/report', [\App\Http\Controllers\WorkHourController::class, 'report'])->name('work-hours.report');
         Route::get('/work-hours/export', [\App\Http\Controllers\WorkHourController::class, 'export'])->name('work-hours.export');
+        
+        // Client export/import routes (must be before resource routes)
+        Route::get('/clients/export', [\App\Http\Controllers\ClientController::class, 'export'])->name('clients.export');
+        Route::post('/clients/import', [\App\Http\Controllers\ClientController::class, 'import'])->name('clients.import');
+        Route::delete('/clients/bulk-destroy', [\App\Http\Controllers\ClientController::class, 'bulkDestroy'])->name('clients.bulk-destroy');
         Route::resource('clients', ClientController::class);
+        
+        Route::resource('upwork-profiles', \App\Http\Controllers\UpworkProfileController::class);
     });
 
     // Routes accessible to both admin and employee

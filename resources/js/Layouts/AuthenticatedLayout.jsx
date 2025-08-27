@@ -68,6 +68,18 @@ export default function Authenticated({ user, header, children }) {
                                     </div>
                                 </NavLink>
                                 )}
+                                {user?.role === 'admin' && (
+                                    <NavLink href={route('upwork-profiles.index')} active={['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'].some(r => route().current(r))}>
+                                        <div className="group flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-gradient-to-r hover:from-orange-50 hover:to-amber-50 hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-orange-200/50">
+                                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 group-hover:from-orange-600 group-hover:to-orange-700 shadow-sm group-hover:shadow-md transition-all duration-300">
+                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                </svg>
+                                            </div>
+                                            <span className="font-semibold text-slate-700 group-hover:text-orange-700 transition-colors duration-300">Profiles</span>
+                                        </div>
+                                    </NavLink>
+                                )}
                                 <NavLink href={route('work-hours.index')} active={['work-hours.index', 'work-hours.create', 'work-hours.edit'].some(r => route().current(r))}>
                                     <div className="group flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-green-50 hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-emerald-200/50">
                                         <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 group-hover:from-emerald-600 group-hover:to-emerald-700 shadow-sm group-hover:shadow-md transition-all duration-300">
@@ -193,6 +205,15 @@ export default function Authenticated({ user, header, children }) {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 616 0z" />
                                         </svg>
                                         <span>Clients</span>
+                                    </div>
+                                </ResponsiveNavLink>
+                                
+                                <ResponsiveNavLink href={route('upwork-profiles.index')} active={['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'].some(r => route().current(r))}>
+                                    <div className="flex items-center space-x-3">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                        <span>Profiles</span>
                                     </div>
                                 </ResponsiveNavLink>
                                 

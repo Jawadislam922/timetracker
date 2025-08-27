@@ -12,6 +12,8 @@ class Client extends Model
     protected $fillable = [
         'name',
         'tags',
+        'work_type',
+        'upwork_profile_id',
     ];
 
     protected $casts = [
@@ -21,5 +23,26 @@ class Client extends Model
     public function workHours()
     {
         return $this->hasMany(WorkHour::class);
+    }
+
+    public function upworkProfile()
+    {
+        return $this->belongsTo(UpworkProfile::class);
+    }
+
+    // Define available work types
+    public static function getWorkTypes()
+    {
+        return [
+            'tracker_manual' => 'Tracker/Manual Time',
+            'fixed' => 'Fixed Client',
+            'outside_of_upwork' => 'Outside of Upwork',
+        ];
+    }
+
+    // Check if upwork profile is required for given work type
+    public static function isProfileRequired($workType)
+    {
+        return in_array($workType, ['tracker_manual', 'fixed']);
     }
 }

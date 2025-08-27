@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
 import AnimatedBackground from '../Components/AnimatedBackground';
 import { Head, useForm, Link } from '@inertiajs/react';
 
-export default function WorkHourCreate({ auth, trackers = [], clients = [] }) {
+export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
     const form = useForm({
         date: (() => {
             // Get current date in Pakistan timezone (Asia/Karachi)
@@ -21,17 +21,17 @@ export default function WorkHourCreate({ auth, trackers = [], clients = [] }) {
         trackerSearch: '',
         clientSearch: '',
     });
-    const [showTrackerOptions, setShowTrackerOptions] = React.useState(false);
-    const [showClientOptions, setShowClientOptions] = React.useState(false);
-    const [clientValidationError, setClientValidationError] = React.useState('');
-    const [trackerValidationError, setTrackerValidationError] = React.useState('');
-    const trackerRef = React.useRef(null);
-    const clientRef = React.useRef(null);
-    const trackerDropdownRef = React.useRef(null);
-    const clientDropdownRef = React.useRef(null);
+    const [showTrackerOptions, setShowTrackerOptions] = useState(false);
+    const [showClientOptions, setShowClientOptions] = useState(false);
+    const [clientValidationError, setClientValidationError] = useState('');
+    const [trackerValidationError, setTrackerValidationError] = useState('');
+    const trackerRef = useRef(null);
+    const clientRef = useRef(null);
+    const trackerDropdownRef = useRef(null);
+    const clientDropdownRef = useRef(null);
 
     // Close dropdowns when clicking outside
-    React.useEffect(() => {
+    useEffect(() => {
         function handleClickOutside(event) {
             if (trackerRef.current && trackerDropdownRef.current && 
                 !trackerRef.current.contains(event.target) && 

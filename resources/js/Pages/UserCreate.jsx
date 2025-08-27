@@ -15,49 +15,41 @@ export default function UserCreate({ auth }) {
         avatar: null,
     });
 
-    const handleCreate = (e) => {
+    const submitForm = (e) => {
         e.preventDefault();
-        
-        console.log('Form submission started');
-        console.log('Form data:', createForm.data);
-        console.log('Has avatar:', !!createForm.data.avatar);
         
         createForm.post(route('users.store'), {
             forceFormData: true,
             preserveScroll: true,
             onStart: () => {
-                console.log('Request started');
+                // Request started
             },
             onSuccess: (response) => {
-                console.log('Success response:', response);
+                // Success response
                 createForm.reset();
                 setAvatarPreview(null);
             },
             onError: (errors) => {
-                console.log('Form errors:', errors);
+                // Form errors
             },
             onFinish: () => {
-                console.log('Request finished');
+                // Request finished
             }
         });
     };
 
     const handleAvatarChange = (e) => {
         const file = e.target.files[0];
-        console.log('Avatar file selected:', file);
         
         if (file) {
-            console.log('Setting avatar file:', file.name, file.size, file.type);
             createForm.setData('avatar', file);
             
             const reader = new FileReader();
             reader.onload = () => {
                 setAvatarPreview(reader.result);
-                console.log('Avatar preview set');
             };
             reader.readAsDataURL(file);
         } else {
-            console.log('No file selected, clearing avatar');
             createForm.setData('avatar', null);
             setAvatarPreview(null);
         }
