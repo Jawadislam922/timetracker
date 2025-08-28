@@ -79,7 +79,8 @@ class WorkHourController extends Controller
 
     public function create()
     {
-        $clients = Client::select('id', 'name')
+        $clients = Client::with('upworkProfile')
+            ->select('id', 'name', 'work_type', 'upwork_profile_id')
             ->orderBy('name')
             ->get();
         

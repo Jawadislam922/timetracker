@@ -15,12 +15,74 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         hours: '0',
         minutes: '0',
         description: '',
-        work_type: 'tracker',
+        work_type: '', // Explicitly empty - no default selection
         client_id: '',
         tracker: '',
         trackerSearch: '',
         clientSearch: '',
     });
+    
+    // Debug: Log the current work_type and clients data
+    console.log('Current work_type:', form.data.work_type);
+    console.log('All clients:', clients);
+    
+    // Show client work types for debugging
+    if (clients && clients.length > 0) {
+        console.log('Client work types found:');
+        const workTypes = [...new Set(clients.map(c => c.work_type))];
+        console.log('Unique work types:', workTypes);
+        
+        clients.forEach(client => {
+            console.log(`${client.name}: ${client.work_type}`);
+        });
+    }
+    
+    // Get filtered clients based on work type
+    const getFilteredClients = () => {
+        if (!form.data.work_type) return clients;
+        
+        // Map work types to client work types
+        const workTypeMapping = {
+            'tracker': ['tracker_manual'],
+            'manual': ['tracker_manual'], 
+            'fixed': ['fixed'],
+            'outside_of_upwork': ['outside_of_upwork']
+        };
+        
+        const possibleClientWorkTypes = workTypeMapping[form.data.work_type];
+        if (!possibleClientWorkTypes) return clients;
+        
+        const filtered = clients.filter(client => {
+            return possibleClientWorkTypes.includes(client.work_type);
+        });
+        
+        console.log(`Filtered ${filtered.length} clients for work type: ${form.data.work_type}`);
+        console.log('Available work types:', [...new Set(clients.map(c => c.work_type))]);
+        return filtered;
+    };
+
+    // Get filtered trackers based on selected client
+    const getFilteredTrackers = () => {
+        if (!form.data.client_id) return trackers;
+        
+        // Find the selected client
+        const selectedClient = clients.find(client => client.id == form.data.client_id);
+        if (!selectedClient) return trackers;
+        
+        // If client has an associated upwork profile, filter to show only that profile
+        if (selectedClient.upwork_profile && selectedClient.upwork_profile.name) {
+            const clientProfileName = selectedClient.upwork_profile.name;
+            console.log(`Filtering trackers for client: ${selectedClient.name}, profile: ${clientProfileName}`);
+            return trackers.filter(tracker => tracker === clientProfileName);
+        }
+        
+        // If no specific profile assigned to client, show all trackers
+        console.log(`No specific profile for client: ${selectedClient.name}, showing all trackers`);
+        return trackers;
+    };
+    
+    console.log('Filtered clients:', getFilteredClients());
+    
     const [showTrackerOptions, setShowTrackerOptions] = useState(false);
     const [showClientOptions, setShowClientOptions] = useState(false);
     const [clientValidationError, setClientValidationError] = useState('');
@@ -70,8 +132,9 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
             return false;
         }
 
-        // Check if the entered value exactly matches a client name
-        const matchingClient = clients.find(client => client.name === searchValue);
+        // Check if the entered value exactly matches a filtered client name
+        const filteredClients = getFilteredClients();
+        const matchingClient = filteredClients.find(client => client.name === searchValue);
         if (!matchingClient) {
             setClientValidationError('Please select a valid client from the dropdown');
             return false;
@@ -98,8 +161,9 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
             return false;
         }
 
-        // Check if the entered value exactly matches a tracker
-        const matchingTracker = trackers.find(tracker => tracker === searchValue);
+        // Check if the entered value exactly matches a filtered tracker
+        const filteredTrackers = getFilteredTrackers();
+        const matchingTracker = filteredTrackers.find(tracker => tracker === searchValue);
         if (!matchingTracker) {
             setTrackerValidationError('Please select a valid profile from the dropdown');
             return false;
@@ -116,6 +180,12 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        
+        // Check if work type is selected
+        if (!form.data.work_type) {
+            alert('Please select a work type.');
+            return;
+        }
         
         // Check if at least some time is entered
         const hours = Number(form.data.hours) || 0;
@@ -181,6 +251,11 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
             newData.client_id = '';
             newData.clientSearch = '';
             setClientValidationError('');
+        } else {
+            // Always clear client selection when work type changes to force reselection from filtered list
+            newData.client_id = '';
+            newData.clientSearch = '';
+            setClientValidationError('');
         }
 
         form.setData(newData);
@@ -200,7 +275,8 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         form.setData('clientSearch', val);
         
         // Clear client_id if the search doesn't match any client exactly
-        const matchingClient = clients.find(client => client.name === val);
+        const filteredClients = getFilteredClients();
+        const matchingClient = filteredClients.find(client => client.name === val);
         if (!matchingClient) {
             form.setData('client_id', '');
         } else {
@@ -220,8 +296,9 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         const val = e.target.value;
         form.setData('trackerSearch', val);
         
-        // Clear tracker if the search doesn't match any tracker exactly
-        const matchingTracker = trackers.find(tracker => tracker === val);
+        // Clear tracker if the search doesn't match any filtered tracker exactly
+        const filteredTrackers = getFilteredTrackers();
+        const matchingTracker = filteredTrackers.find(tracker => tracker === val);
         if (!matchingTracker) {
             form.setData('tracker', '');
         } else {
@@ -242,6 +319,11 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         form.setData('clientSearch', client.name);
         setClientValidationError(''); // Clear any validation errors immediately
         setShowClientOptions(false);
+        
+        // Clear tracker selection when client changes to force reselection from filtered list
+        form.setData('tracker', '');
+        form.setData('trackerSearch', '');
+        setTrackerValidationError('');
         
         // Ensure validation passes for this selection
         setTimeout(() => {
@@ -305,13 +387,19 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                     <div className="mb-4">
                                         <h3 className="text-lg font-semibold text-white mb-2">Work Type</h3>
                                         <p className="text-sm text-white/70 mb-4">
-                                            Required fields for selected type: {' '}
-                                            {form.data.work_type === 'tracker' && "Profile Name, Client Name, Description, Hours/Minutes, Tracking Date"}
-                                            {form.data.work_type === 'manual' && "Profile Name, Client Name, Description, Hours/Minutes, Tracking Date"}
-                                            {form.data.work_type === 'fixed' && "Profile Name, Client Name, Description, Hours/Minutes, Tracking Date"}
-                                            {form.data.work_type === 'outside_of_upwork' && "Client Name, Description, Hours/Minutes, Tracking Date"}
-                                            {form.data.work_type === 'office_work' && "Description, Hours/Minutes, Tracking Date"}
-                                            {form.data.work_type === 'test_task' && "Description, Hours/Minutes, Tracking Date"}
+                                            {form.data.work_type ? (
+                                                <>
+                                                    Required fields for selected type: {' '}
+                                                    {form.data.work_type === 'tracker' && "Client Name, Profile Name, Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'manual' && "Client Name, Profile Name, Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'fixed' && "Client Name, Profile Name, Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'outside_of_upwork' && "Client Name, Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'office_work' && "Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'test_task' && "Description, Hours/Minutes, Tracking Date"}
+                                                </>
+                                            ) : (
+                                                "Please select a work type to see required fields"
+                                            )}
                                         </p>
                                     </div>
                                     <div className="grid grid-cols-3 gap-3">
@@ -338,6 +426,83 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                     isTrackerRequired() ? 'md:grid-cols-1' : 
                                     'md:grid-cols-1'
                                 }`}>
+                                    {/* Client Name */}
+                                    {isClientRequired() && (
+                                        <div className="relative">
+                                            <label htmlFor="client" className="block text-sm font-medium text-white mb-2">
+                                                Client Name <span className="text-red-400">*</span>
+                                            </label>
+                                            <input
+                                                ref={clientRef}
+                                                type="text"
+                                                placeholder="Search or select client..."
+                                                className={`w-full px-4 py-3 bg-white/10 backdrop-blur-xl border rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50 ${
+                                                    clientValidationError ? 'border-red-400' : 'border-white/20'
+                                                }`}
+                                                value={form.data.clientSearch}
+                                                onChange={handleClientSearchChange}
+                                                onFocus={handleClientFocus}
+                                                onBlur={handleClientBlur}
+                                                required={isClientRequired()}
+                                            />
+                                            {clientValidationError && (
+                                                <div className="mt-1 text-sm text-red-300">
+                                                    {clientValidationError}
+                                                </div>
+                                            )}
+                                            {!clientValidationError && form.data.work_type && (
+                                                <div className="mt-1 text-xs text-blue-300">
+                                                    Showing clients for: {' '}
+                                                    {form.data.work_type === 'tracker' && 'Tracker/Manual Time'}
+                                                    {form.data.work_type === 'manual' && 'Tracker/Manual Time'}
+                                                    {form.data.work_type === 'fixed' && 'Fixed Client'}
+                                                    {form.data.work_type === 'outside_of_upwork' && 'Outside of Upwork'}
+                                                    {' '}({getFilteredClients().length} available)
+                                                </div>
+                                            )}
+                                            {showClientOptions && (
+                                                <div 
+                                                    ref={clientDropdownRef}
+                                                    className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-white/20 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
+                                                >
+                                                    <div className="p-2">
+                                                        {getFilteredClients().filter(client => {
+                                                            const label = client.name;
+                                                            return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
+                                                        }).map(client => (
+                                                            <button
+                                                                key={client.id}
+                                                                type="button"
+                                                                className="w-full text-left px-3 py-2 hover:bg-white/20 rounded-lg text-white transition-all"
+                                                                onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
+                                                                onClick={() => handleClientSelect(client)}
+                                                            >
+                                                                <div className="flex items-center justify-between">
+                                                                    <span>{client.name}</span>
+                                                                    <span className="text-xs text-blue-300 opacity-75">
+                                                                        {client.work_type === 'tracker_manual' && 'Tracker/Manual'}
+                                                                        {client.work_type === 'fixed' && 'Fixed'}
+                                                                        {client.work_type === 'outside_of_upwork' && 'Outside Upwork'}
+                                                                    </span>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                        {getFilteredClients().filter(client => {
+                                                            const label = client.name;
+                                                            return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
+                                                        }).length === 0 && (
+                                                            <div className="px-3 py-2 text-white/60 text-sm">
+                                                                {form.data.clientSearch ? 
+                                                                    'No matching clients found for this work type.' : 
+                                                                    'No clients available for this work type.'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Profile Name */}
                                     {isTrackerRequired() && (
                                         <div className="relative">
@@ -365,13 +530,25 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                                     {trackerValidationError}
                                                 </div>
                                             )}
+                                            {!trackerValidationError && form.data.client_id && (
+                                                <div className="mt-1 text-xs text-purple-300">
+                                                    {(() => {
+                                                        const selectedClient = clients.find(client => client.id == form.data.client_id);
+                                                        if (selectedClient && selectedClient.upwork_profile) {
+                                                            return `Showing profile for: ${selectedClient.name} (1 available)`;
+                                                        } else {
+                                                            return `Showing all profiles for: ${selectedClient?.name || 'selected client'} (${getFilteredTrackers().length} available)`;
+                                                        }
+                                                    })()}
+                                                </div>
+                                            )}
                                             {showTrackerOptions && (
                                                 <div 
                                                     ref={trackerDropdownRef}
                                                     className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-white/20 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
                                                 >
                                                     <div className="p-2">
-                                                        {trackers.filter(tracker => 
+                                                        {getFilteredTrackers().filter(tracker => 
                                                             !form.data.trackerSearch || tracker.toLowerCase().includes(form.data.trackerSearch.toLowerCase())
                                                         ).map((tracker, index) => (
                                                             <button
@@ -384,69 +561,13 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                                                 {tracker}
                                                             </button>
                                                         ))}
-                                                        {trackers.filter(tracker => 
+                                                        {getFilteredTrackers().filter(tracker => 
                                                             !form.data.trackerSearch || tracker.toLowerCase().includes(form.data.trackerSearch.toLowerCase())
-                                                        ).length === 0 && form.data.trackerSearch && (
+                                                        ).length === 0 && (
                                                             <div className="px-3 py-2 text-white/60 text-sm">
-                                                                No profiles found. Please select from available options.
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Client Name */}
-                                    {isClientRequired() && (
-                                        <div className="relative">
-                                            <label htmlFor="client" className="block text-sm font-medium text-white mb-2">
-                                                Client Name <span className="text-red-400">*</span>
-                                            </label>
-                                            <input
-                                                ref={clientRef}
-                                                type="text"
-                                                placeholder="Search or select client..."
-                                                className={`w-full px-4 py-3 bg-white/10 backdrop-blur-xl border rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50 ${
-                                                    clientValidationError ? 'border-red-400' : 'border-white/20'
-                                                }`}
-                                                value={form.data.clientSearch}
-                                                onChange={handleClientSearchChange}
-                                                onFocus={handleClientFocus}
-                                                onBlur={handleClientBlur}
-                                                required={isClientRequired()}
-                                            />
-                                            {clientValidationError && (
-                                                <div className="mt-1 text-sm text-red-300">
-                                                    {clientValidationError}
-                                                </div>
-                                            )}
-                                            {showClientOptions && (
-                                                <div 
-                                                    ref={clientDropdownRef}
-                                                    className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-white/20 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
-                                                >
-                                                    <div className="p-2">
-                                                        {clients.filter(client => {
-                                                            const label = client.name;
-                                                            return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
-                                                        }).map(client => (
-                                                            <button
-                                                                key={client.id}
-                                                                type="button"
-                                                                className="w-full text-left px-3 py-2 hover:bg-white/20 rounded-lg text-white transition-all"
-                                                                onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
-                                                                onClick={() => handleClientSelect(client)}
-                                                            >
-                                                                {client.name}
-                                                            </button>
-                                                        ))}
-                                                        {clients.filter(client => {
-                                                            const label = client.name;
-                                                            return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
-                                                        }).length === 0 && form.data.clientSearch && (
-                                                            <div className="px-3 py-2 text-white/60 text-sm">
-                                                                No clients found. Please select from available options.
+                                                                {form.data.trackerSearch ? 
+                                                                    'No matching profiles found for this client.' : 
+                                                                    'No profiles available for this client.'}
                                                             </div>
                                                         )}
                                                     </div>
