@@ -425,12 +425,24 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-white">
-                                                    {client.upwork_profile && (
+                                                    {/* Display multiple profiles */}
+                                                    {client.upwork_profiles && client.upwork_profiles.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {client.upwork_profiles.map((profile, index) => (
+                                                                <span key={profile.id} className="inline-flex px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-md backdrop-blur-xl border border-purple-400/30">
+                                                                    {profile.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {/* Fallback to single profile for backward compatibility */}
+                                                    {(!client.upwork_profiles || client.upwork_profiles.length === 0) && client.upwork_profile && (
                                                         <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-md backdrop-blur-xl border border-purple-400/30">
                                                             {client.upwork_profile.name}
                                                         </span>
                                                     )}
-                                                    {!client.upwork_profile && (
+                                                    {/* No profiles at all */}
+                                                    {(!client.upwork_profiles || client.upwork_profiles.length === 0) && !client.upwork_profile && (
                                                         <span className="text-white/50 text-xs">Not set</span>
                                                     )}
                                                 </td>

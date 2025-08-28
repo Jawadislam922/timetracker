@@ -29,4 +29,9 @@ class UpworkProfile extends Model
     {
         return $query->where('is_active', true);
     }
+
+    public function clients()
+    {
+        return $this->belongsToMany(Client::class);
+    }
 }

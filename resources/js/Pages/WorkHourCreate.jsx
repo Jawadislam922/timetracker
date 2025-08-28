@@ -69,15 +69,29 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         const selectedClient = clients.find(client => client.id == form.data.client_id);
         if (!selectedClient) return trackers;
         
-        // If client has an associated upwork profile, filter to show only that profile
-        if (selectedClient.upwork_profile && selectedClient.upwork_profile.name) {
-            const clientProfileName = selectedClient.upwork_profile.name;
-            console.log(`Filtering trackers for client: ${selectedClient.name}, profile: ${clientProfileName}`);
-            return trackers.filter(tracker => tracker === clientProfileName);
+        // Collect all associated profile names
+        let availableProfiles = [];
+        
+        // Check for multiple profiles first (new many-to-many relationship)
+        if (selectedClient.upwork_profiles && selectedClient.upwork_profiles.length > 0) {
+            availableProfiles = selectedClient.upwork_profiles.map(profile => profile.name);
+            console.log(`Client: ${selectedClient.name} has ${availableProfiles.length} profiles: ${availableProfiles.join(', ')}`);
+        }
+        // Fallback to single profile (old relationship) for backward compatibility
+        else if (selectedClient.upwork_profile && selectedClient.upwork_profile.name) {
+            availableProfiles = [selectedClient.upwork_profile.name];
+            console.log(`Client: ${selectedClient.name} has 1 profile (legacy): ${availableProfiles[0]}`);
         }
         
-        // If no specific profile assigned to client, show all trackers
-        console.log(`No specific profile for client: ${selectedClient.name}, showing all trackers`);
+        // If client has associated profiles, filter trackers to show only those profiles
+        if (availableProfiles.length > 0) {
+            const filteredTrackers = trackers.filter(tracker => availableProfiles.includes(tracker));
+            console.log(`Filtered trackers for client: ${selectedClient.name}`, filteredTrackers);
+            return filteredTrackers;
+        }
+        
+        // If no specific profiles assigned to client, show all trackers
+        console.log(`No specific profiles for client: ${selectedClient.name}, showing all trackers`);
         return trackers;
     };
     
@@ -534,11 +548,22 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                                 <div className="mt-1 text-xs text-purple-300">
                                                     {(() => {
                                                         const selectedClient = clients.find(client => client.id == form.data.client_id);
-                                                        if (selectedClient && selectedClient.upwork_profile) {
-                                                            return `Showing profile for: ${selectedClient.name} (1 available)`;
-                                                        } else {
-                                                            return `Showing all profiles for: ${selectedClient?.name || 'selected client'} (${getFilteredTrackers().length} available)`;
+                                                        if (selectedClient) {
+                                                            // Count available profiles
+                                                            let profileCount = 0;
+                                                            if (selectedClient.upwork_profiles && selectedClient.upwork_profiles.length > 0) {
+                                                                profileCount = selectedClient.upwork_profiles.length;
+                                                            } else if (selectedClient.upwork_profile) {
+                                                                profileCount = 1;
+                                                            }
+                                                            
+                                                            if (profileCount > 0) {
+                                                                return `Showing ${profileCount} profile${profileCount > 1 ? 's' : ''} for: ${selectedClient.name} (${getFilteredTrackers().length} available)`;
+                                                            } else {
+                                                                return `Showing all profiles for: ${selectedClient.name} (${getFilteredTrackers().length} available)`;
+                                                            }
                                                         }
+                                                        return 'Select a client to see available profiles';
                                                     })()}
                                                 </div>
                                             )}

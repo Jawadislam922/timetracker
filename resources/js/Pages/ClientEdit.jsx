@@ -5,18 +5,21 @@ import TagInput from '../Components/TagInput';
 import { Head, useForm, Link } from '@inertiajs/react';
 
 export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) {
+    // Initialize with existing multiple profiles or fallback to single profile
+    const initialProfileIds = client.upwork_profiles && client.upwork_profiles.length > 0 
+        ? client.upwork_profiles.map(p => p.id)
+        : (client.upwork_profile_id ? [client.upwork_profile_id] : []);
+
     const form = useForm({
         name: client.name || '',
         tags: client.tags || [],
         work_type: client.work_type || '',
-        upwork_profile_id: client.upwork_profile_id || '',
+        upwork_profile_ids: initialProfileIds, // Changed to support multiple profiles
     });
 
     // Search and dropdown states
     const [workTypeSearch, setWorkTypeSearch] = React.useState(workTypes?.[client.work_type] || '');
-    const [profileSearch, setProfileSearch] = React.useState(
-        upworkProfiles?.find(p => p.id == client.upwork_profile_id)?.name || ''
-    );
+    const [profileSearch, setProfileSearch] = React.useState('');
     const [showWorkTypeDropdown, setShowWorkTypeDropdown] = React.useState(false);
     const [showProfileDropdown, setShowProfileDropdown] = React.useState(false);
     
@@ -34,10 +37,10 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
     // Check if profile is required for the selected work type
     const isProfileRequired = form.data.work_type && ['tracker_manual', 'fixed'].includes(form.data.work_type);
     
-    // Reset profile when work type changes and profile is not required
+    // Reset profiles when work type changes and profile is not required
     React.useEffect(() => {
-        if (!isProfileRequired && form.data.upwork_profile_id) {
-            form.setData('upwork_profile_id', '');
+        if (!isProfileRequired && form.data.upwork_profile_ids.length > 0) {
+            form.setData('upwork_profile_ids', []);
             setProfileSearch('');
         }
     }, [form.data.work_type]);
@@ -68,9 +71,10 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
         value.toLowerCase().includes(workTypeSearch.toLowerCase())
     );
 
-    // Filter profiles based on search
+    // Filter profiles based on search and exclude already selected ones
     const filteredProfiles = upworkProfiles?.filter(profile =>
-        profile.name.toLowerCase().includes(profileSearch.toLowerCase())
+        profile.name.toLowerCase().includes(profileSearch.toLowerCase()) &&
+        !form.data.upwork_profile_ids.includes(profile.id)
     ) || [];
 
     // Handle work type selection
@@ -82,10 +86,25 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
 
     // Handle profile selection
     const handleProfileSelect = (profile) => {
-        form.setData('upwork_profile_id', profile.id);
-        setProfileSearch(profile.name);
+        const currentProfiles = [...form.data.upwork_profile_ids];
+        if (!currentProfiles.includes(profile.id)) {
+            currentProfiles.push(profile.id);
+            form.setData('upwork_profile_ids', currentProfiles);
+        }
+        setProfileSearch('');
         setShowProfileDropdown(false);
     };
+
+    // Handle profile removal
+    const handleProfileRemove = (profileId) => {
+        const updatedProfiles = form.data.upwork_profile_ids.filter(id => id !== profileId);
+        form.setData('upwork_profile_ids', updatedProfiles);
+    };
+
+    // Get selected profiles for display
+    const selectedProfiles = upworkProfiles?.filter(profile => 
+        form.data.upwork_profile_ids.includes(profile.id)
+    ) || [];
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl text-slate-100 leading-tight">Edit Client</h2>}>
@@ -158,48 +177,89 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                     {form.errors.work_type && <div className="text-red-400 text-sm mt-2">{form.errors.work_type}</div>}
                                 </div>
 
-                                {/* Upwork Profile - conditionally shown with search */}
+                                {/* Upwork Profiles - conditionally shown with search and multiple selection */}
                                 {(isProfileRequired) && (
-                                    <div ref={profileRef} className="relative">
+                                    <div>
                                         <label className="block text-sm font-semibold text-white/90 mb-3">
-                                            Upwork Profile 
+                                            Upwork Profiles 
                                             {isProfileRequired && <span className="text-red-400">*</span>}
                                             {!isProfileRequired && <span className="text-white/50 font-normal ml-2">(optional)</span>}
                                         </label>
-                                        <input
-                                            type="text"
-                                            placeholder={isProfileRequired ? 'Search and select upwork profile...' : 'Search and select upwork profile (optional)...'}
-                                            value={profileSearch}
-                                            onChange={(e) => {
-                                                setProfileSearch(e.target.value);
-                                                setShowProfileDropdown(true);
-                                            }}
-                                            onFocus={() => setShowProfileDropdown(true)}
-                                            className="w-full px-4 py-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-white placeholder-white/50"
-                                            required={isProfileRequired}
-                                        />
-                                        {showProfileDropdown && filteredProfiles.length > 0 && (
-                                            <div ref={profileDropdownRef} className="absolute z-50 w-full mt-1 bg-slate-800 border border-white/20 rounded-xl shadow-2xl backdrop-blur-xl max-h-60 overflow-y-auto">
-                                                {filteredProfiles.map((profile) => (
-                                                    <button
-                                                        key={profile.id}
-                                                        type="button"
-                                                        onClick={() => handleProfileSelect(profile)}
-                                                        className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition-all first:rounded-t-xl last:rounded-b-xl"
-                                                    >
-                                                        <div>
-                                                            <div className="font-medium">{profile.name}</div>
-                                                            {profile.email && <div className="text-sm text-white/70">{profile.email}</div>}
+
+                                        {/* Selected Profiles Display */}
+                                        {selectedProfiles.length > 0 && (
+                                            <div className="mb-3">
+                                                <p className="text-sm text-white/70 mb-2">Selected Profiles:</p>
+                                                <div className="space-y-2">
+                                                    {selectedProfiles.map((profile) => (
+                                                        <div
+                                                            key={profile.id}
+                                                            className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-lg"
+                                                        >
+                                                            <div>
+                                                                <div className="font-medium text-white">{profile.name}</div>
+                                                                {profile.email && <div className="text-sm text-white/70">{profile.email}</div>}
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleProfileRemove(profile.id)}
+                                                                className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                                                                title="Remove profile"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
                                                         </div>
-                                                    </button>
-                                                ))}
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
-                                        {form.errors.upwork_profile_id && <div className="text-red-400 text-sm mt-2">{form.errors.upwork_profile_id}</div>}
+
+                                        {/* Search Input */}
+                                        <div ref={profileRef} className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder={isProfileRequired ? 'Search and select upwork profiles...' : 'Search and select upwork profiles (optional)...'}
+                                                value={profileSearch}
+                                                onChange={(e) => {
+                                                    setProfileSearch(e.target.value);
+                                                    setShowProfileDropdown(true);
+                                                }}
+                                                onFocus={() => setShowProfileDropdown(true)}
+                                                className="w-full px-4 py-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-white placeholder-white/50"
+                                            />
+                                            {showProfileDropdown && filteredProfiles.length > 0 && (
+                                                <div ref={profileDropdownRef} className="absolute z-50 w-full mt-1 bg-slate-800 border border-white/20 rounded-xl shadow-2xl backdrop-blur-xl max-h-60 overflow-y-auto">
+                                                    {filteredProfiles.map((profile) => (
+                                                        <button
+                                                            key={profile.id}
+                                                            type="button"
+                                                            onClick={() => handleProfileSelect(profile)}
+                                                            className="w-full px-4 py-3 text-left text-white hover:bg-white/10 transition-all first:rounded-t-xl last:rounded-b-xl"
+                                                        >
+                                                            <div>
+                                                                <div className="font-medium">{profile.name}</div>
+                                                                {profile.email && <div className="text-sm text-white/70">{profile.email}</div>}
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {filteredProfiles.length === 0 && profileSearch && showProfileDropdown && (
+                                                <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-white/20 rounded-xl shadow-2xl backdrop-blur-xl">
+                                                    <div className="px-4 py-3 text-white/70 text-sm">
+                                                        No available profiles found
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {form.errors.upwork_profile_ids && <div className="text-red-400 text-sm mt-2">{form.errors.upwork_profile_ids}</div>}
+                                        </div>
+                                        
                                         <p className="text-white/60 text-sm mt-2">
                                             {isProfileRequired 
-                                                ? 'Select the Upwork profile associated with this client'
-                                                : 'Optionally select an Upwork profile for this client'
+                                                ? 'Select one or more Upwork profiles associated with this client'
+                                                : 'Optionally select Upwork profiles for this client'
                                             }
                                         </p>
                                     </div>
@@ -243,10 +303,25 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                         </div>
                                         
                                         <div>
-                                            <p className="text-sm text-white/60 mb-1">Current Upwork Profile:</p>
-                                            <span className="inline-flex px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-md backdrop-blur-xl border border-purple-400/30">
-                                                {client.upwork_profile?.name || 'Not set'}
-                                            </span>
+                                            <p className="text-sm text-white/60 mb-1">Current Upwork Profiles:</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {/* Show multiple profiles if they exist */}
+                                                {client.upwork_profiles && client.upwork_profiles.length > 0 ? (
+                                                    client.upwork_profiles.map((profile) => (
+                                                        <span key={profile.id} className="inline-flex px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-md backdrop-blur-xl border border-purple-400/30">
+                                                            {profile.name}
+                                                        </span>
+                                                    ))
+                                                ) : client.upwork_profile ? (
+                                                    <span className="inline-flex px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-md backdrop-blur-xl border border-purple-400/30">
+                                                        {client.upwork_profile.name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex px-3 py-1 text-xs font-medium bg-gray-500/20 text-gray-300 rounded-md backdrop-blur-xl border border-gray-400/30">
+                                                        Not set
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     

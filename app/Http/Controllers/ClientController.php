@@ -20,7 +20,7 @@ class ClientController extends Controller
                 $perPage = 10;
             }
             
-            $query = Client::with('upworkProfile')->orderBy('name');
+            $query = Client::with(['upworkProfile', 'upworkProfiles'])->orderBy('name');
             
             // Apply search filter if search term is provided
             if (!empty($search)) {
@@ -82,16 +82,41 @@ class ClientController extends Controller
             'work_type' => 'required|string|in:' . implode(',', array_keys(Client::getWorkTypes())),
         ];
         
-        // Make upwork_profile_id conditionally required
+        // Make upwork_profile_ids conditionally required for multiple profiles
         if (Client::isProfileRequired($request->work_type)) {
-            $rules['upwork_profile_id'] = 'required|exists:upwork_profiles,id';
+            $rules['upwork_profile_ids'] = 'required|array|min:1';
+            $rules['upwork_profile_ids.*'] = 'exists:upwork_profiles,id';
         } else {
-            $rules['upwork_profile_id'] = 'nullable|exists:upwork_profiles,id';
+            $rules['upwork_profile_ids'] = 'nullable|array';
+            $rules['upwork_profile_ids.*'] = 'exists:upwork_profiles,id';
+        }
+        
+        // Keep backward compatibility for single profile
+        if ($request->has('upwork_profile_id') && !$request->has('upwork_profile_ids')) {
+            if (Client::isProfileRequired($request->work_type)) {
+                $rules['upwork_profile_id'] = 'required|exists:upwork_profiles,id';
+            } else {
+                $rules['upwork_profile_id'] = 'nullable|exists:upwork_profiles,id';
+            }
         }
         
         $validated = $request->validate($rules);
         
-        Client::create($validated);
+        // Create the client first
+        $clientData = [
+            'name' => $validated['name'],
+            'tags' => $validated['tags'] ?? [],
+            'work_type' => $validated['work_type'],
+            'upwork_profile_id' => $validated['upwork_profile_id'] ?? null, // Keep for backward compatibility
+        ];
+        
+        $client = Client::create($clientData);
+        
+        // Attach multiple profiles if provided
+        if (isset($validated['upwork_profile_ids']) && is_array($validated['upwork_profile_ids'])) {
+            $client->upworkProfiles()->attach($validated['upwork_profile_ids']);
+        }
+        
         return redirect()->route('clients.index')->with('success', 'Client created.');
     }
 
@@ -101,7 +126,7 @@ class ClientController extends Controller
         $workTypes = Client::getWorkTypes();
         
         return Inertia::render('ClientEdit', [
-            'client' => $client->load('upworkProfile'),
+            'client' => $client->load(['upworkProfile', 'upworkProfiles']),
             'upworkProfiles' => $upworkProfiles,
             'workTypes' => $workTypes,
         ]);
@@ -116,16 +141,41 @@ class ClientController extends Controller
             'work_type' => 'required|string|in:' . implode(',', array_keys(Client::getWorkTypes())),
         ];
         
-        // Make upwork_profile_id conditionally required
+        // Make upwork_profile_ids conditionally required for multiple profiles
         if (Client::isProfileRequired($request->work_type)) {
-            $rules['upwork_profile_id'] = 'required|exists:upwork_profiles,id';
+            $rules['upwork_profile_ids'] = 'required|array|min:1';
+            $rules['upwork_profile_ids.*'] = 'exists:upwork_profiles,id';
         } else {
-            $rules['upwork_profile_id'] = 'nullable|exists:upwork_profiles,id';
+            $rules['upwork_profile_ids'] = 'nullable|array';
+            $rules['upwork_profile_ids.*'] = 'exists:upwork_profiles,id';
+        }
+        
+        // Keep backward compatibility for single profile
+        if ($request->has('upwork_profile_id') && !$request->has('upwork_profile_ids')) {
+            if (Client::isProfileRequired($request->work_type)) {
+                $rules['upwork_profile_id'] = 'required|exists:upwork_profiles,id';
+            } else {
+                $rules['upwork_profile_id'] = 'nullable|exists:upwork_profiles,id';
+            }
         }
         
         $validated = $request->validate($rules);
         
-        $client->update($validated);
+        // Update the client data
+        $clientData = [
+            'name' => $validated['name'],
+            'tags' => $validated['tags'] ?? [],
+            'work_type' => $validated['work_type'],
+            'upwork_profile_id' => $validated['upwork_profile_id'] ?? null, // Keep for backward compatibility
+        ];
+        
+        $client->update($clientData);
+        
+        // Sync multiple profiles if provided
+        if (isset($validated['upwork_profile_ids']) && is_array($validated['upwork_profile_ids'])) {
+            $client->upworkProfiles()->sync($validated['upwork_profile_ids']);
+        }
+        
         return redirect()->route('clients.index')->with('success', 'Client updated.');
     }
 
@@ -155,17 +205,25 @@ class ClientController extends Controller
     public function export()
     {
         try {
-            $clients = Client::with('upworkProfile')->get();
+            $clients = Client::with(['upworkProfile', 'upworkProfiles'])->get();
             
             $csvData = [];
-            $csvData[] = ['ID', 'Name', 'Work Type', 'Upwork Profile', 'Tags', 'Created At']; // Header
+            $csvData[] = ['ID', 'Name', 'Work Type', 'Upwork Profiles', 'Tags', 'Created At']; // Header
             
             foreach ($clients as $client) {
+                // Get all profiles (both single and multiple)
+                $profileNames = [];
+                if ($client->upworkProfiles && $client->upworkProfiles->count() > 0) {
+                    $profileNames = $client->upworkProfiles->pluck('name')->toArray();
+                } elseif ($client->upworkProfile) {
+                    $profileNames = [$client->upworkProfile->name];
+                }
+                
                 $csvData[] = [
                     $client->id,
                     $client->name,
                     Client::getWorkTypes()[$client->work_type] ?? $client->work_type,
-                    $client->upworkProfile->name ?? '',
+                    implode('; ', $profileNames),
                     is_array($client->tags) ? implode(', ', $client->tags) : '',
                     $client->created_at->format('Y-m-d H:i:s')
                 ];

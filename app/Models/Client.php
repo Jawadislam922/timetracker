@@ -13,7 +13,7 @@ class Client extends Model
         'name',
         'tags',
         'work_type',
-        'upwork_profile_id',
+        'upwork_profile_id', // Keep for backward compatibility during transition
     ];
 
     protected $casts = [
@@ -28,6 +28,11 @@ class Client extends Model
     public function upworkProfile()
     {
         return $this->belongsTo(UpworkProfile::class);
+    }
+
+    public function upworkProfiles()
+    {
+        return $this->belongsToMany(UpworkProfile::class);
     }
 
     // Define available work types
