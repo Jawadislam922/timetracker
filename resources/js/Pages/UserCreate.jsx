@@ -78,7 +78,7 @@ export default function UserCreate({ auth }) {
                                 <p className="text-white/70 text-lg">Create a new user account with role and avatar</p>
                             </div>
                             
-                            <form onSubmit={handleCreate} className="space-y-8">
+                            <form onSubmit={submitForm} className="space-y-8">
                                 {/* Avatar Upload Section */}
                                 <div className="flex flex-col items-center p-8 bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-2xl border border-white/20">
                                     <div className="mb-6">

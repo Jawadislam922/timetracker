@@ -1,6 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import EmployeeAnalytics from '@/Components/EmployeeAnalytics';
+import AdminAnalytics from '@/Components/AdminAnalytics';
 
 // Animated Spider Web Background Component
 const AnimatedBackground = () => {
@@ -155,7 +157,7 @@ const AnimatedBackground = () => {
     );
 };
 
-export default function Dashboard({ auth, stats }) {
+export default function Dashboard({ auth, stats, userRole, analytics, employees }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -173,7 +175,9 @@ export default function Dashboard({ auth, stats }) {
                         <div className="text-center mb-16">
                             <div className="inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-md border border-white/20 mb-6">
                                 <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
-                                <span className="text-white/80 text-sm font-medium">Welcome back, {auth.user?.name}</span>
+                                <span className="text-white/80 text-sm font-medium">
+                                    Welcome back, {auth.user?.name} ({userRole === 'admin' ? 'Admin' : 'Employee'})
+                                </span>
                             </div>
                             
                             <h1 className="text-4xl md:text-6xl font-bold mb-6">
@@ -187,66 +191,161 @@ export default function Dashboard({ auth, stats }) {
                             </h1>
                             
                             <p className="text-xl text-white/70 max-w-2xl mx-auto leading-relaxed">
-                                Transform your productivity with intelligent time tracking, 
-                                comprehensive analytics, and seamless team collaboration.
+                                {userRole === 'admin' 
+                                    ? 'Monitor team productivity, track performance metrics, and manage your workforce effectively.'
+                                    : 'Transform your productivity with intelligent time tracking and comprehensive personal analytics.'
+                                }
                             </p>
                         </div>
 
                         {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                            <div className="group">
-                                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-green-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-green-500/20">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg">
-                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                            </svg>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-bold text-white">{stats?.weekHours?.value || '0h'}</div>
-                                            <div className="text-sm text-white/60">{stats?.weekHours?.label || 'This Week'}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-16">
+                            {userRole === 'admin' ? (
+                                <>
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-green-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-green-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.totalHours?.value || '0h'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.totalHours?.label || 'Total Hours'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Total Hours</h3>
+                                            <p className="text-sm text-white/60">Team worked today</p>
                                         </div>
                                     </div>
-                                    <h3 className="text-lg font-semibold text-white mb-1">Active Hours</h3>
-                                    <p className="text-sm text-white/60">{stats?.weekHours?.changeLabel || 'No data yet'}</p>
-                                </div>
-                            </div>
 
-                            <div className="group">
-                                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-blue-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
-                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                            </svg>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-bold text-white">{stats?.activeClients?.value || '0'}</div>
-                                            <div className="text-sm text-white/60">{stats?.activeClients?.label || 'Active'}</div>
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-blue-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.activeEmployees?.value || '0'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.activeEmployees?.label || 'Employees'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Employees</h3>
+                                            <p className="text-sm text-white/60">Total team members</p>
                                         </div>
                                     </div>
-                                    <h3 className="text-lg font-semibold text-white mb-1">Clients</h3>
-                                    <p className="text-sm text-white/60">{stats?.activeClients?.changeLabel || 'No clients yet'}</p>
-                                </div>
-                            </div>
 
-                            <div className="group">
-                                <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-purple-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg">
-                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                            </svg>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-bold text-white">{stats?.efficiency?.value || '0%'}</div>
-                                            <div className="text-sm text-white/60">{stats?.efficiency?.label || 'Efficiency'}</div>
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-purple-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.totalClients?.value || '0'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.totalClients?.label || 'Clients'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Clients</h3>
+                                            <p className="text-sm text-white/60">Total clients</p>
                                         </div>
                                     </div>
-                                    <h3 className="text-lg font-semibold text-white mb-1">Performance</h3>
-                                    <p className="text-sm text-white/60">{stats?.efficiency?.changeLabel || 'No data yet'}</p>
-                                </div>
-                            </div>
+
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-yellow-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-yellow-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.teamEfficiency?.value || '0%'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.teamEfficiency?.label || 'Efficiency'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Efficiency</h3>
+                                            <p className="text-sm text-white/60">Team performance</p>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-green-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-green-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.weekHours?.value || '0h'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.weekHours?.label || 'This Week'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Active Hours</h3>
+                                            <p className="text-sm text-white/60">{stats?.weekHours?.changeLabel || 'No data yet'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-blue-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.activeClients?.value || '0'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.activeClients?.label || 'Active'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Clients</h3>
+                                            <p className="text-sm text-white/60">{stats?.activeClients?.changeLabel || 'No clients yet'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="group">
+                                        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-purple-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-2xl font-bold text-white">{stats?.efficiency?.value || '0%'}</div>
+                                                    <div className="text-sm text-white/60">{stats?.efficiency?.label || 'Efficiency'}</div>
+                                                </div>
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-white mb-1">Performance</h3>
+                                            <p className="text-sm text-white/60">{stats?.efficiency?.changeLabel || 'No data yet'}</p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Analytics Section - Always show for better UX */}
+                        <div className="mb-16">
+                            {userRole === 'admin' ? (
+                                <AdminAnalytics 
+                                    analytics={analytics || {}} 
+                                    employees={employees || []} 
+                                />
+                            ) : (
+                                <EmployeeAnalytics 
+                                    analytics={analytics || {}} 
+                                    user={auth.user} 
+                                />
+                            )}
                         </div>
 
                         {/* Quick Actions - Floating Action Bar */}
@@ -316,67 +415,19 @@ export default function Dashboard({ auth, stats }) {
                                 <Link href={route('work-hours.index')} className="group">
                                     <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-8 rounded-2xl border border-white/10 hover:border-green-400/50 transition-all duration-500 hover:shadow-2xl hover:shadow-green-500/20 hover:scale-105 hover:-translate-y-2">
                                         <div className="text-center">
-                                            <div className="p-4 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg mb-6 mx-auto w-fit group-hover:shadow-green-500/50 transition-all duration-300">
-                                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                            </div>
-                                            <h3 className="text-xl font-bold text-white mb-3">Work Hours</h3>
-                                            <p className="text-white/70 text-sm leading-relaxed">Track and manage your daily work hours with precision</p>
-                                        </div>
-                                    </div>
-                                </Link>
-
-                                {auth.user?.role === 'admin' && (
-                                    <>
-                                        <Link href={route('work-hours.report')} className="group">
-                                            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-8 rounded-2xl border border-white/10 hover:border-yellow-400/50 transition-all duration-500 hover:shadow-2xl hover:shadow-yellow-500/20 hover:scale-105 hover:-translate-y-2">
-                                                <div className="text-center">
-                                                    <div className="p-4 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl shadow-lg mb-6 mx-auto w-fit group-hover:shadow-yellow-500/50 transition-all duration-300">
-                                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                                        </svg>
-                                                    </div>
-                                                    <h3 className="text-xl font-bold text-white mb-3">Analytics</h3>
-                                                    <p className="text-white/70 text-sm leading-relaxed">Comprehensive reports and productivity insights</p>
-                                                </div>
-                                            </div>
-                                        </Link>
-
-                                        <Link href={route('clients.index')} className="group">
-                                            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-8 rounded-2xl border border-white/10 hover:border-blue-400/50 transition-all duration-500 hover:shadow-2xl hover:shadow-blue-500/20 hover:scale-105 hover:-translate-y-2">
-                                                <div className="text-center">
-                                                    <div className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg mb-6 mx-auto w-fit group-hover:shadow-blue-500/50 transition-all duration-300">
-                                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                                        </svg>
-                                                    </div>
-                                                    <h3 className="text-xl font-bold text-white mb-3">Clients</h3>
-                                                    <p className="text-white/70 text-sm leading-relaxed">Organize and manage your client portfolio</p>
-                                                </div>
-                                            </div>
-                                        </Link>
-
-                                        <Link href={route('users.index')} className="group">
-                                            <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-8 rounded-2xl border border-white/10 hover:border-purple-400/50 transition-all duration-500 hover:shadow-2xl hover:shadow-purple-500/20 hover:scale-105 hover:-translate-y-2">
-                                                <div className="text-center">
-                                                    <div className="p-4 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg mb-6 mx-auto w-fit group-hover:shadow-purple-500/50 transition-all duration-300">
-                                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                                        </svg>
-                                                    </div>
-                                                    <h3 className="text-xl font-bold text-white mb-3">Users</h3>
-                                                    <p className="text-white/70 text-sm leading-relaxed">Manage team members and permissions</p>
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}
+                                            ```
+                                                                                        <div className="p-4 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg mb-6 mx-auto w-fit group-hover:shadow-green-500/50 transition-all duration-300"></div>
+                                                                                        <h3 className="text-lg font-semibold text-white mb-2">Work Hours</h3>
+                                                                                        <p className="text-sm text-white/70">View and manage your work sessions</p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </Link>
+                                                                            {/* Add other navigation cards here as needed */}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </AuthenticatedLayout>
+                                                );
+                                            }
