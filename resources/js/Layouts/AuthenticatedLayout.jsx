@@ -61,7 +61,7 @@ export default function Authenticated({ user, header, children }) {
                                         <div className="group flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-gradient-to-r hover:from-purple-50 hover:to-violet-50 hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-purple-200/50">
                                             <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 group-hover:from-purple-600 group-hover:to-purple-700 shadow-sm group-hover:shadow-md transition-all duration-300">
                                                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 616 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 0 1 6 0z" />
                                             </svg>
                                         </div>
                                         <span className="font-semibold text-slate-700 group-hover:text-purple-700 transition-colors duration-300">Clients</span>
@@ -88,6 +88,16 @@ export default function Authenticated({ user, header, children }) {
                                             </svg>
                                         </div>
                                         <span className="font-semibold text-slate-700 group-hover:text-emerald-700 transition-colors duration-300">Work diary</span>
+                                    </div>
+                                </NavLink>
+                                <NavLink href={route('portfolio.index')} active={['portfolio.index', 'portfolio.create', 'portfolio.edit', 'portfolio.edit.slug'].some(r => route().current(r))}>
+                                    <div className="group flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-indigo-200/50">
+                                        <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 group-hover:from-indigo-600 group-hover:to-indigo-700 shadow-sm group-hover:shadow-md transition-all duration-300">
+                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 00-2 2v2a2 2 0 002 2m0 0h14m-14 0a2 2 0 002 2v2a2 2 0 01-2 2M19 13a2 2 0 00-2-2v2a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <span className="font-semibold text-slate-700 group-hover:text-indigo-700 transition-colors duration-300">Portfolio</span>
                                     </div>
                                 </NavLink>
                                 {user?.role === 'admin' && (
@@ -139,7 +149,7 @@ export default function Authenticated({ user, header, children }) {
                                         <Dropdown.Link href={route('logout')} method="post" as="button">
                                             <div className="flex items-center">
                                                 <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 713-3h4a3 3 0 713 3v1" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1" />
                                                 </svg>
                                                 Log Out
                                             </div>
@@ -182,7 +192,7 @@ export default function Authenticated({ user, header, children }) {
                         <ResponsiveNavLink href={route('dashboard')} active={route().current('dashboard')}>
                             <div className="flex items-center space-x-3">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 712-2h2a2 2 0 712 2v2a2 2 0 71-2 2H6a2 2 0 71-2-2V6z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" />
                                 </svg>
                                 <span>Dashboard</span>
                             </div>
@@ -202,7 +212,7 @@ export default function Authenticated({ user, header, children }) {
                                 <ResponsiveNavLink href={route('clients.index')} active={['clients.index', 'clients.create', 'clients.edit'].some(r => route().current(r))}>
                                     <div className="flex items-center space-x-3">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 616 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 616 0z" />
                                         </svg>
                                         <span>Clients</span>
                                     </div>
@@ -229,7 +239,7 @@ export default function Authenticated({ user, header, children }) {
                                 <ResponsiveNavLink href={route('work-hours.report')} active={['work-hours.report'].some(r => route().current(r))}>
                                     <div className="flex items-center space-x-3">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 712 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2" />
                                         </svg>
                                         <span>Report</span>
                                     </div>
@@ -273,7 +283,7 @@ export default function Authenticated({ user, header, children }) {
                             <ResponsiveNavLink method="post" href={route('logout')} as="button">
                                 <div className="flex items-center space-x-3">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 71-3 3H6a3 3 0 71-3-3V7a3 3 0 713-3h4a3 3 0 713 3v1" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1" />
                                     </svg>
                                     <span>Log Out</span>
                                 </div>
@@ -289,7 +299,7 @@ export default function Authenticated({ user, header, children }) {
                         <div className="flex items-center space-x-3">
                             <div className="p-2 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg shadow-sm">
                                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 712-2h2a2 2 0 712 2v2a2 2 0 71-2 2H6a2 2 0 71-2-2V6z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" />
                                 </svg>
                             </div>
                             <h1 className="text-xl font-bold text-slate-900">

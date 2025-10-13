@@ -3,6 +3,8 @@
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\PortfolioController;
+use App\Http\Controllers\PortfolioUploadController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -27,12 +29,25 @@ Route::get('/', function () {
     ]);
 });
 
+// Public portfolio view
+Route::get('/portfolio/{slug}', [PortfolioController::class, 'showPublic'])->name('portfolio.public');
+
 Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Portfolio management routes
+    Route::get('/app/portfolio', [PortfolioController::class, 'index'])->name('portfolio.index');
+    Route::get('/app/portfolio/new', [PortfolioController::class, 'create'])->name('portfolio.create');
+    Route::post('/app/portfolio', [PortfolioController::class, 'store'])->name('portfolio.store');
+    Route::get('/app/portfolio/{id}/edit', [PortfolioController::class, 'edit'])->name('portfolio.edit');
+    Route::get('/app/portfolio/{slug}', [PortfolioController::class, 'editBySlug'])->name('portfolio.edit.slug');
+    Route::put('/app/portfolio/{id}', [PortfolioController::class, 'update'])->name('portfolio.update');
+    Route::post('/app/portfolio/{id}/publish', [PortfolioController::class, 'publish'])->name('portfolio.publish');
+    Route::post('/app/upload-image', [PortfolioUploadController::class, 'store'])->name('portfolio.upload');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
