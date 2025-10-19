@@ -64,6 +64,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('clients', ClientController::class);
         
         Route::resource('upwork-profiles', \App\Http\Controllers\UpworkProfileController::class);
+        
+        // Employee Attendance routes
+        Route::get('/employee-attendance', [\App\Http\Controllers\EmployeeAttendanceController::class, 'index'])->name('employee-attendance.index');
+        Route::get('/employee-attendance/summary', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getSummary'])->name('employee-attendance.summary');
+        Route::get('/employee-attendance/detailed', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getDetailed'])->name('employee-attendance.detailed');
+        Route::get('/employee-attendance/timeline', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getTimeline'])->name('employee-attendance.timeline');
+        Route::get('/employee-attendance/export', [\App\Http\Controllers\EmployeeAttendanceController::class, 'export'])->name('employee-attendance.export');
     });
 
     // Routes accessible to both admin and employee

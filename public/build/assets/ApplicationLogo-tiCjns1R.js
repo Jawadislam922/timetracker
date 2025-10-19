@@ -1,1 +1,0 @@
-import{j as o}from"./app-D2fuLSNg.js";function i({size:a="40"}){return o.jsx("div",{className:"flex justify-center",children:o.jsx("img",{src:"/images/sparking-asia-logo.png",className:`w-${a} h-${a} object-contain filter drop-shadow-lg`,alt:"Sparking Asia Logo"})})}export{i as A};
