@@ -22,14 +22,8 @@ return new class extends Migration
             $table->rememberToken();
             $table->timestamps();
         });
-
-        User::create([
-            'name' => 'Admin',
-            'email' => 'zulfiqarpk92@gmail.com',
-            'role' => 'admin',
-            'email_verified_at' => now(),
-            'password' => bcrypt('pass4Sparking'),
-        ]);
+        
+        // Admin user should be created using seeder: php artisan db:seed --class=AdminUserSeeder
     }
 
     /**

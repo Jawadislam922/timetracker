@@ -1,66 +1,274 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ⏱️ Time Tracker Application
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A comprehensive time tracking and portfolio management system built with Laravel 10 and React (Inertia.js).
 
-## About Laravel
+## 📋 Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Time Management
+- **Work Hours Tracking** - Log and manage work hours with client assignments
+- **Time Entry System** - Real-time clock in/out functionality
+- **Time Reports** - Generate detailed reports with export capabilities
+- **Client Management** - Organize work by clients with tags and work types
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### Portfolio Management
+- **Employee Portfolios** - Create and manage professional portfolios
+- **Multiple Themes** - Choose from 6 built-in themes (emerald, indigo, rose, amber, sparkingasia, lime)
+- **Public Portfolio URLs** - Share portfolios via custom slug URLs
+- **Draft Mode** - Save portfolios as drafts before publishing
+- **Portfolio Items** - Showcase projects with images, descriptions, and links
+- **Sections**: Profile, About, Services, Skills, Employment, Stats, Contact
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### User Management
+- **Role-based Access Control** - Admin and Employee roles
+- **User Profiles** - Avatar uploads, designations, and personal info
+- **Email Verification** - Built-in authentication with Laravel Breeze
 
-## Learning Laravel
+### Upwork Integration
+- **Upwork Profiles** - Manage multiple Upwork accounts
+- **Client-Profile Linking** - Associate clients with Upwork profiles
+- **Work Type Classification** - Tracker/Manual, Fixed, Outside of Upwork
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## 🛠️ Tech Stack
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### Backend
+- **Laravel 10.x** - PHP Framework
+- **MySQL** - Database
+- **Laravel Sanctum** - API Authentication
+- **Inertia.js** - Server-side rendering adapter
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Frontend
+- **React 18** - UI Library
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Utility-first CSS
+- **Vite** - Build tool
+- **Chart.js** - Data visualization
+- **React Hook Form** - Form handling
+- **Zod** - Schema validation
 
-## Laravel Sponsors
+## 📦 Installation
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Prerequisites
+- PHP 8.1 or higher
+- Composer
+- Node.js 16+ and npm
+- MySQL 5.7+
 
-### Premium Partners
+### Setup Steps
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+1. **Clone the repository**
+```bash
+git clone <repository-url>
+cd timetracker
+```
 
-## Contributing
+2. **Install PHP dependencies**
+```bash
+composer install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+3. **Install Node dependencies**
+```bash
+npm install
+```
 
-## Code of Conduct
+4. **Environment setup**
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+5. **Configure database**
+Update `.env` with your database credentials:
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=timetracker
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-## Security Vulnerabilities
+6. **Configure admin user** (Optional)
+Add to `.env`:
+```env
+ADMIN_NAME="Admin User"
+ADMIN_EMAIL="admin@example.com"
+ADMIN_PASSWORD="secure_password_here"
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+7. **Run migrations**
+```bash
+php artisan migrate
+```
 
-## License
+8. **Create admin user**
+```bash
+php artisan db:seed --class=AdminUserSeeder
+# OR interactively:
+php artisan user:create-admin
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+9. **Create storage symlink**
+```bash
+php artisan storage:link
+```
+
+10. **Build frontend assets**
+```bash
+# Development
+npm run dev
+
+# Production
+npm run build
+```
+
+11. **Start the server**
+```bash
+php artisan serve
+```
+
+Visit `http://localhost:8000` in your browser.
+
+## 🗂️ Project Structure
+
+```
+timetracker/
+├── app/
+│   ├── Console/Commands/       # Artisan commands
+│   ├── Http/
+│   │   ├── Controllers/        # Application controllers
+│   │   ├── Middleware/         # Custom middleware
+│   │   └── Requests/           # Form request validation
+│   ├── Models/                 # Eloquent models
+│   └── Policies/               # Authorization policies
+├── database/
+│   ├── migrations/             # Database migrations
+│   └── seeders/                # Database seeders
+├── resources/
+│   ├── js/
+│   │   ├── Components/         # React components
+│   │   ├── Layouts/            # Layout components
+│   │   └── Pages/              # Inertia pages
+│   └── css/                    # Stylesheets
+├── routes/
+│   ├── web.php                 # Web routes
+│   └── api.php                 # API routes
+└── public/                     # Public assets
+```
+
+## 🎯 Usage
+
+### Creating Portfolios
+
+1. Navigate to **Portfolio** section
+2. Click **Create New Portfolio**
+3. Fill in your details:
+   - Profile information (name, title, tagline)
+   - About section
+   - Services offered
+   - Skills (grouped by categories)
+   - Employment history
+   - Portfolio items (projects)
+   - Contact information
+4. Choose a theme
+5. Save as draft or publish immediately
+6. Share your public portfolio URL: `/portfolio/{your-slug}`
+
+### Time Tracking
+
+1. **Quick Entry**: Use the dashboard timer to clock in/out
+2. **Manual Entry**: Add work hours with client, date, and description
+3. **Reports**: Generate filtered reports by date range, user, or client
+4. **Export**: Download reports as Excel files
+
+### Managing Clients
+
+1. Navigate to **Clients**
+2. Add client details (name, tags, work type)
+3. Associate with Upwork profiles if applicable
+4. Import/Export clients in bulk via Excel
+
+## 🔐 User Roles
+
+### Admin
+- Full access to all features
+- User management (create, edit, delete users)
+- View all work hours and time entries
+- Client and Upwork profile management
+- System-wide reports
+
+### Employee
+- Personal time tracking
+- Portfolio management
+- View personal work hours
+- Export personal time reports
+
+## 🚀 Artisan Commands
+
+```bash
+# Create admin user interactively
+php artisan user:create-admin
+
+# Create admin with options
+php artisan user:create-admin --name="Admin" --email="admin@example.com" --password="secret"
+
+# Migrate portfolio contact data
+php artisan portfolio:migrate-contact
+
+# Migrate portfolio skills format
+php artisan portfolio:migrate-skills
+```
+
+## 🧪 Testing
+
+```bash
+# Run PHPUnit tests
+php artisan test
+
+# Run specific test
+php artisan test --filter=ExampleTest
+```
+
+## 📝 Environment Variables
+
+Key environment variables:
+
+```env
+APP_NAME="Time Tracker"
+APP_URL=http://localhost
+
+ADMIN_NAME="Admin User"
+ADMIN_EMAIL="admin@example.com"
+ADMIN_PASSWORD="secure_password"
+
+DB_DATABASE=timetracker
+DB_USERNAME=root
+DB_PASSWORD=
+
+VITE_APP_NAME="${APP_NAME}"
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🐛 Known Issues
+
+- None currently reported
+
+## 📞 Support
+
+For support, please contact the development team or open an issue on GitHub.
+
+---
+
+**Built with ❤️ using Laravel and React**
+

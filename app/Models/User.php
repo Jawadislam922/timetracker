@@ -68,4 +68,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(WorkHour::class);
     }
+
+    /**
+     * Get the time entries for the user.
+     */
+    public function timeEntries()
+    {
+        return $this->hasMany(TimeEntry::class);
+    }
 }
