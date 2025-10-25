@@ -69,15 +69,26 @@ const formatWorkType = (workType) => {
     return types[workType] || workType;
 };
 
-export default function WorkHoursReport({ auth, workHours, users = [], flash }) {
+export default function WorkHoursReport({ 
+    auth, 
+    workHours, 
+    users = [], 
+    flash,
+    filter = 'all',
+    startDate = null,
+    endDate = null,
+    userId = 'all',
+    workType = 'all',
+    client = 'all'
+}) {
     const [toast, setToast] = useState(flash?.success || flash?.error || '');
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
-    const [dateFilter, setDateFilter] = useState('week');
-    const [customStartDate, setCustomStartDate] = useState(null);
-    const [customEndDate, setCustomEndDate] = useState(null);
-    const [selectedUser, setSelectedUser] = useState('all');
-    const [selectedWorkType, setSelectedWorkType] = useState('all');
-    const [selectedClient, setSelectedClient] = useState('all');
+    const [dateFilter, setDateFilter] = useState(filter);
+    const [customStartDate, setCustomStartDate] = useState(startDate ? new Date(startDate) : null);
+    const [customEndDate, setCustomEndDate] = useState(endDate ? new Date(endDate) : null);
+    const [selectedUser, setSelectedUser] = useState(userId);
+    const [selectedWorkType, setSelectedWorkType] = useState(workType);
+    const [selectedClient, setSelectedClient] = useState(client);
     const [searchTerm, setSearchTerm] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -93,25 +104,32 @@ export default function WorkHoursReport({ auth, workHours, users = [], flash }) 
     const uniqueClients = [...new Set(workHours?.data?.map(entry => entry.client?.name).filter(Boolean))] || [];
     const uniqueWorkTypes = [...new Set(workHours?.data?.map(entry => entry.work_type).filter(Boolean))] || [];
 
-    // Apply filters
-    const applyFilters = () => {
+    // Apply filters with optional parameter overrides
+    const applyFilters = (overrides = {}) => {
+        const currentDateFilter = overrides.dateFilter !== undefined ? overrides.dateFilter : dateFilter;
+        const currentUser = overrides.selectedUser !== undefined ? overrides.selectedUser : selectedUser;
+        const currentWorkType = overrides.selectedWorkType !== undefined ? overrides.selectedWorkType : selectedWorkType;
+        const currentClient = overrides.selectedClient !== undefined ? overrides.selectedClient : selectedClient;
+        const currentStartDate = overrides.customStartDate !== undefined ? overrides.customStartDate : customStartDate;
+        const currentEndDate = overrides.customEndDate !== undefined ? overrides.customEndDate : customEndDate;
+        
         const params = {
-            user: selectedUser,
-            workType: selectedWorkType,
-            client: selectedClient,
-            filter: dateFilter,
+            userId: currentUser,
+            workType: currentWorkType,
+            client: currentClient,
+            filter: currentDateFilter,
         };
 
-        if (dateFilter === 'custom' && customStartDate && customEndDate) {
-            params.startDate = formatDateLocal(customStartDate);
-            params.endDate = formatDateLocal(customEndDate);
-        } else if (dateFilter !== 'all' && dateFilter !== 'custom') {
-            const range = getDateRange(dateFilter);
+        if (currentDateFilter === 'custom' && currentStartDate && currentEndDate) {
+            params.startDate = formatDateLocal(currentStartDate);
+            params.endDate = formatDateLocal(currentEndDate);
+        } else if (currentDateFilter !== 'all' && currentDateFilter !== 'custom') {
+            const range = getDateRange(currentDateFilter);
             params.startDate = range.start;
             params.endDate = range.end;
         }
 
-        router.get(route('work-hours-report.index'), params, {
+        router.get(route('work-hours.report'), params, {
             preserveState: true,
             preserveScroll: true,
         });
@@ -126,31 +144,96 @@ export default function WorkHoursReport({ auth, workHours, users = [], flash }) 
         setSelectedClient('all');
         setSearchTerm('');
         
-        router.get(route('work-hours-report.index'));
+        router.get(route('work-hours.report'));
     };
 
-    const exportToExcel = () => {
+    const exportToExcel = async () => {
         setIsExporting(true);
+        setToast('Preparing export data...');
+        setToastType('success');
+        
         try {
-            const data = filteredData.map(entry => ({
-                'Date': entry.date,
-                'User': entry.user?.name || 'N/A',
-                'Client': entry.client?.name || 'No Client',
-                'Work Type': formatWorkType(entry.work_type),
-                'Tracker': entry.tracker,
-                'Hours': timeFormat(entry.hours),
-                'Description': entry.description || ''
-            }));
+            // Build the export URL with all current filters
+            const params = {};
 
-            const ws = XLSX.utils.json_to_sheet(data);
+            // Add user filter if not 'all'
+            if (selectedUser !== 'all') {
+                params.userId = selectedUser;
+            }
+
+            // Add work type filter if not 'all'
+            if (selectedWorkType !== 'all') {
+                params.workType = selectedWorkType;
+            }
+
+            // Add client filter if not 'all'
+            if (selectedClient !== 'all') {
+                params.client = selectedClient;
+            }
+
+            // Add date filters
+            if (dateFilter === 'custom' && customStartDate && customEndDate) {
+                params.startDate = formatDateLocal(customStartDate);
+                params.endDate = formatDateLocal(customEndDate);
+            } else if (dateFilter !== 'all' && dateFilter !== 'custom') {
+                const range = getDateRange(dateFilter);
+                params.startDate = range.start;
+                params.endDate = range.end;
+            }
+
+            // Create query string
+            const queryString = new URLSearchParams(params).toString();
+            const url = queryString 
+                ? `${route('work-hours.export')}?${queryString}`
+                : route('work-hours.export');
+
+            // Fetch all data from backend
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch export data');
+            }
+
+            const result = await response.json();
+            const allData = result.data;
+
+            // Apply client-side search filter if needed
+            const exportData = allData
+                .filter(entry => {
+                    if (!searchTerm) return true;
+                    const search = searchTerm.toLowerCase();
+                    return (
+                        entry.user?.name?.toLowerCase().includes(search) ||
+                        entry.client?.name?.toLowerCase().includes(search) ||
+                        entry.description?.toLowerCase().includes(search) ||
+                        entry.tracker?.toLowerCase().includes(search)
+                    );
+                })
+                .map(entry => ({
+                    'Date': entry.date,
+                    'User': entry.user?.name || 'N/A',
+                    'Client': entry.client?.name || 'No Client',
+                    'Work Type': formatWorkType(entry.work_type),
+                    'Tracker': entry.tracker,
+                    'Hours': timeFormat(entry.hours),
+                    'Description': entry.description || ''
+                }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'Work Hours Report');
             XLSX.writeFile(wb, `work-hours-report-${new Date().toISOString().split('T')[0]}.xlsx`);
             
-            setToast('Report exported successfully!');
+            setToast(`Successfully exported ${exportData.length} entries to Excel`);
             setToastType('success');
         } catch (error) {
-            setToast('Export failed');
+            console.error('Export error:', error);
+            setToast('Export failed. Please try again.');
             setToastType('error');
         } finally {
             setIsExporting(false);

@@ -258,8 +258,8 @@ class WorkHourController extends Controller
         $tracker = $request->input('tracker', 'all');
         $client = $request->input('client', 'all');
         
-        // Apply date filter
-        if ($filter !== 'all' && $startDate && $endDate) {
+        // Apply date filter - only apply if both dates are provided
+        if ($startDate && $endDate) {
             $query->whereBetween('date', [$startDate, $endDate]);
         }
         
@@ -341,8 +341,8 @@ class WorkHourController extends Controller
             $perPage = 15;
         }
         
-        // Apply date filter
-        if ($filter !== 'all' && $startDate && $endDate) {
+        // Apply date filter - only apply if both dates are provided
+        if ($startDate && $endDate) {
             $query->whereBetween('date', [$startDate, $endDate]);
         }
         
