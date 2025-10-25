@@ -13,126 +13,136 @@ export default function List({ auth, portfolios }) {
   };
 
   return (
-    <AuthenticatedLayout
-      user={auth.user}
-      header={
-        <div className="flex justify-between items-center">
-          <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-            My Portfolios
-          </h2>
-          <Link href="/app/portfolio/new">
-            <PrimaryButton>Create New Portfolio</PrimaryButton>
-          </Link>
-        </div>
-      }
-    >
+    <AuthenticatedLayout user={auth.user}>
       <Head title="My Portfolios" />
 
-      <div className="py-12">
-        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-            <div className="p-6 text-gray-900">
-              {portfolios.length === 0 ? (
-                <div className="text-center py-12">
-                  <Globe className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No portfolios</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Get started by creating your first portfolio page.
-                  </p>
-                  <div className="mt-6">
-                    <Link href="/app/portfolio/new">
-                      <PrimaryButton>Create Portfolio</PrimaryButton>
-                    </Link>
-                  </div>
+      <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
+        <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
+          {/* Header Card with Gradient Icon */}
+          <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl shadow-lg">
+                  <Globe className="w-8 h-8 text-white" />
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Portfolio
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Items
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Updated
-                        </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {portfolios.map((portfolio) => (
-                        <tr key={portfolio.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {portfolio.name}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                /portfolio/{portfolio.slug}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              portfolio.is_published 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {portfolio.is_published ? 'Published' : 'Draft'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {portfolio.items_count} items
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(portfolio.updated_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center justify-end space-x-2">
-                              {portfolio.is_published && (
-                                <>
-                                  <a
-                                    href={`/portfolio/${portfolio.slug}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-900 p-1"
-                                    title="View Public Page"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </a>
-                                  <button
-                                    onClick={() => handleCopyUrl(portfolio.slug)}
-                                    className="text-gray-600 hover:text-gray-900 p-1"
-                                    title="Copy URL"
-                                  >
-                                    <Copy className="h-4 w-4" />
-                                  </button>
-                                </>
-                              )}
-                              <Link
-                                href={`/app/portfolio/${portfolio.id}/edit`}
-                                className="text-indigo-600 hover:text-indigo-900 p-1"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900">My Portfolios</h2>
+                  <p className="text-slate-600 mt-1">Manage your public portfolio pages</p>
                 </div>
-              )}
+              </div>
+              <Link href="/app/portfolio/new">
+                <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg shadow-sm font-medium transition-all duration-200 hover:shadow-md">
+                  Create New Portfolio
+                </button>
+              </Link>
             </div>
+          </div>
+
+          {/* Table Card */}
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+            {portfolios.length === 0 ? (
+              <div className="text-center py-20 px-6">
+                <Globe className="mx-auto h-16 w-16 text-slate-400 mb-4" />
+                <h3 className="text-xl font-semibold text-slate-900">No portfolios yet</h3>
+                <p className="mt-2 text-slate-600 max-w-sm mx-auto">
+                  Get started by creating your first portfolio page to showcase your work.
+                </p>
+                <div className="mt-8">
+                  <Link href="/app/portfolio/new">
+                    <button className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg shadow-sm font-medium transition-all duration-200 hover:shadow-md">
+                      Create Portfolio
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-orange-500 to-amber-500">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                        Portfolio
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                        Items
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                        Updated
+                      </th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {portfolios.map((portfolio) => (
+                      <tr key={portfolio.id} className="hover:bg-slate-50 transition-colors duration-150">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">
+                              {portfolio.name}
+                            </div>
+                            <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
+                              <Globe className="w-3 h-3" />
+                              /portfolio/{portfolio.slug}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                            portfolio.is_published 
+                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                              : 'bg-amber-100 text-amber-700 border border-amber-200'
+                          }`}>
+                            {portfolio.is_published ? 'Published' : 'Draft'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-medium">
+                          {portfolio.items_count} items
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                          {new Date(portfolio.updated_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-2">
+                            {portfolio.is_published && (
+                              <>
+                                <a
+                                  href={`/portfolio/${portfolio.slug}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all duration-200 hover:shadow-md"
+                                  title="View Public Page"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </a>
+                                <button
+                                  onClick={() => handleCopyUrl(portfolio.slug)}
+                                  className="bg-slate-600 hover:bg-slate-700 text-white p-2 rounded-lg transition-all duration-200 hover:shadow-md"
+                                  title="Copy URL"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                            <Link
+                              href={`/app/portfolio/${portfolio.id}/edit`}
+                              className="bg-orange-600 hover:bg-orange-700 text-white p-2 rounded-lg transition-all duration-200 hover:shadow-md"
+                              title="Edit"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>

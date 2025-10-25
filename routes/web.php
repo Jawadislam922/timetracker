@@ -64,12 +64,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('clients', ClientController::class);
         
         Route::resource('upwork-profiles', \App\Http\Controllers\UpworkProfileController::class);
+        
+        // Employee Attendance routes
+        Route::get('/employee-attendance', [\App\Http\Controllers\EmployeeAttendanceController::class, 'index'])->name('employee-attendance.index');
+        Route::get('/employee-attendance/summary', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getSummary'])->name('employee-attendance.summary');
+        Route::get('/employee-attendance/detailed', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getDetailed'])->name('employee-attendance.detailed');
+        Route::get('/employee-attendance/timeline', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getTimeline'])->name('employee-attendance.timeline');
+        Route::get('/employee-attendance/export', [\App\Http\Controllers\EmployeeAttendanceController::class, 'export'])->name('employee-attendance.export');
     });
 
     // Routes accessible to both admin and employee
     Route::resource('work-hours', \App\Http\Controllers\WorkHourController::class)->except(['show']);
     Route::get('/work-hours-export', [\App\Http\Controllers\WorkHourController::class, 'exportPersonal'])->name('work-hours.export-personal');
     Route::post('/work-hours/bulk-delete', [\App\Http\Controllers\WorkHourController::class, 'bulkDelete'])->name('work-hours.bulk-delete');
+    
+    // Time tracking routes
+    Route::prefix('time-entries')->group(function () {
+        Route::get('/', [\App\Http\Controllers\TimeEntryController::class, 'index'])->name('time-entries.index');
+        Route::post('/', [\App\Http\Controllers\TimeEntryController::class, 'store'])->name('time-entries.store');
+        Route::get('/today', [\App\Http\Controllers\TimeEntryController::class, 'getTodaysEntries'])->name('time-entries.today');
+        Route::get('/today-summary', [\App\Http\Controllers\TimeEntryController::class, 'getTodaysSummary'])->name('time-entries.today-summary');
+        Route::get('/export', [\App\Http\Controllers\TimeEntryController::class, 'export'])->name('time-entries.export');
+    });
 });
 
 require __DIR__.'/auth.php';

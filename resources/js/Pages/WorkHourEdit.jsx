@@ -301,29 +301,45 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
     }, [workHour]);
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-semibold text-xl text-slate-100 leading-tight">Edit Work Entry</h2>}>
+        <AuthenticatedLayout user={auth.user}>
             <Head title="Edit Work Entry" />
             
-            {/* Animated Background */}
-            <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{background: '#282a2a'}}>
-                <AnimatedBackground />
-            </div>
-            
-            <div className="py-12 min-h-screen relative z-10">
-                <div className="max-w-4xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl overflow-visible shadow-2xl rounded-2xl border border-white/10">
-                        <div className="p-8 text-white relative">
-                            <div className="mb-8">
-                                <h1 className="text-4xl font-bold text-white mb-2">Edit Work Entry</h1>
-                                <p className="text-white/70 text-lg">Update your work hours and track your progress</p>
+            {/* Page Background */}
+            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
+                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
+                    {/* Header Section */}
+                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
+                        <div className="flex items-center gap-6">
+                            <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl shadow-lg">
+                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
                             </div>
+                            <div className="flex-1">
+                                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-1">
+                                    Edit Work Entry
+                                </h1>
+                                <p className="text-slate-600 text-base md:text-lg">Update your work hours and track your progress</p>
+                            </div>
+                        </div>
+                    </div>
 
+                    {/* Form Section */}
+                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-visible">
+                        <div className="p-6 md:p-8">
                             <form onSubmit={handleSubmit}>
-                                <div className="mb-6 bg-white/5 backdrop-blur-xl rounded-xl border border-white/10 p-6">
+                                <div className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200 p-6">
                                     <div className="mb-4">
-                                        <h3 className="text-lg font-semibold text-white mb-2">Work Type</h3>
-                                        <p className="text-sm text-white/70 mb-4">
-                                            Required fields for selected type: {' '}
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg">
+                                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                </svg>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-slate-900">Work Type</h3>
+                                        </div>
+                                        <p className="text-sm text-slate-700 mb-4 pl-14">
+                                            <span className="font-semibold text-emerald-700">Required fields:</span> {' '}
                                             {form.data.work_type === 'tracker' && "Profile Name, Client Name, Description, Hours/Minutes, Tracking Date"}
                                             {form.data.work_type === 'manual' && "Profile Name, Client Name, Description, Hours/Minutes, Tracking Date"}
                                             {form.data.work_type === 'fixed' && "Profile Name, Client Name, Description, Hours/Minutes, Tracking Date"}
@@ -338,10 +354,10 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                 key={type.value}
                                                 type="button"
                                                 onClick={() => handleWorkTypeChange(type.value)}
-                                                className={`p-3 rounded-xl font-medium transition-all text-sm ${
+                                                className={`p-3 rounded-xl font-semibold transition-all text-sm shadow-md ${
                                                     form.data.work_type === type.value
-                                                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                                        : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+                                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg scale-105'
+                                                        : 'bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-emerald-300'
                                                 }`}
                                             >
                                                 {type.label}
@@ -359,15 +375,15 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                     {/* Profile Name */}
                                     {isTrackerRequired() && (
                                         <div className="relative">
-                                            <label htmlFor="tracker" className="block text-sm font-medium text-white mb-2">
-                                                Profile Name <span className="text-red-400">*</span>
+                                            <label htmlFor="tracker" className="block text-sm font-medium text-slate-900 mb-2">
+                                                Profile Name <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 ref={trackerRef}
                                                 type="text"
                                                 placeholder="Search or select profile..."
-                                                className={`w-full px-4 py-3 bg-white/10 backdrop-blur-xl border rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50 ${
-                                                    trackerValidationError ? 'border-red-400' : 'border-white/20'
+                                                className={`w-full px-4 py-3 bg-white border rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400 ${
+                                                    trackerValidationError ? 'border-red-400' : 'border-slate-300'
                                                 }`}
                                                 value={
                                                     form.data.trackerSearch ||
@@ -379,14 +395,14 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                 required={isTrackerRequired()}
                                             />
                                             {trackerValidationError && (
-                                                <div className="mt-1 text-sm text-red-300">
+                                                <div className="mt-1 text-sm text-red-600">
                                                     {trackerValidationError}
                                                 </div>
                                             )}
                                             {showTrackerOptions && (
                                                 <div 
                                                     ref={trackerDropdownRef}
-                                                    className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-white/20 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
+                                                    className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-300 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
                                                 >
                                                     <div className="p-2">
                                                         {trackers.filter(tracker => 
@@ -395,7 +411,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                             <button
                                                                 key={index}
                                                                 type="button"
-                                                                className="w-full text-left px-3 py-2 hover:bg-white/20 rounded-lg text-white transition-all"
+                                                                className="w-full text-left px-3 py-2 hover:bg-slate-100 rounded-lg text-slate-900 transition-all"
                                                                 onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
                                                                 onClick={() => handleTrackerSelect(tracker)}
                                                             >
@@ -405,7 +421,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                         {trackers.filter(tracker => 
                                                             !form.data.trackerSearch || tracker.toLowerCase().includes(form.data.trackerSearch.toLowerCase())
                                                         ).length === 0 && form.data.trackerSearch && (
-                                                            <div className="px-3 py-2 text-white/60 text-sm">
+                                                            <div className="px-3 py-2 text-slate-500 text-sm">
                                                                 No profiles found. Please select from available options.
                                                             </div>
                                                         )}
@@ -418,15 +434,15 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                     {/* Client Name */}
                                     {isClientRequired() && (
                                         <div className="relative">
-                                            <label htmlFor="client" className="block text-sm font-medium text-white mb-2">
-                                                Client Name <span className="text-red-400">*</span>
+                                            <label htmlFor="client" className="block text-sm font-medium text-slate-900 mb-2">
+                                                Client Name <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 ref={clientRef}
                                                 type="text"
                                                 placeholder="Search or select client..."
-                                                className={`w-full px-4 py-3 bg-white/10 backdrop-blur-xl border rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50 ${
-                                                    clientValidationError ? 'border-red-400' : 'border-white/20'
+                                                className={`w-full px-4 py-3 bg-white border rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400 ${
+                                                    clientValidationError ? 'border-red-400' : 'border-slate-300'
                                                 }`}
                                                 value={form.data.clientSearch}
                                                 onChange={handleClientSearchChange}
@@ -435,14 +451,14 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                 required={isClientRequired()}
                                             />
                                             {clientValidationError && (
-                                                <div className="mt-1 text-sm text-red-300">
+                                                <div className="mt-1 text-sm text-red-600">
                                                     {clientValidationError}
                                                 </div>
                                             )}
                                             {showClientOptions && (
                                                 <div 
                                                     ref={clientDropdownRef}
-                                                    className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-white/20 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
+                                                    className="absolute z-50 w-full mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-300 rounded-xl max-h-48 overflow-y-auto shadow-2xl"
                                                 >
                                                     <div className="p-2">
                                                         {clients.filter(client => {
@@ -452,7 +468,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                             <button
                                                                 key={client.id}
                                                                 type="button"
-                                                                className="w-full text-left px-3 py-2 hover:bg-white/20 rounded-lg text-white transition-all"
+                                                                className="w-full text-left px-3 py-2 hover:bg-slate-100 rounded-lg text-slate-900 transition-all"
                                                                 onMouseDown={(e) => e.preventDefault()} // Prevent blur when clicking
                                                                 onClick={() => handleClientSelect(client)}
                                                             >
@@ -463,7 +479,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                             const label = client.name;
                                                             return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
                                                         }).length === 0 && form.data.clientSearch && (
-                                                            <div className="px-3 py-2 text-white/60 text-sm">
+                                                            <div className="px-3 py-2 text-slate-500 text-sm">
                                                                 No clients found. Please select from available options.
                                                             </div>
                                                         )}
@@ -477,23 +493,23 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                                     {/* Date */}
                                     <div>
-                                        <label htmlFor="date" className="block text-sm font-medium text-white mb-2">
-                                            Date <span className="text-red-400">*</span>
+                                        <label htmlFor="date" className="block text-sm font-medium text-slate-900 mb-2">
+                                            Date <span className="text-red-500">*</span>
                                         </label>
                                         <input
                                             type="date"
                                             id="date"
                                             value={form.data.date}
                                             onChange={(e) => form.setData('date', e.target.value)}
-                                            className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white"
+                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900"
                                             required
                                         />
                                     </div>
 
                                     {/* Hours */}
                                     <div>
-                                        <label htmlFor="hours" className="block text-sm font-medium text-white mb-2">
-                                            Hours <span className="text-red-400">*</span>
+                                        <label htmlFor="hours" className="block text-sm font-medium text-slate-900 mb-2">
+                                            Hours <span className="text-red-500">*</span>
                                         </label>
                                         <input
                                             type="number"
@@ -512,14 +528,14 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             onFocus={(e) => e.target.addEventListener('wheel', (event) => event.preventDefault(), { passive: false })}
                                             onBlur={(e) => e.target.removeEventListener('wheel', (event) => event.preventDefault())}
                                             placeholder="Enter hours (0-24)"
-                                            className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50"
+                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
                                             required
                                         />
                                     </div>
 
                                     {/* Minutes */}
                                     <div>
-                                        <label htmlFor="minutes" className="block text-sm font-medium text-white mb-2">
+                                        <label htmlFor="minutes" className="block text-sm font-medium text-slate-900 mb-2">
                                             Minutes
                                         </label>
                                         <input
@@ -539,7 +555,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             onFocus={(e) => e.target.addEventListener('wheel', (event) => event.preventDefault(), { passive: false })}
                                             onBlur={(e) => e.target.removeEventListener('wheel', (event) => event.preventDefault())}
                                             placeholder="Enter minutes (0-59)"
-                                            className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50"
+                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
                                         />
                                     </div>
                                 </div>
@@ -547,18 +563,18 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                 {/* Total Time Display */}
                                 <div className={`mb-6 p-4 backdrop-blur-xl rounded-xl border ${
                                     hasTimeEntered() 
-                                        ? 'bg-gradient-to-r from-green-500/20 to-blue-500/20 border-white/20' 
+                                        ? 'bg-gradient-to-r from-green-500/20 to-blue-500/20 border-slate-300' 
                                         : 'bg-gradient-to-r from-red-500/20 to-orange-500/20 border-red-400/30'
                                 }`}>
                                     <div className="flex items-center gap-3">
-                                        <svg className={`w-6 h-6 ${hasTimeEntered() ? 'text-blue-400' : 'text-red-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className={`w-6 h-6 ${hasTimeEntered() ? 'text-blue-600' : 'text-red-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        <div className="text-white">
-                                            <div className={`text-sm font-medium ${hasTimeEntered() ? 'text-white/70' : 'text-red-300'}`}>
+                                        <div className="text-slate-900">
+                                            <div className={`text-sm font-medium ${hasTimeEntered() ? 'text-slate-600' : 'text-red-600'}`}>
                                                 Total Time {!hasTimeEntered() && '(Required)'}
                                             </div>
-                                            <div className={`text-2xl font-bold ${!hasTimeEntered() ? 'text-red-300' : ''}`}>
+                                            <div className={`text-2xl font-bold ${!hasTimeEntered() ? 'text-red-600' : ''}`}>
                                                 {(() => {
                                                     const hours = parseInt(form.data.hours) || 0;
                                                     const minutes = parseInt(form.data.minutes) || 0;
@@ -569,7 +585,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                 })()}
                                             </div>
                                             {hasTimeEntered() && (
-                                                <div className="text-xs text-white/60">
+                                                <div className="text-xs text-slate-500">
                                                     {(() => {
                                                         const hours = parseInt(form.data.hours) || 0;
                                                         const minutes = parseInt(form.data.minutes) || 0;
@@ -579,7 +595,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                 </div>
                                             )}
                                             {!hasTimeEntered() && (
-                                                <div className="text-xs text-red-300">
+                                                <div className="text-xs text-red-600">
                                                     Please enter at least some hours or minutes
                                                 </div>
                                             )}
@@ -589,15 +605,15 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
 
                                 {/* Description */}
                                 <div className="mb-6">
-                                    <label htmlFor="description" className="block text-sm font-medium text-white mb-2">
-                                        Description <span className="text-red-400">*</span>
+                                    <label htmlFor="description" className="block text-sm font-medium text-slate-900 mb-2">
+                                        Description <span className="text-red-500">*</span>
                                     </label>
                                     <textarea
                                         id="description"
                                         rows={4}
                                         value={form.data.description}
                                         onChange={(e) => form.setData('description', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50"
+                                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
                                         placeholder="Describe the work you did..."
                                         required
                                     />
@@ -606,7 +622,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                 <div className="flex items-center justify-between">
                                     <Link
                                         href={route('work-hours.index')}
-                                        className="inline-flex items-center px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-all border border-white/20"
+                                        className="inline-flex items-center px-6 py-3 bg-white/10 hover:bg-slate-100 text-slate-900 rounded-xl font-medium transition-all border border-slate-300"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -616,7 +632,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                     <button
                                         type="submit"
                                         disabled={form.processing}
-                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
+                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-blue-600 hover:to-purple-700 text-slate-900 rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
                                     >
                                         {form.processing ? (
                                             <>

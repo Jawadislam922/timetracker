@@ -26,6 +26,7 @@ class EmployeePortfolio extends Model
         'why_json',
         'contact_json',
         'theme',
+        'is_draft',
         'is_published',
     ];
 
@@ -36,6 +37,7 @@ class EmployeePortfolio extends Model
         'skills_json' => 'array',
         'why_json' => 'array',
         'contact_json' => 'array',
+        'is_draft' => 'boolean',
         'is_published' => 'boolean',
     ];
 

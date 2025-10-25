@@ -9,9 +9,9 @@ import { TraditionalPagination } from '../Components/Pagination';
 function Toast({ message, onClose }) {
     if (!message) return null;
     return (
-        <div className="fixed top-5 right-5 z-50 bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl text-white px-6 py-3 rounded-xl shadow-2xl flex items-center border border-white/20">
+        <div className="fixed top-5 right-5 z-50 bg-gradient-to-r from-blue-500/90 to-purple-600/90 backdrop-blur-xl text-slate-900 px-6 py-3 rounded-xl shadow-2xl flex items-center border border-slate-300">
             <span className="font-medium">{message}</span>
-            <button onClick={onClose} className="ml-4 text-white hover:text-white/70 font-bold text-lg">&times;</button>
+            <button onClick={onClose} className="ml-4 text-slate-900 hover:text-slate-600 font-bold text-lg">&times;</button>
         </div>
     );
 }
@@ -133,7 +133,7 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
         };
     }, [designationDropdownOpen, roleDropdownOpen]);
 
-    // Get unique designations from backend filter options
+    // Get unique shifts from backend filter options (stored as designations in DB)
     const getUniqueDesignations = () => {
         return filterOptions.designations || [];
     };
@@ -143,7 +143,7 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
         return filterOptions.roles || [];
     };
 
-    // Handle designation dropdown toggle
+    // Handle shift dropdown toggle
     const handleDesignationDropdownToggle = () => {
         if (designationButtonRef.current) {
             const rect = designationButtonRef.current.getBoundingClientRect();
@@ -171,7 +171,7 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
         setDesignationDropdownOpen(false); // Close other dropdown
     };
 
-    // Handle designation filter change
+    // Handle shift filter change
     const handleDesignationChange = (designation) => {
         setSelectedDesignation(designation);
         setDesignationDropdownOpen(false);
@@ -232,43 +232,31 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
     };
 
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <h2 className="font-semibold text-xl text-slate-100 leading-tight">
-                    Users
-                </h2>
-            }
-        >
+        <AuthenticatedLayout user={auth.user}>
             <Head title="Users List" />
-            
-            {/* Animated Background */}
-            <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{background: '#282a2a'}}>
-                <AnimatedBackground />
-            </div>
             
             <Toast message={toast} onClose={closeToast} />
             
             {/* Delete Confirmation Modal */}
             {deleteId && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-gradient-to-br from-white/20 to-white/10 backdrop-blur-xl rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/20">
-                        <h2 className="text-xl font-bold mb-4 text-white">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-200">
+                        <h2 className="text-xl font-bold mb-4 text-slate-800">
                             Confirm Delete
                         </h2>
-                        <p className="mb-6 text-white/80">
-                            Are you sure you want to delete this user?
+                        <p className="mb-6 text-slate-600">
+                            Are you sure you want to delete this user? This action cannot be undone.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setDeleteId(null)}
-                                className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-all border border-white/20 backdrop-blur-xl"
+                                className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-all duration-300"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={confirmDelete}
-                                className="px-6 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-medium transition-all shadow-lg"
+                                className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-medium transition-all duration-300 shadow-lg"
                             >
                                 Delete
                             </button>
@@ -277,98 +265,159 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                 </div>
             )}
             
-            <div className="py-12 min-h-screen relative z-10">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl overflow-hidden shadow-2xl rounded-2xl border border-white/10">
-                        <div className="p-8 text-white">
-                            <div className="flex justify-between items-center mb-8">
-                                <div>
-                                    <h1 className="text-4xl font-bold text-white">
-                                        Users List
-                                    </h1>
-                                    <p className="text-white/70 mt-2 text-lg">Manage user accounts and permissions</p>
+            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30">
+                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
+                    
+                    {/* Header Card with Gradient Icon */}
+                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-6">
+                                {/* Gradient Icon */}
+                                <div className="p-4 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl shadow-lg">
+                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    {/* Per Page Selector */}
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-white/70 text-sm font-medium">Show:</label>
-                                        <select 
-                                            value={selectedPerPage} 
-                                            onChange={(e) => handlePerPageChange(parseInt(e.target.value))}
-                                            className="px-3 py-2 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white text-sm"
-                                        >
-                                            <option value={10} className="bg-slate-800 text-white">10</option>
-                                            <option value={25} className="bg-slate-800 text-white">25</option>
-                                            <option value={50} className="bg-slate-800 text-white">50</option>
-                                            <option value={100} className="bg-slate-800 text-white">100</option>
-                                        </select>
-                                        <span className="text-white/70 text-sm">entries</span>
-                                    </div>
-                                    
-                                    <Link
-                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl"
-                                        href={route("users.create")}
-                                    >
-                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add User
-                                    </Link>
+                                {/* Title and Description */}
+                                <div>
+                                    <h1 className="text-3xl font-bold text-slate-900 mb-2">Users Management</h1>
+                                    <p className="text-slate-600">Manage user accounts and permissions</p>
+                                </div>
+                            </div>
+                            {/* Add User Button */}
+                            <Link
+                                href={route("users.create")}
+                                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add User
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Filters and Search Card */}
+                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
+                        <div className="space-y-6">
+                            {/* Search Bar */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Search Users</label>
+                                <div className="relative">
+                                    <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    <input
+                                        type="text"
+                                        placeholder="Search by name or email..."
+                                        className="w-full pl-12 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-slate-900 placeholder-slate-400 transition-all"
+                                        value={searchTerm}
+                                        onChange={(e) => handleSearchChange(e.target.value)}
+                                    />
                                 </div>
                             </div>
 
-                            {/* Filters Section */}
-                            <div className="mb-6 space-y-4">
-                                {/* Search by Name/Email */}
-                                <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl p-6 rounded-xl border border-white/20">
-                                    <h3 className="text-sm font-semibold text-white mb-3">Search Users</h3>
+                            {/* Filter Dropdowns and Per Page Selector */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {/* Filter by Shift */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Shift</label>
                                     <div className="relative">
-                                        <input
-                                            type="text"
-                                            placeholder="Search by name or email..."
-                                            className="w-full px-4 py-3 pl-10 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50 text-sm"
-                                            value={searchTerm}
-                                            onChange={(e) => handleSearchChange(e.target.value)}
-                                        />
-                                        <svg className="w-5 h-5 text-blue-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
+                                        <button
+                                            ref={designationButtonRef}
+                                            type="button"
+                                            className="w-full pl-12 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-slate-900 text-left flex items-center justify-between hover:bg-slate-50 transition-all"
+                                            onClick={handleDesignationDropdownToggle}
+                                        >
+                                            <span className="truncate text-sm">
+                                                {selectedDesignation === "all" ? "All Shifts" : 
+                                                 selectedDesignation === "no_designation" ? "No Shift" : 
+                                                 selectedDesignation}
+                                            </span>
+                                            <svg 
+                                                className={`w-4 h-4 transition-transform ${designationDropdownOpen ? 'rotate-180' : ''}`} 
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Filter by Designation */}
-                                    <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-xl p-6 rounded-xl border border-white/20">
-                                        <h3 className="text-sm font-semibold text-white mb-3">Filter by Designation</h3>
-                                        <div className="relative">
-                                            <button
-                                                ref={designationButtonRef}
-                                                type="button"
-                                                className="w-full px-4 py-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl focus:ring-2 focus:ring-green-400 focus:border-green-400 text-sm text-white text-left flex items-center justify-between hover:bg-white/20 transition-all"
-                                                onClick={handleDesignationDropdownToggle}
+                                {/* Filter by Role */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Role</label>
+                                    <div className="relative">
+                                        <svg className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                        </svg>
+                                        <button
+                                            ref={roleButtonRef}
+                                            type="button"
+                                            className="w-full pl-12 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-slate-900 text-left flex items-center justify-between hover:bg-slate-50 transition-all"
+                                            onClick={handleRoleDropdownToggle}
+                                        >
+                                            <span className="truncate capitalize text-sm">
+                                                {selectedRole === "all" ? "All Roles" : selectedRole}
+                                            </span>
+                                            <svg 
+                                                className={`w-4 h-4 transition-transform ${roleDropdownOpen ? 'rotate-180' : ''}`} 
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24"
                                             >
-                                                <span className="truncate">
-                                                    {selectedDesignation === "all" ? "All Designations" : 
-                                                     selectedDesignation === "no_designation" ? "No Designation" : 
-                                                     selectedDesignation}
-                                                </span>
-                                                <svg 
-                                                    className={`w-4 h-4 transition-transform ${designationDropdownOpen ? 'rotate-180' : ''}`} 
-                                                    fill="none" 
-                                                    stroke="currentColor" 
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
-                                        </div>
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
                                     </div>
+                                </div>
 
-                                    {/* Portal for Designation Dropdown */}
+                                {/* Per Page Selector */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Show</label>
+                                    <select 
+                                        value={selectedPerPage} 
+                                        onChange={(e) => handlePerPageChange(parseInt(e.target.value))}
+                                        className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-slate-900 text-sm hover:bg-slate-50 transition-all"
+                                    >
+                                        <option value={10}>10 entries</option>
+                                        <option value={25}>25 entries</option>
+                                        <option value={50}>50 entries</option>
+                                        <option value={100}>100 entries</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Results Summary and Clear Filters */}
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm text-slate-600">
+                                    Showing {users?.data?.length || 0} of {users?.total || 0} users
+                                    {searchTerm && ` matching "${searchTerm}"`}
+                                    {selectedDesignation !== "all" && ` • ${selectedDesignation === "no_designation" ? "No Shift" : selectedDesignation}`}
+                                    {selectedRole !== "all" && ` • ${selectedRole}`}
+                                </span>
+                                {(searchTerm || selectedDesignation !== "all" || selectedRole !== "all") && (
+                                    <button
+                                        onClick={clearAllFilters}
+                                        className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all font-medium"
+                                    >
+                                        Clear Filters
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Portal for Shift Dropdown */}
                                     {designationDropdownOpen && createPortal(
                                         <div 
                                             ref={designationDropdownRef}
-                                            className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl max-h-60 overflow-hidden z-[9999]"
+                                            className="bg-white border border-slate-300 rounded-xl shadow-2xl max-h-60 overflow-hidden z-[9999]"
                                             style={{
                                                 position: 'absolute',
                                                 top: designationDropdownPosition.top,
@@ -379,7 +428,7 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                         >
                                             <div className="max-h-48 overflow-y-auto">
                                                 <div
-                                                    className={`px-4 py-2 cursor-pointer hover:bg-white/20 transition-colors flex items-center ${selectedDesignation === 'all' ? 'bg-green-500/20 text-green-300 font-medium' : 'text-white'}`}
+                                                    className={`px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors flex items-center ${selectedDesignation === 'all' ? 'bg-green-500/20 text-green-300 font-medium' : 'text-slate-900'}`}
                                                     onClick={() => handleDesignationChange('all')}
                                                 >
                                                     {selectedDesignation === 'all' && (
@@ -387,10 +436,10 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                         </svg>
                                                     )}
-                                                    All Designations
+                                                    All Shifts
                                                 </div>
                                                 <div
-                                                    className={`px-4 py-2 cursor-pointer hover:bg-white/20 transition-colors flex items-center ${selectedDesignation === 'no_designation' ? 'bg-green-500/20 text-green-300 font-medium' : 'text-white'}`}
+                                                    className={`px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors flex items-center ${selectedDesignation === 'no_designation' ? 'bg-green-500/20 text-green-300 font-medium' : 'text-slate-900'}`}
                                                     onClick={() => handleDesignationChange('no_designation')}
                                                 >
                                                     {selectedDesignation === 'no_designation' && (
@@ -398,12 +447,12 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                         </svg>
                                                     )}
-                                                    No Designation
+                                                    No Shift
                                                 </div>
                                                 {getUniqueDesignations().map(designation => (
                                                     <div
                                                         key={designation}
-                                                        className={`px-4 py-2 cursor-pointer hover:bg-white/20 transition-colors flex items-center ${selectedDesignation === designation ? 'bg-green-500/20 text-green-300 font-medium' : 'text-white'}`}
+                                                        className={`px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors flex items-center ${selectedDesignation === designation ? 'bg-green-500/20 text-green-300 font-medium' : 'text-slate-900'}`}
                                                         onClick={() => handleDesignationChange(designation)}
                                                     >
                                                         {selectedDesignation === designation && (
@@ -419,36 +468,13 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                         document.body
                                     )}
 
-                                    {/* Filter by Role */}
-                                    <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-xl p-6 rounded-xl border border-white/20">
-                                        <h3 className="text-sm font-semibold text-white mb-3">Filter by Role</h3>
-                                        <div className="relative">
-                                            <button
-                                                ref={roleButtonRef}
-                                                type="button"
-                                                className="w-full px-4 py-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-purple-400 text-sm text-white text-left flex items-center justify-between hover:bg-white/20 transition-all"
-                                                onClick={handleRoleDropdownToggle}
-                                            >
-                                                <span className="truncate capitalize">
-                                                    {selectedRole === "all" ? "All Roles" : selectedRole}
-                                                </span>
-                                                <svg 
-                                                    className={`w-4 h-4 transition-transform ${roleDropdownOpen ? 'rotate-180' : ''}`} 
-                                                    fill="none" 
-                                                    stroke="currentColor" 
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
+
 
                                     {/* Portal for Role Dropdown */}
                                     {roleDropdownOpen && createPortal(
                                         <div 
                                             ref={roleDropdownRef}
-                                            className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl max-h-60 overflow-hidden z-[9999]"
+                                            className="bg-white border border-slate-300 rounded-xl shadow-2xl max-h-60 overflow-hidden z-[9999]"
                                             style={{
                                                 position: 'absolute',
                                                 top: roleDropdownPosition.top,
@@ -459,7 +485,7 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                         >
                                             <div className="max-h-48 overflow-y-auto">
                                                 <div
-                                                    className={`px-4 py-2 cursor-pointer hover:bg-white/20 transition-colors flex items-center ${selectedRole === 'all' ? 'bg-purple-500/20 text-purple-300 font-medium' : 'text-white'}`}
+                                                    className={`px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors flex items-center ${selectedRole === 'all' ? 'bg-purple-500/20 text-purple-600 font-medium' : 'text-slate-900'}`}
                                                     onClick={() => handleRoleChange('all')}
                                                 >
                                                     {selectedRole === 'all' && (
@@ -472,7 +498,7 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                                 {getUniqueRoles().map(role => (
                                                     <div
                                                         key={role}
-                                                        className={`px-4 py-2 cursor-pointer hover:bg-white/20 transition-colors flex items-center ${selectedRole === role ? 'bg-purple-500/20 text-purple-300 font-medium' : 'text-white'}`}
+                                                        className={`px-4 py-2 cursor-pointer hover:bg-slate-100 transition-colors flex items-center ${selectedRole === role ? 'bg-purple-500/20 text-purple-600 font-medium' : 'text-slate-900'}`}
                                                         onClick={() => handleRoleChange(role)}
                                                     >
                                                         {selectedRole === role && (
@@ -487,158 +513,137 @@ export default function UsersList({ auth, users, flash, filters = {}, filterOpti
                                         </div>,
                                         document.body
                                     )}
-                                </div>
 
-                                {/* Results Summary */}
-                                <div className="flex justify-between items-center text-sm text-white/80 bg-white/10 backdrop-blur-xl px-4 py-3 rounded-xl border border-white/20">
-                                    <span>
-                                        Showing {users?.data?.length || 0} of {users?.total || 0} users
-                                        {searchTerm && ` matching "${searchTerm}"`}
-                                        {selectedDesignation !== "all" && ` with designation "${selectedDesignation === "no_designation" ? "No Designation" : selectedDesignation}"`}
-                                        {selectedRole !== "all" && ` with role "${selectedRole}"`}
-                                    </span>
-                                    {(searchTerm || selectedDesignation !== "all" || selectedRole !== "all") && (
-                                        <button
-                                            onClick={clearAllFilters}
-                                            className="px-3 py-1 text-xs bg-white/10 hover:bg-white/20 text-white rounded-md transition-all border border-white/20"
-                                        >
-                                            Clear Filters
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="overflow-x-auto shadow-2xl ring-1 ring-white/10 rounded-xl">
-                                <table className="min-w-full divide-y divide-white/10 table-fixed">
-                                    <thead className="bg-gradient-to-r from-blue-500/30 to-purple-600/30 backdrop-blur-xl border-b border-white/20">
+                    {/* Table Card */}
+                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-gradient-to-r from-blue-500 to-cyan-500">
+                                    <tr>
+                                        <th className="w-20 px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            ID
+                                        </th>
+                                        <th className="w-24 px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            Avatar
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            Name
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            Email
+                                        </th>
+                                        <th className="w-40 px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            Shift
+                                        </th>
+                                        <th className="w-32 px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            Role
+                                        </th>
+                                        <th className="w-40 px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                                            Weekly Hours
+                                        </th>
+                                        <th className="w-40 px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider sticky right-0 bg-gradient-to-r from-blue-500 to-cyan-500">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200">
+                                    {(!users?.data || users.data.length === 0) ? (
                                         <tr>
-                                            <th className="w-16 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                ID
-                                            </th>
-                                            <th className="w-24 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                Avatar
-                                            </th>
-                                            <th className="w-48 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                Name
-                                            </th>
-                                            <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                Email
-                                            </th>
-                                            <th className="w-32 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                Designation
-                                            </th>
-                                            <th className="w-24 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                Role
-                                            </th>
-                                            <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-                                                Weekly Hours Worked
-                                            </th>
-                                            <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider sticky right-0 bg-gradient-to-r from-blue-500/30 to-purple-600/30 backdrop-blur-xl">
-                                                Actions
-                                            </th>
+                                            <td colSpan={8} className="px-6 py-12 text-center">
+                                                <div className="text-slate-500">
+                                                    <svg className="mx-auto h-12 w-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                                    </svg>
+                                                    <h3 className="text-lg font-medium text-slate-900 mb-2">No users found</h3>
+                                                    <p className="text-slate-600">
+                                                        {searchTerm || selectedDesignation !== "all" || selectedRole !== "all" 
+                                                            ? "Try adjusting your filters to see more results."
+                                                            : "No users available in the system."
+                                                        }
+                                                    </p>
+                                                </div>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody className="bg-white/5 backdrop-blur-xl divide-y divide-white/10">
-                                        {(!users?.data || users.data.length === 0) ? (
-                                            <tr>
-                                                <td colSpan={8} className="px-6 py-12 text-center">
-                                                    <div className="text-white/60">
-                                                        <svg className="mx-auto h-12 w-12 text-white/40 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8v.01M6 8v.01" />
+                                    ) : (
+                                        users.data.map((user) => (
+                                        <tr key={user.id} className="hover:bg-slate-50 transition-colors duration-150">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
+                                                #{user.id}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <Avatar user={user} size="md" />
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-900 font-medium" title={user.name}>
+                                                {user.name}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-slate-600" title={user.email}>
+                                                {user.email}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm">
+                                                <span className="inline-flex px-3 py-1 text-xs font-medium bg-rose-100 text-rose-700 rounded-full">
+                                                    {user.designation || 'No Shift'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize ${
+                                                    user.role === 'admin' 
+                                                        ? 'bg-purple-100 text-purple-700' 
+                                                        : 'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {user.role}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                <span className="inline-flex px-3 py-1 text-xs font-medium bg-indigo-100 text-indigo-700 rounded-full font-mono">
+                                                    {user.weekly_hours_worked || '00:00'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white">
+                                                <div className="flex space-x-2">
+                                                    <Link
+                                                        href={route("users.edit", user.id)}
+                                                        className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md"
+                                                    >
+                                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                         </svg>
-                                                        <h3 className="text-lg font-medium text-white mb-2">No users found</h3>
-                                                        <p className="text-white/60">
-                                                            {searchTerm || selectedDesignation !== "all" || selectedRole !== "all" 
-                                                                ? "Try adjusting your filters to see more results."
-                                                                : "No users available in the system."
-                                                            }
-                                                        </p>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            users.data.map((user, index) => (
-                                            <tr key={user.id} className={`${index % 2 === 0 ? 'bg-white/5' : 'bg-white/10'} hover:bg-blue-500/20 transition-colors backdrop-blur-xl`}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-300">
-                                                    {user.id}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <Avatar user={user} size="md" />
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-white font-medium truncate" title={user.name}>
-                                                    {user.name}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-white/80 truncate" title={user.email}>
-                                                    {user.email}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-white truncate">
-                                                    <span className="inline-flex px-3 py-1 text-xs font-medium bg-green-500/20 text-green-300 rounded-full border border-green-400/30">
-                                                        {user.designation || 'No Designation'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                                                    <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full capitalize border ${
-                                                        user.role === 'admin' 
-                                                            ? 'bg-purple-500/20 text-purple-300 border-purple-400/30' 
-                                                            : 'bg-blue-500/20 text-blue-300 border-blue-400/30'
-                                                    }`}>
-                                                        {user.role}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                                                    <div className="flex items-center">
-                                                        <span className="inline-flex px-3 py-1 text-xs font-medium bg-orange-500/20 text-orange-300 rounded-full backdrop-blur-xl border border-orange-400/30 font-mono">
-                                                            {user.weekly_hours_worked || '00:00'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white/5 backdrop-blur-xl border-l border-white/10">
-                                                    <div className="flex space-x-2">
-                                                        <Link
-                                                            href={route(
-                                                                "users.edit",
-                                                                user.id
-                                                            )}
-                                                            className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-xs font-medium rounded-md transition-all shadow-lg"
+                                                        Edit
+                                                    </Link>
+                                                    {user.id > 1 && (
+                                                        <button
+                                                            onClick={() => handleDelete(user.id)}
+                                                            className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md"
                                                         >
-                                                            Edit
-                                                        </Link>
-                                                        {user.id > 1 && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleDelete(
-                                                                        user.id
-                                                                    )
-                                                                }
-                                                                className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white text-xs font-medium rounded-md transition-all shadow-lg"
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                            
-                            {/* Pagination Controls */}
-                            {users?.data && users.data.length > 0 && (
-                                <div className="mt-6 p-4 bg-white/10 backdrop-blur-xl rounded-xl border border-white/20">
-                                    <TraditionalPagination 
-                                        pagination={users}
-                                        className="justify-between items-center"
-                                        preserveState={true}
-                                        preserveScroll={false}
-                                    />
-                                </div>
-                            )}
+                                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                            Delete
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
+                        
+                        {/* Pagination */}
+                        {users?.data && users.data.length > 0 && (
+                            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                                <TraditionalPagination 
+                                    pagination={users}
+                                    className="justify-between items-center"
+                                    preserveState={true}
+                                    preserveScroll={false}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
         </AuthenticatedLayout>
     );
 }
+

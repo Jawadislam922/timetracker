@@ -16,29 +16,6 @@ export default defineConfig({
             '@': path.resolve(__dirname, './resources/js'),
         },
     },
-    build: {
-        // Production optimizations
-        minify: 'terser',
-        terserOptions: {
-            compress: {
-                drop_console: true, // Remove console.log in production
-                drop_debugger: true,
-            },
-        },
-        rollupOptions: {
-            output: {
-                manualChunks: {
-                    // Code splitting for better caching
-                    'react-vendor': ['react', 'react-dom'],
-                    'chart-vendor': ['chart.js', 'react-chartjs-2'],
-                    'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
-                    'ui-vendor': ['lucide-react', 'clsx', 'react-hot-toast', 'react-datepicker'],
-                },
-            },
-        },
-        chunkSizeWarningLimit: 1000,
-        sourcemap: false, // Disable source maps in production for security
-    },
     server: {
         host: '0.0.0.0',
         port: 5175,

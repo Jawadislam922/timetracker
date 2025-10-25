@@ -578,12 +578,36 @@ class DashboardController extends Controller
     private function getAdminStats()
     {
         $today = Carbon::today();
+        $weekStart = Carbon::today()->startOfWeek();
         $monthStart = Carbon::today()->startOfMonth();
 
         $totalHoursToday = WorkHour::where('date', $today->format('Y-m-d'))->sum('hours');
         $activeEmployees = User::where('role', 'employee')->count();
         $totalClients = Client::count();
         $teamEfficiency = $this->getTeamEfficiency();
+
+        // Work Hours Report Statistics
+        $totalHoursThisWeek = WorkHour::whereBetween('date', [
+            $weekStart->format('Y-m-d'),
+            $today->format('Y-m-d')
+        ])->sum('hours');
+
+        $totalEntriesThisMonth = WorkHour::whereBetween('date', [
+            $monthStart->format('Y-m-d'),
+            $today->format('Y-m-d')
+        ])->count();
+
+        $activeUsersToday = WorkHour::where('date', $today->format('Y-m-d'))
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $activeClientsThisMonth = WorkHour::whereBetween('date', [
+            $monthStart->format('Y-m-d'),
+            $today->format('Y-m-d')
+        ])
+            ->whereNotNull('client_id')
+            ->distinct('client_id')
+            ->count('client_id');
 
         return [
             'totalHours' => [
@@ -601,6 +625,24 @@ class DashboardController extends Controller
             'teamEfficiency' => [
                 'value' => "{$teamEfficiency}%",
                 'label' => 'Team Efficiency'
+            ],
+            // Work Hours Report Statistics
+            'totalHoursWeek' => [
+                'value' => $this->formatHours($totalHoursThisWeek),
+                'label' => 'Total Hours This Week',
+                'rawValue' => round($totalHoursThisWeek, 2)
+            ],
+            'totalEntriesMonth' => [
+                'value' => $totalEntriesThisMonth,
+                'label' => 'Total Entries This Month'
+            ],
+            'activeUsersToday' => [
+                'value' => $activeUsersToday,
+                'label' => 'Active Users Today'
+            ],
+            'activeClientsMonth' => [
+                'value' => $activeClientsThisMonth,
+                'label' => 'Active Clients This Month'
             ]
         ];
     }

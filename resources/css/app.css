@@ -234,3 +234,51 @@
 .react-datepicker__month-container::-webkit-scrollbar-thumb:hover {
     background: rgba(59, 130, 246, 0.8);
 }
+
+/* Custom Scrollbar for Sidebar Navigation - Modern & Minimal */
+@layer utilities {
+    /* Webkit browsers (Chrome, Safari, Edge) */
+    .scrollbar-custom::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .scrollbar-custom::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.3);
+        border-radius: 10px;
+        margin: 4px 0;
+    }
+    
+    .scrollbar-custom::-webkit-scrollbar-thumb {
+        background: rgba(100, 116, 139, 0.4);
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 116, 139, 0.7);
+    }
+    
+    /* Firefox */
+    .scrollbar-custom {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(100, 116, 139, 0.4) rgba(15, 23, 42, 0.3);
+    }
+    
+    /* Smooth scrolling behavior */
+    .scroll-smooth-custom {
+        scroll-behavior: smooth;
+    }
+    
+    /* Optional: Hide scrollbar until hover */
+    .scrollbar-hide-until-hover::-webkit-scrollbar-thumb {
+        background: transparent;
+    }
+    
+    .scrollbar-hide-until-hover:hover::-webkit-scrollbar-thumb {
+        background: rgba(100, 116, 139, 0.4);
+    }
+    
+    .scrollbar-hide-until-hover:hover::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 116, 139, 0.7);
+    }
+}

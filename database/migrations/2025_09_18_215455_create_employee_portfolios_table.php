@@ -27,6 +27,7 @@ return new class extends Migration
             $table->json('why_json')->nullable(); // [{title, description}]
             $table->json('contact_json')->nullable(); // {email, upwork, whatsapp, linkedin, instagram, website}
             $table->string('theme')->default('emerald');
+            $table->boolean('is_draft')->default(true);
             $table->boolean('is_published')->default(false);
             $table->timestamps();
 

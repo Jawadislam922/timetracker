@@ -90,16 +90,6 @@ export default function Authenticated({ user, header, children }) {
                                         <span className="font-semibold text-slate-700 group-hover:text-emerald-700 transition-colors duration-300">Work diary</span>
                                     </div>
                                 </NavLink>
-                                <NavLink href={route('portfolio.index')} active={['portfolio.index', 'portfolio.create', 'portfolio.edit', 'portfolio.edit.slug'].some(r => route().current(r))}>
-                                    <div className="group flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-indigo-200/50">
-                                        <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 group-hover:from-indigo-600 group-hover:to-indigo-700 shadow-sm group-hover:shadow-md transition-all duration-300">
-                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 00-2 2v2a2 2 0 002 2m0 0h14m-14 0a2 2 0 002 2v2a2 2 0 01-2 2M19 13a2 2 0 00-2-2v2a2 2 0 002 2z" />
-                                            </svg>
-                                        </div>
-                                        <span className="font-semibold text-slate-700 group-hover:text-indigo-700 transition-colors duration-300">Portfolio</span>
-                                    </div>
-                                </NavLink>
                                 {user?.role === 'admin' && (
                                     <NavLink href={route('work-hours.report')} active={['work-hours.report'].some(r => route().current(r))}>
                                         <div className="group flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-gradient-to-r hover:from-rose-50 hover:to-pink-50 hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-rose-200/50">

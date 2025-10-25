@@ -46,21 +46,33 @@ const Trigger = ({ children }) => {
     );
 };
 
-const Content = ({ align = 'right', width = '48', contentClasses = 'py-1 bg-white', children }) => {
+const Content = ({ align = 'right', width = '48', contentClasses = 'py-1 bg-white', direction = 'down', children }) => {
     const { open, setOpen } = useContext(DropDownContext);
 
     let alignmentClasses = 'origin-top';
+    let positionClasses = 'mt-2'; // Default: dropdown appears below
 
-    if (align === 'left') {
-        alignmentClasses = 'ltr:origin-top-left rtl:origin-top-right start-0';
-    } else if (align === 'right') {
-        alignmentClasses = 'ltr:origin-top-right rtl:origin-top-left end-0';
+    // Handle direction
+    if (direction === 'up') {
+        alignmentClasses = 'origin-bottom';
+        positionClasses = 'bottom-full mb-2'; // Appear above the trigger
+    } else if (direction === 'side' || direction === 'right') {
+        alignmentClasses = 'origin-left';
+        positionClasses = 'left-full ml-2 bottom-0'; // Appear to the right side
+    }
+
+    if (align === 'left' && direction !== 'side' && direction !== 'right') {
+        alignmentClasses = direction === 'up' ? 'ltr:origin-bottom-left rtl:origin-bottom-right start-0' : 'ltr:origin-top-left rtl:origin-top-right start-0';
+    } else if (align === 'right' && direction !== 'side' && direction !== 'right') {
+        alignmentClasses = direction === 'up' ? 'ltr:origin-bottom-right rtl:origin-bottom-left end-0' : 'ltr:origin-top-right rtl:origin-top-left end-0';
     }
 
     let widthClasses = '';
 
     if (width === '48') {
         widthClasses = 'w-48';
+    } else if (width === '56') {
+        widthClasses = 'w-56';
     }
 
     return (
@@ -76,7 +88,7 @@ const Content = ({ align = 'right', width = '48', contentClasses = 'py-1 bg-whit
                 leaveTo="opacity-0 scale-95"
             >
                 <div
-                    className={`absolute z-[9999] mt-2 rounded-md shadow-lg ${alignmentClasses} ${widthClasses}`}
+                    className={`absolute z-[9999] ${positionClasses} rounded-md shadow-lg ${alignmentClasses} ${widthClasses}`}
                 >
                     <div className={`rounded-md ring-1 ring-black ring-opacity-5 ` + contentClasses}>{children}</div>
                 </div>

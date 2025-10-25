@@ -13,7 +13,13 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            },
+            colors: {
+                // Consistent text colors
+                'text-primary': '#0f172a', // slate-900
+                'text-secondary': '#334155', // slate-700
+                'text-tertiary': '#64748b', // slate-500
             },
         },
     },

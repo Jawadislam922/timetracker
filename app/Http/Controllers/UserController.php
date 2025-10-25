@@ -32,7 +32,7 @@ class UserController extends Controller
             });
         }
         
-        // Apply designation filter
+        // Apply shift filter (designation field stores shift information)
         if ($request->filled('designation')) {
             $designation = $request->get('designation');
             if ($designation === 'no_designation') {
@@ -74,7 +74,7 @@ class UserController extends Controller
             return $user;
         });
             
-        // Get all unique designations and roles for filter dropdowns
+        // Get all unique shifts (stored as designations) and roles for filter dropdowns
         $allDesignations = User::whereNotNull('designation')
             ->where('designation', '!=', '')
             ->distinct()

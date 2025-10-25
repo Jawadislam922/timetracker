@@ -14,6 +14,7 @@ class User extends Authenticatable
 
     /**
      * The attributes that are mass assignable.
+     * Note: 'designation' field represents employee shifts (e.g., Morning, Evening, Night)
      *
      * @var array<int, string>
      */
@@ -23,7 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'avatar',
-        'designation',
+        'designation', // Stores shift information (Morning, Evening, Night, etc.)
     ];
 
     /**
@@ -67,5 +68,13 @@ class User extends Authenticatable
     public function workHours()
     {
         return $this->hasMany(WorkHour::class);
+    }
+
+    /**
+     * Get the time entries for the user.
+     */
+    public function timeEntries()
+    {
+        return $this->hasMany(TimeEntry::class);
     }
 }

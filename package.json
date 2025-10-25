@@ -3,7 +3,12 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "build:production": "vite build --mode production",
+        "preview": "vite preview",
+        "optimize": "npm run build:production && php artisan optimize",
+        "deploy:prepare": "npm install && npm run build:production && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache",
+        "deploy:clear": "php artisan cache:clear && php artisan config:clear && php artisan route:clear && php artisan view:clear"
     },
     "devDependencies": {
         "@headlessui/react": "^1.4.2",
@@ -19,6 +24,7 @@
         "postcss": "^8.4.31",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "tailwind-scrollbar-hide": "^4.0.0",
         "tailwindcss": "^3.2.1",
         "terser": "^5.44.0",
         "typescript": "^5.9.2",
@@ -29,13 +35,10 @@
         "chart.js": "^4.5.0",
         "clsx": "^2.1.1",
         "lucide-react": "^0.532.0",
-        "openai": "^5.12.2",
         "react-chartjs-2": "^5.3.0",
         "react-datepicker": "^8.4.0",
         "react-hook-form": "^7.62.0",
         "react-hot-toast": "^2.6.0",
-        "sheetjs": "^2.0.0",
-        "uuid": "^13.0.0",
         "xlsx": "^0.18.5",
         "zod": "^3.25.76"
     }

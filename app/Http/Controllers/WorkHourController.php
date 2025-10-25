@@ -273,7 +273,7 @@ class WorkHourController extends Controller
             $query->where('user_id', $userId);
         }
         
-        // Apply designation filter
+        // Apply shift filter (designation field stores shift information)
         if ($designation !== 'all') {
             $query->whereHas('user', function($q) use ($designation) {
                 $q->where('designation', $designation);
@@ -313,7 +313,7 @@ class WorkHourController extends Controller
         $client = $request->input('client', 'all');
         $perPage = $request->input('perPage', 15);
 
-        // Fetch all available filter options - use UpworkProfile model
+        // Fetch all available filter options - shifts are stored as designations
         $availableDesignations = \App\Models\User::whereNotNull('designation')
             ->distinct()
             ->pluck('designation')
@@ -356,7 +356,7 @@ class WorkHourController extends Controller
             $query->where('user_id', $userId);
         }
         
-        // Apply designation filter
+        // Apply shift filter (designation field stores shift information)
         if ($designation !== 'all') {
             $query->whereHas('user', function($q) use ($designation) {
                 $q->where('designation', $designation);

@@ -8,11 +8,12 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     * Note: 'designation' field is used to store employee shift information (Morning, Evening, Night, etc.)
      */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('designation')->nullable()->after('role');
+            $table->string('designation')->nullable()->after('role')->comment('Employee shift (Morning, Evening, Night, etc.)');
         });
     }
 

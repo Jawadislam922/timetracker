@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
 
-        <title inertia><?php echo e(config('app.name', 'Laravel')); ?></title>
+        <title inertia><?php echo e(config('app.name', 'Sparking Asia TimeTracker')); ?></title>
 
         <!-- Favicons -->
         <link rel="icon" type="image/x-icon" href="/favicon.ico">

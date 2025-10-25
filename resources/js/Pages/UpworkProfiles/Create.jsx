@@ -17,67 +17,95 @@ export default function Create({ auth }) {
     };
 
     return (
-        <AuthenticatedLayout 
-            user={auth.user} 
-            header={<h2 className="font-semibold text-xl text-slate-100 leading-tight">Create Upwork Profile</h2>}
-        >
+        <AuthenticatedLayout user={auth.user}>
             <Head title="Create Upwork Profile" />
             
-            {/* Animated Background */}
-            <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{background: '#282a2a'}}>
-                <AnimatedBackground />
-            </div>
-            
-            <div className="py-12 min-h-screen relative z-10">
-                <div className="max-w-4xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl overflow-hidden shadow-2xl rounded-2xl border border-white/10">
-                        <div className="p-8 text-white">
-                            <div className="mb-8">
-                                <h1 className="text-4xl font-bold text-white mb-2">Create Upwork Profile</h1>
-                                <p className="text-white/70 text-lg">Add a new Upwork profile for time tracking</p>
+            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
+                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
+                    {/* Header Card with Gradient Icon */}
+                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
+                        <div className="flex items-center gap-4">
+                            <div className="p-4 bg-gradient-to-r from-green-500 to-teal-500 rounded-2xl shadow-lg">
+                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
                             </div>
+                            <div>
+                                <h2 className="text-3xl font-bold text-slate-900">Create Upwork Profile</h2>
+                                <p className="text-slate-600 mt-1">Add a new Upwork profile for time tracking</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Form Card */}
+                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                        <div className="p-6 md:p-8">
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Profile Name */}
                                 <div>
-                                    <label htmlFor="name" className="block text-sm font-medium text-white mb-2">
-                                        Profile Name <span className="text-red-400">*</span>
+                                    <label htmlFor="name" className="block text-sm font-semibold text-slate-900 mb-2">
+                                        Profile Name <span className="text-red-500">*</span>
                                     </label>
-                                    <input
-                                        type="text"
-                                        id="name"
-                                        value={data.name}
-                                        onChange={(e) => setData('name', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50"
-                                        placeholder="Enter profile name (e.g., John Doe, Jane Smith)"
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            id="name"
+                                            value={data.name}
+                                            onChange={(e) => setData('name', e.target.value)}
+                                            className="w-full pl-10 pr-4 py-3 border-2 border-slate-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 text-slate-900 placeholder-slate-400 transition-all duration-200"
+                                            placeholder="Enter profile name (e.g., John Doe, Jane Smith)"
+                                            required
+                                        />
+                                    </div>
                                     {errors.name && (
-                                        <div className="mt-1 text-sm text-red-300">{errors.name}</div>
+                                        <div className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                            {errors.name}
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Email */}
                                 <div>
-                                    <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
+                                    <label htmlFor="email" className="block text-sm font-semibold text-slate-900 mb-2">
                                         Email (Optional)
                                     </label>
-                                    <input
-                                        type="email"
-                                        id="email"
-                                        value={data.email}
-                                        onChange={(e) => setData('email', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50"
-                                        placeholder="Enter email address"
-                                    />
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <input
+                                            type="email"
+                                            id="email"
+                                            value={data.email}
+                                            onChange={(e) => setData('email', e.target.value)}
+                                            className="w-full pl-10 pr-4 py-3 border-2 border-slate-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 text-slate-900 placeholder-slate-400 transition-all duration-200"
+                                            placeholder="Enter email address"
+                                        />
+                                    </div>
                                     {errors.email && (
-                                        <div className="mt-1 text-sm text-red-300">{errors.email}</div>
+                                        <div className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                            {errors.email}
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Description */}
                                 <div>
-                                    <label htmlFor="description" className="block text-sm font-medium text-white mb-2">
+                                    <label htmlFor="description" className="block text-sm font-semibold text-slate-900 mb-2">
                                         Description (Optional)
                                     </label>
                                     <textarea
@@ -85,37 +113,47 @@ export default function Create({ auth }) {
                                         rows={4}
                                         value={data.description}
                                         onChange={(e) => setData('description', e.target.value)}
-                                        className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-white placeholder-white/50"
+                                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 text-slate-900 placeholder-slate-400 transition-all duration-200 resize-none"
                                         placeholder="Add any notes or description for this profile..."
                                     />
                                     {errors.description && (
-                                        <div className="mt-1 text-sm text-red-300">{errors.description}</div>
+                                        <div className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                            {errors.description}
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Active Status */}
-                                <div>
-                                    <label className="flex items-center">
+                                <div className="bg-slate-50 rounded-lg p-4 border-2 border-slate-200">
+                                    <label className="flex items-center cursor-pointer">
                                         <input
                                             type="checkbox"
                                             checked={data.is_active}
                                             onChange={(e) => setData('is_active', e.target.checked)}
-                                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500"
+                                            className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-2 focus:ring-green-500 transition-all duration-200"
                                         />
-                                        <span className="ml-2 text-sm text-white">
+                                        <span className="ml-3 text-sm font-medium text-slate-900">
                                             Profile is active (active profiles appear in dropdown selections)
                                         </span>
                                     </label>
                                     {errors.is_active && (
-                                        <div className="mt-1 text-sm text-red-300">{errors.is_active}</div>
+                                        <div className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                            {errors.is_active}
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex items-center justify-between pt-6">
+                                <div className="flex items-center justify-between pt-6 border-t-2 border-slate-100">
                                     <Link
                                         href={route('upwork-profiles.index')}
-                                        className="inline-flex items-center px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-all border border-white/20"
+                                        className="inline-flex items-center px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-all duration-200"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -125,7 +163,7 @@ export default function Create({ auth }) {
                                     <button
                                         type="submit"
                                         disabled={processing}
-                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
+                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {processing ? (
                                             <>
@@ -153,3 +191,4 @@ export default function Create({ auth }) {
         </AuthenticatedLayout>
     );
 }
+

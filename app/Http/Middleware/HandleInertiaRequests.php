@@ -4,6 +4,8 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use App\Models\TimeEntry;
+use Carbon\Carbon;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -29,10 +31,29 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $lastActionToday = null;
+
+        if ($user) {
+            try {
+                $today = Carbon::today('Asia/Karachi');
+                $entry = TimeEntry::query()
+                    ->where('user_id', $user->id)
+                    ->whereDate('action_date', $today)
+                    ->orderByDesc('action_timestamp')
+                    ->first();
+                $lastActionToday = $entry?->action_type;
+            } catch (\Throwable $e) {
+                // Silently ignore to avoid breaking responses
+                $lastActionToday = null;
+            }
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'lastActionToday' => $lastActionToday,
             ],
         ];
     }
