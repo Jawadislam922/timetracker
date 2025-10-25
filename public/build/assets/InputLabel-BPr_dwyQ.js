@@ -1,1 +1,0 @@
-import{j as e}from"./ui-vendor-BqWKxA4d.js";function a({value:a,className:r="",children:s,...t}){return e.jsx("label",{...t,className:"block font-medium text-sm text-gray-700 "+r,children:a||s})}export{a as I};

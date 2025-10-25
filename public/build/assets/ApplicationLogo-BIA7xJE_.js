@@ -1,1 +1,0 @@
-import{j as s}from"./ui-vendor-BqWKxA4d.js";function a({size:a="40"}){return s.jsx("div",{className:"flex justify-center",children:s.jsx("img",{src:"/images/sparking-asia-logo.png?v=2",className:`w-${a} h-${a} object-contain filter drop-shadow-lg`,alt:"Sparking Asia Logo",onError:s=>{s.target.style.display="none"}})})}export{a as A};
