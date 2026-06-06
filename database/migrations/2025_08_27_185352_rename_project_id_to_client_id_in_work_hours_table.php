@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('work_hours', function (Blueprint $table) {
-            //
+            if (Schema::hasColumn('work_hours', 'project_id') && ! Schema::hasColumn('work_hours', 'client_id')) {
+                $table->renameColumn('project_id', 'client_id');
+            }
         });
     }
 
@@ -22,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('work_hours', function (Blueprint $table) {
-            //
+            if (Schema::hasColumn('work_hours', 'client_id') && ! Schema::hasColumn('work_hours', 'project_id')) {
+                $table->renameColumn('client_id', 'project_id');
+            }
         });
     }
 };

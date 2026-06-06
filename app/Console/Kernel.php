@@ -12,7 +12,13 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        if (config('services.slack_reports.weekly_enabled')) {
+            $schedule->command('reports:send-weekly-slack')
+                ->sundays()
+                ->at('10:00')
+                ->timezone(config('services.slack_reports.timezone', 'Asia/Karachi'))
+                ->withoutOverlapping();
+        }
     }
 
     /**

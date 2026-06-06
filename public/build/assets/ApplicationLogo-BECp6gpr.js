@@ -1,1 +1,0 @@
-import{j as a}from"./app-Cvh2Vte9.js";function t({size:o="40"}){return a.jsx("div",{className:"flex justify-center",children:a.jsx("img",{src:"/images/sparking-asia-logo.png?v=2",className:`w-${o} h-${o} object-contain filter drop-shadow-lg`,alt:"Sparking Asia Logo",onError:r=>{console.error("Logo failed to load:",r.target.src),r.target.style.display="none"}})})}export{t as A};

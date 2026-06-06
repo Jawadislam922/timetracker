@@ -1,696 +1,458 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import { 
-    Users, 
-    Calendar, 
-    Download, 
-    Clock,
+import {
     Activity,
-    Timer,
-    Coffee,
-    PlayCircle,
-    Square,
-    PauseCircle,
-    RotateCcw,
-    Filter,
-    Search,
-    TrendingUp,
-    AlertCircle,
-    CheckCircle,
-    User,
+    CalendarDays,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Clock,
+    Coffee,
+    Download,
+    List,
+    PauseCircle,
+    PlayCircle,
+    RotateCcw,
+    Search,
+    Square,
+    Timer,
+    Users,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { 
-    showError, 
-    showExportSuccess, 
-    showLoading 
-} from '@/Utils/notifications';
-import { 
-    formatHours 
-} from '@/Utils/timeUtils';
+import { showError, showExportSuccess, showLoading } from '@/Utils/notifications';
+import { formatHours } from '@/Utils/timeUtils';
+
+const TABS = [
+    { id: 'summary', label: 'Summary', icon: Activity },
+    { id: 'detailed', label: 'Activity', icon: List },
+    { id: 'timeline', label: 'Timeline', icon: Timer },
+];
+
+const STATUS_OPTIONS = ['all', 'Working', 'On Break', 'Clocked Out', 'Not Started'];
+
+const statusStyle = (status) => {
+    if (status === 'Working') return 'bg-emerald-50 text-emerald-800';
+    if (status === 'On Break') return 'bg-amber-50 text-amber-800';
+    if (status === 'Clocked Out') return 'bg-rose-50 text-rose-800';
+    return 'bg-slate-100 text-slate-700';
+};
+
+const actionMeta = (actionType) => {
+    if (actionType === 'clock_in') return { label: 'Clocked In', icon: PlayCircle, className: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+    if (actionType === 'clock_out') return { label: 'Clocked Out', icon: Square, className: 'bg-rose-50 text-rose-800 border-rose-200' };
+    if (actionType === 'break_start') return { label: 'Break Started', icon: PauseCircle, className: 'bg-amber-50 text-amber-800 border-amber-200' };
+    if (actionType === 'break_end') return { label: 'Break Ended', icon: RotateCcw, className: 'bg-blue-50 text-blue-800 border-blue-200' };
+    return { label: actionType, icon: Clock, className: 'bg-slate-50 text-slate-800 border-slate-200' };
+};
+
+const EmployeeIdentity = ({ employee, size = 'small' }) => {
+    const avatarSize = size === 'large' ? 'h-11 w-11' : 'h-9 w-9';
+
+    return (
+        <div className="flex min-w-0 items-center gap-3">
+            {employee.avatar ? (
+                <img src={employee.avatar} alt="" className={`${avatarSize} rounded-full object-cover`} />
+            ) : (
+                <span className={`flex ${avatarSize} shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700`}>
+                    {employee.user_name.charAt(0).toUpperCase()}
+                </span>
+            )}
+            <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900">{employee.user_name}</div>
+                <div className="truncate text-xs text-slate-500">{employee.designation || 'Member'}</div>
+            </div>
+        </div>
+    );
+};
 
 export default function EmployeeAttendance({ auth, serverDate }) {
-    // Use server date if provided, otherwise fall back to browser date
-    const getTodayDate = () => {
-        if (serverDate) {
-            return serverDate;
-        }
-        return new Date().toISOString().split('T')[0];
-    };
-
+    const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('attendance.export');
     const [activeTab, setActiveTab] = useState('summary');
     const [employeesData, setEmployeesData] = useState([]);
     const [detailedActivityData, setDetailedActivityData] = useState([]);
     const [timelineData, setTimelineData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedDate, setSelectedDate] = useState(getTodayDate());
+    const [selectedDate, setSelectedDate] = useState(serverDate || new Date().toISOString().split('T')[0]);
     const [filterStatus, setFilterStatus] = useState('all');
     const [expandedEmployees, setExpandedEmployees] = useState({});
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
 
-    useEffect(() => {
-        fetchAttendanceData();
-    }, [selectedDate, activeTab]);
-
-    // Listen for time entry events from sidebar to refresh data in real-time
-    useEffect(() => {
-        const handleTimeEntryAdded = (event) => {
-            // Only refresh if viewing today's data (use server date for comparison)
-            const today = getTodayDate();
-            
-            if (selectedDate === today) {
-                toast.success('Refreshing attendance data...', { duration: 1500, icon: '🔄' });
-                fetchAttendanceData();
-            } else {
-                toast('Viewing past date - not refreshing', { duration: 1000, icon: '📅' });
-            }
-        };
-
-        window.addEventListener('timeEntryAdded', handleTimeEntryAdded);
-
-        return () => {
-            window.removeEventListener('timeEntryAdded', handleTimeEntryAdded);
-        };
-    }, [selectedDate, activeTab]);
-
     const fetchAttendanceData = async () => {
         setLoading(true);
+
         try {
-            if (activeTab === 'summary') {
-                const response = await axios.get('/employee-attendance/summary', {
-                    params: { date: selectedDate }
-                });
-                setEmployeesData(response.data.employees || []);
-            } else if (activeTab === 'detailed') {
-                const response = await axios.get('/employee-attendance/detailed', {
-                    params: { date: selectedDate }
-                });
-                setDetailedActivityData(response.data.activities || []);
-            } else if (activeTab === 'timeline') {
-                const response = await axios.get('/employee-attendance/timeline', {
-                    params: { date: selectedDate }
-                });
-                setTimelineData(response.data.timelines || []);
-            }
+            const endpoint = activeTab === 'summary'
+                ? '/employee-attendance/summary'
+                : activeTab === 'detailed'
+                    ? '/employee-attendance/detailed'
+                    : '/employee-attendance/timeline';
+            const response = await axios.get(endpoint, { params: { date: selectedDate } });
+
+            if (activeTab === 'summary') setEmployeesData(response.data.employees || []);
+            if (activeTab === 'detailed') setDetailedActivityData(response.data.activities || []);
+            if (activeTab === 'timeline') setTimelineData(response.data.timelines || []);
             setLastRefreshTime(new Date());
         } catch (error) {
-            console.error('Error fetching attendance data:', error);
-            showError('Unable to load attendance data. Please try again.');
+            console.error('Attendance load failed:', error);
+            showError('Unable to load attendance data.');
         } finally {
             setLoading(false);
         }
     };
 
+    useEffect(() => {
+        fetchAttendanceData();
+    }, [selectedDate, activeTab]);
+
     const downloadCSV = async () => {
         const loadingToast = showLoading('Preparing attendance report...');
-        
+
         try {
             const response = await axios.get('/employee-attendance/export', {
                 params: { date: selectedDate },
-                responseType: 'blob'
+                responseType: 'blob',
             });
-            
-            const blob = new Blob([response.data], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `employee-attendance-${selectedDate}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `employee-attendance-${selectedDate}.csv`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
             window.URL.revokeObjectURL(url);
-            
             toast.dismiss(loadingToast);
             showExportSuccess();
         } catch (error) {
-            console.error('Error exporting CSV:', error);
+            console.error('Attendance export failed:', error);
             toast.dismiss(loadingToast);
-            showError('Failed to export attendance report. Please try again.');
+            showError('Failed to export attendance report.');
         }
     };
 
-    const getActionIcon = (actionType) => {
-        switch(actionType) {
-            case 'clock_in': return <PlayCircle className="w-4 h-4" />;
-            case 'clock_out': return <Square className="w-4 h-4" />;
-            case 'break_start': return <PauseCircle className="w-4 h-4" />;
-            case 'break_end': return <RotateCcw className="w-4 h-4" />;
-            default: return <Clock className="w-4 h-4" />;
-        }
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const matchesSearch = (item) => {
+        if (!normalizedSearch) return true;
+        return item.user_name?.toLowerCase().includes(normalizedSearch)
+            || item.designation?.toLowerCase().includes(normalizedSearch);
     };
 
-    const getActionLabel = (actionType) => {
-        switch(actionType) {
-            case 'clock_in': return 'Clocked In';
-            case 'clock_out': return 'Clocked Out';
-            case 'break_start': return 'Break Started';
-            case 'break_end': return 'Break Ended';
-            default: return actionType;
-        }
-    };
+    const filteredEmployees = employeesData.filter((employee) =>
+        matchesSearch(employee) && (filterStatus === 'all' || employee.current_status === filterStatus)
+    );
+    const filteredActivities = detailedActivityData.filter(matchesSearch);
+    const filteredTimelines = timelineData.filter(matchesSearch);
 
-    const getActionColor = (actionType) => {
-        switch(actionType) {
-            case 'clock_in': return 'bg-emerald-100 text-emerald-700 border-emerald-300';
-            case 'clock_out': return 'bg-rose-100 text-rose-700 border-rose-300';
-            case 'break_start': return 'bg-amber-100 text-amber-700 border-amber-300';
-            case 'break_end': return 'bg-blue-100 text-blue-700 border-blue-300';
-            default: return 'bg-gray-100 text-gray-700 border-gray-300';
-        }
-    };
-
-    const filteredEmployees = employeesData.filter(employee => {
-        const matchesSearch = employee.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            employee.designation.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = filterStatus === 'all' || employee.current_status === filterStatus;
-        return matchesSearch && matchesStatus;
-    });
-
-    const filteredActivities = detailedActivityData.filter(activity => {
-        return activity.user_name.toLowerCase().includes(searchQuery.toLowerCase());
-    });
-
-    const filteredTimelines = timelineData.filter(timeline => {
-        return timeline.user_name.toLowerCase().includes(searchQuery.toLowerCase());
-    });
+    const summaryMetrics = useMemo(() => {
+        const working = employeesData.filter((employee) => employee.current_status === 'Working').length;
+        const onBreak = employeesData.filter((employee) => employee.current_status === 'On Break').length;
+        const clockedOut = employeesData.filter((employee) => employee.current_status === 'Clocked Out').length;
+        const workHours = employeesData.reduce((sum, employee) => sum + Number(employee.total_work_hours || 0), 0);
+        return [
+            { label: 'Active', value: working, icon: PlayCircle, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+            { label: 'On Break', value: onBreak, icon: Coffee, color: 'text-amber-700', bg: 'bg-amber-50' },
+            { label: 'Clocked Out', value: clockedOut, icon: Square, color: 'text-rose-700', bg: 'bg-rose-50' },
+            { label: 'Team Hours', value: formatHours(workHours), icon: Timer, color: 'text-blue-700', bg: 'bg-blue-50' },
+        ];
+    }, [employeesData]);
 
     const toggleEmployee = (employeeId) => {
-        setExpandedEmployees(prev => ({
-            ...prev,
-            [employeeId]: !prev[employeeId]
-        }));
+        setExpandedEmployees((current) => ({ ...current, [employeeId]: !current[employeeId] }));
     };
 
-    const expandAll = () => {
-        const allExpanded = {};
-        if (activeTab === 'detailed') {
-            filteredActivities.forEach(activity => {
-                allExpanded[activity.user_id] = true;
-            });
-        } else if (activeTab === 'timeline') {
-            filteredTimelines.forEach(timeline => {
-                allExpanded[timeline.user_id] = true;
-            });
+    const setAllExpanded = (items, expanded) => {
+        if (!expanded) {
+            setExpandedEmployees({});
+            return;
         }
-        setExpandedEmployees(allExpanded);
+
+        setExpandedEmployees(Object.fromEntries(items.map((item) => [item.user_id, true])));
     };
 
-    const collapseAll = () => {
-        setExpandedEmployees({});
-    };
+    const renderEmpty = (title, description) => (
+        <div className="px-5 py-14 text-center">
+            <Users className="mx-auto h-10 w-10 text-slate-400" />
+            <h3 className="mt-3 font-semibold text-slate-900">{title}</h3>
+            <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+    );
 
     return (
         <AuthenticatedLayout user={auth.user}>
-            <Head title="Employee Attendance - Time Tracker" />
+            <Head title="Attendance" />
 
-            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30">
-                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
-                    
-                    {/* Header Section */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                            <div className="flex items-center gap-4">
-                                <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-lg">
-                                    <Users className="w-8 h-8 text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-bold text-slate-800">Employee Attendance</h1>
-                                    <p className="text-slate-600 mt-1">
-                                        Track and monitor employee work hours, breaks, and activity
-                                    </p>
-                                    {lastRefreshTime && (
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Last updated: {lastRefreshTime.toLocaleTimeString()}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <input
-                                        type="date"
-                                        value={selectedDate}
-                                        onChange={(e) => setSelectedDate(e.target.value)}
-                                        className="pl-10 pr-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-300"
-                                    />
-                                </div>
-                                <button
-                                    onClick={downloadCSV}
-                                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                >
-                                    <Download className="w-5 h-5" />
-                                    Export Report
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Tabs */}
-                        <div className="mt-6 flex flex-wrap gap-2">
-                            <button
-                                onClick={() => setActiveTab('summary')}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-                                    activeTab === 'summary'
-                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                }`}
-                            >
-                                <Activity className="w-5 h-5" />
-                                Summary View
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('detailed')}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-                                    activeTab === 'detailed'
-                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                }`}
-                            >
-                                <Clock className="w-5 h-5" />
-                                Detailed Activity
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('timeline')}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
-                                    activeTab === 'timeline'
-                                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                }`}
-                            >
-                                <Timer className="w-5 h-5" />
-                                Timeline View
-                            </button>
-                        </div>
-
-                        {/* Search and Filter */}
-                        <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search by employee name or shift..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-300"
-                                />
-                            </div>
-                            {activeTab === 'summary' && (
-                                <div className="relative">
-                                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                    <select
-                                        value={filterStatus}
-                                        onChange={(e) => setFilterStatus(e.target.value)}
-                                        className="pl-10 pr-8 py-2.5 rounded-xl border-2 border-slate-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-300 appearance-none bg-white cursor-pointer"
-                                    >
-                                        <option value="all">All Status</option>
-                                        <option value="Working">Working</option>
-                                        <option value="On Break">On Break</option>
-                                        <option value="Clocked Out">Clocked Out</option>
-                                        <option value="Not Started">Not Started</option>
-                                    </select>
-                                </div>
+            <div className="min-h-screen bg-slate-100">
+                <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+                    <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                            <p className="text-sm font-semibold text-blue-700">Team operations</p>
+                            <h1 className="mt-1 text-2xl font-bold text-slate-950">Attendance</h1>
+                            <p className="mt-1 text-sm text-slate-600">Monitor current status, work time, breaks, and daily activity.</p>
+                            {lastRefreshTime && (
+                                <p className="mt-1 text-xs text-slate-500">Updated {lastRefreshTime.toLocaleTimeString()}</p>
                             )}
                         </div>
-                    </div>
 
-                    {/* Content Section */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <label className="relative">
+                                <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(event) => setSelectedDate(event.target.value)}
+                                    className="rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                />
+                            </label>
+                            {canExport && (
+                                <button
+                                    type="button"
+                                    onClick={downloadCSV}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Export CSV
+                                </button>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        {summaryMetrics.map((metric) => {
+                            const Icon = metric.icon;
+                            return (
+                                <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${metric.bg}`}>
+                                            <Icon className={`h-5 w-5 ${metric.color}`} />
+                                        </span>
+                                        <div>
+                                            <div className="text-xl font-bold text-slate-950">{metric.value}</div>
+                                            <div className="text-sm text-slate-600">{metric.label}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </section>
+
+                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="inline-flex w-full rounded-lg bg-slate-100 p-1 lg:w-auto">
+                                {TABS.map((tab) => {
+                                    const Icon = tab.icon;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition lg:flex-none ${
+                                                activeTab === tab.id
+                                                    ? 'bg-white text-slate-950 shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-950'
+                                            }`}
+                                        >
+                                            <Icon className="h-4 w-4" />
+                                            {tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                                <label className="relative min-w-64 flex-1">
+                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="search"
+                                        value={searchQuery}
+                                        onChange={(event) => setSearchQuery(event.target.value)}
+                                        placeholder="Search employee or shift"
+                                        className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </label>
+
+                                {activeTab === 'summary' && (
+                                    <select
+                                        value={filterStatus}
+                                        onChange={(event) => setFilterStatus(event.target.value)}
+                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        {STATUS_OPTIONS.map((status) => (
+                                            <option key={status} value={status}>
+                                                {status === 'all' ? 'All statuses' : status}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        </div>
+
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20">
-                                <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                                <p className="text-slate-600 font-medium">Loading attendance data...</p>
+                            <div className="flex items-center justify-center gap-3 px-5 py-16 text-sm font-medium text-slate-600">
+                                <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                                Loading attendance data...
                             </div>
                         ) : (
                             <>
-                                {/* Summary Tab */}
                                 {activeTab === 'summary' && (
-                                    <div>
-                                        {filteredEmployees.length === 0 ? (
-                                            <div className="text-center py-16">
-                                                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                    <Users className="w-12 h-12 text-slate-400" />
-                                                </div>
-                                                <h3 className="text-xl font-semibold text-slate-700 mb-2">No attendance records</h3>
-                                                <p className="text-slate-500">No employees have started tracking time on this date</p>
-                                            </div>
-                                        ) : (
+                                    filteredEmployees.length === 0
+                                        ? renderEmpty('No attendance records', 'No employees match the selected date and filters.')
+                                        : (
                                             <div className="overflow-x-auto">
-                                                <table className="w-full">
-                                                    <thead>
-                                                        <tr className="border-b-2 border-slate-200">
-                                                            <th className="text-left py-4 px-4 text-xs font-semibold text-slate-600 uppercase tracking-wider">Employee</th>
-                                                            <th className="text-center py-4 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                                                            <th className="text-center py-4 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wider bg-emerald-50">Work Hours</th>
-                                                            <th className="text-center py-4 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wider bg-amber-50">Break Time</th>
-                                                            <th className="text-center py-4 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wider bg-blue-50">First Clock In</th>
-                                                            <th className="text-center py-4 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wider bg-rose-50">Last Activity</th>
-                                                            <th className="text-center py-4 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Actions</th>
+                                                <table className="min-w-full divide-y divide-slate-200">
+                                                    <thead className="bg-slate-900">
+                                                        <tr>
+                                                            {['Employee', 'Status', 'Work Hours', 'Break', 'First In', 'Last Activity', 'Actions'].map((heading) => (
+                                                                <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-white">{heading}</th>
+                                                            ))}
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="divide-y divide-slate-100">
+                                                    <tbody className="divide-y divide-slate-200">
                                                         {filteredEmployees.map((employee) => (
-                                                            <tr key={employee.user_id} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="py-4 px-4">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="relative flex-shrink-0">
-                                                                            {employee.avatar ? (
-                                                                                <img 
-                                                                                    src={employee.avatar} 
-                                                                                    alt={employee.user_name}
-                                                                                    className="w-10 h-10 rounded-full object-cover border-2 border-white shadow"
-                                                                                />
-                                                                            ) : (
-                                                                                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow">
-                                                                                    <span className="text-white font-bold text-sm">
-                                                                                        {employee.user_name.charAt(0).toUpperCase()}
-                                                                                    </span>
-                                                                                </div>
-                                                                            )}
-                                                                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                                                                                employee.current_status === 'Working' ? 'bg-green-500' :
-                                                                                employee.current_status === 'On Break' ? 'bg-yellow-500' :
-                                                                                employee.current_status === 'Clocked Out' ? 'bg-red-500' :
-                                                                                'bg-gray-400'
-                                                                            }`}></div>
-                                                                        </div>
-                                                                        <div className="min-w-0">
-                                                                            <div className="font-semibold text-slate-800 text-sm truncate">
-                                                                                {employee.user_name}
-                                                                            </div>
-                                                                            <div className="text-xs text-slate-500 truncate">
-                                                                                {employee.designation}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
+                                                            <tr key={employee.user_id} className="hover:bg-slate-50">
+                                                                <td className="px-4 py-3"><EmployeeIdentity employee={employee} /></td>
+                                                                <td className="whitespace-nowrap px-4 py-3">
+                                                                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle(employee.current_status)}`}>
+                                                                        {employee.current_status}
+                                                                    </span>
                                                                 </td>
-                                                                <td className="py-4 px-3">
-                                                                    <div className="flex flex-col items-center gap-1">
-                                                                        <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap ${
-                                                                            employee.current_status === 'Working' ? 'bg-green-100 text-green-700' :
-                                                                            employee.current_status === 'On Break' ? 'bg-yellow-100 text-yellow-700' :
-                                                                            employee.current_status === 'Clocked Out' ? 'bg-red-100 text-red-700' :
-                                                                            'bg-gray-100 text-gray-700'
-                                                                        }`}>
-                                                                            {employee.current_status}
-                                                                        </span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4 px-3 text-center bg-emerald-50/50">
-                                                                    <div className="font-bold text-emerald-700 text-lg">
-                                                                        {formatHours(employee.total_work_hours)}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4 px-3 text-center bg-amber-50/50">
-                                                                    <div className="font-bold text-amber-700 text-lg">
-                                                                        {formatHours(employee.total_break_hours)}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4 px-3 text-center bg-blue-50/50">
-                                                                    <div className="text-sm text-blue-700 font-medium">
-                                                                        {employee.first_clock_in || '-'}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4 px-3 text-center bg-rose-50/50">
-                                                                    <div className="text-sm text-rose-700 font-medium">
-                                                                        {employee.last_action_time || '-'}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="py-4 px-3 text-center">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <div className="p-2 bg-purple-100 rounded-lg">
-                                                                            <Activity className="w-4 h-4 text-purple-600" />
-                                                                        </div>
-                                                                        <span className="font-bold text-slate-700 text-lg">
-                                                                            {employee.total_entries}
-                                                                        </span>
-                                                                    </div>
-                                                                </td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-900">{formatHours(employee.total_work_hours)}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{formatHours(employee.total_break_hours)}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.first_clock_in || '-'}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.last_action_time || '-'}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.total_entries}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
                                                 </table>
                                             </div>
-                                        )}
-                                    </div>
+                                        )
                                 )}
 
-                                {/* Detailed Activity Tab */}
                                 {activeTab === 'detailed' && (
-                                    <div>
-                                        {filteredActivities.length === 0 ? (
-                                            <div className="text-center py-16">
-                                                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                    <Clock className="w-12 h-12 text-slate-400" />
-                                                </div>
-                                                <h3 className="text-xl font-semibold text-slate-700 mb-2">No activity records</h3>
-                                                <p className="text-slate-500">No time entries found for this date</p>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {/* Expand/Collapse All Buttons */}
-                                                <div className="flex justify-end gap-2 mb-4">
-                                                    <button
-                                                        onClick={expandAll}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition-all duration-300"
-                                                    >
-                                                        <ChevronDown className="w-4 h-4" />
-                                                        Expand All
-                                                    </button>
-                                                    <button
-                                                        onClick={collapseAll}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all duration-300"
-                                                    >
-                                                        <ChevronUp className="w-4 h-4" />
-                                                        Collapse All
-                                                    </button>
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {filteredActivities.map((activity, index) => (
-                                                        <div key={index} className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300">
-                                                            {/* Employee Header - Clickable */}
-                                                            <div 
-                                                                onClick={() => toggleEmployee(activity.user_id)}
-                                                                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gradient-to-r hover:from-slate-50 hover:to-blue-50/30 transition-all duration-300"
-                                                            >
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="relative flex-shrink-0">
-                                                                        {activity.avatar ? (
-                                                                            <img 
-                                                                                src={activity.avatar} 
-                                                                                alt={activity.user_name}
-                                                                                className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-lg"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
-                                                                                <span className="text-white font-bold">
-                                                                                    {activity.user_name.charAt(0).toUpperCase()}
-                                                                                </span>
-                                                                            </div>
-                                                                        )}
+                                    filteredActivities.length === 0
+                                        ? renderEmpty('No activity records', 'No activity matches the selected date and search.')
+                                        : (
+                                            <AccordionList
+                                                items={filteredActivities}
+                                                expandedEmployees={expandedEmployees}
+                                                toggleEmployee={toggleEmployee}
+                                                setAllExpanded={setAllExpanded}
+                                                renderContent={(activity) => (
+                                                    <div className="space-y-2">
+                                                        {activity.entries.map((entry) => {
+                                                            const meta = actionMeta(entry.action_type);
+                                                            const Icon = meta.icon;
+                                                            return (
+                                                                <div key={entry.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                                                                    <span className={`flex h-9 w-9 items-center justify-center rounded-lg border ${meta.className}`}>
+                                                                        <Icon className="h-4 w-4" />
+                                                                    </span>
+                                                                    <div className="flex-1">
+                                                                        <div className="text-sm font-semibold text-slate-900">{meta.label}</div>
+                                                                        <div className="text-xs text-slate-500">{entry.formatted_time}</div>
                                                                     </div>
-                                                                    <div>
-                                                                        <h3 className="font-bold text-slate-800 text-lg">{activity.user_name}</h3>
-                                                                        <p className="text-sm text-slate-600">{activity.designation}</p>
-                                                                    </div>
+                                                                    {entry.notes && <div className="text-sm text-slate-600">{entry.notes}</div>}
                                                                 </div>
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="text-right">
-                                                                        <div className="text-sm text-slate-500">Total Actions</div>
-                                                                        <div className="text-2xl font-bold text-purple-600">{activity.entries.length}</div>
-                                                                    </div>
-                                                                    <div className="p-2 bg-slate-100 rounded-lg">
-                                                                        {expandedEmployees[activity.user_id] ? (
-                                                                            <ChevronUp className="w-5 h-5 text-slate-600" />
-                                                                        ) : (
-                                                                            <ChevronDown className="w-5 h-5 text-slate-600" />
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Expandable Content */}
-                                                            {expandedEmployees[activity.user_id] && (
-                                                                <div className="px-4 pb-4 pt-2 bg-gradient-to-r from-slate-50 to-blue-50/30 border-t-2 border-slate-200">
-                                                                    <div className="space-y-2">
-                                                                        {activity.entries.map((entry, entryIndex) => (
-                                                                            <div key={entryIndex} className="flex items-center gap-3 bg-white rounded-xl p-4 border border-slate-200 hover:border-purple-300 transition-all duration-300 hover:shadow-md">
-                                                                                <div className={`p-2 rounded-lg border-2 ${getActionColor(entry.action_type)}`}>
-                                                                                    {getActionIcon(entry.action_type)}
-                                                                                </div>
-                                                                                <div className="flex-1">
-                                                                                    <div className="font-semibold text-slate-800">
-                                                                                        {getActionLabel(entry.action_type)}
-                                                                                    </div>
-                                                                                    <div className="text-sm text-slate-500">
-                                                                                        {entry.formatted_time}
-                                                                                    </div>
-                                                                                </div>
-                                                                                {entry.notes && (
-                                                                                    <div className="text-sm text-slate-600 italic bg-slate-50 px-3 py-1 rounded-lg">
-                                                                                        "{entry.notes}"
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            />
+                                        )
                                 )}
 
-                                {/* Timeline Tab */}
                                 {activeTab === 'timeline' && (
-                                    <div>
-                                        {filteredTimelines.length === 0 ? (
-                                            <div className="text-center py-16">
-                                                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                    <Timer className="w-12 h-12 text-slate-400" />
-                                                </div>
-                                                <h3 className="text-xl font-semibold text-slate-700 mb-2">No timeline data</h3>
-                                                <p className="text-slate-500">No work sessions found for this date</p>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {/* Expand/Collapse All Buttons */}
-                                                <div className="flex justify-end gap-2 mb-4">
-                                                    <button
-                                                        onClick={expandAll}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition-all duration-300"
-                                                    >
-                                                        <ChevronDown className="w-4 h-4" />
-                                                        Expand All
-                                                    </button>
-                                                    <button
-                                                        onClick={collapseAll}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all duration-300"
-                                                    >
-                                                        <ChevronUp className="w-4 h-4" />
-                                                        Collapse All
-                                                    </button>
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    {filteredTimelines.map((timeline, index) => (
-                                                        <div key={index} className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300">
-                                                            {/* Employee Header - Clickable */}
-                                                            <div 
-                                                                onClick={() => toggleEmployee(timeline.user_id)}
-                                                                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gradient-to-r hover:from-slate-50 hover:to-purple-50/30 transition-all duration-300"
-                                                            >
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="relative">
-                                                                        {timeline.avatar ? (
-                                                                            <img 
-                                                                                src={timeline.avatar} 
-                                                                                alt={timeline.user_name}
-                                                                                className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-lg"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
-                                                                                <span className="text-white font-bold text-lg">
-                                                                                    {timeline.user_name.charAt(0).toUpperCase()}
-                                                                                </span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
+                                    filteredTimelines.length === 0
+                                        ? renderEmpty('No timeline records', 'No sessions match the selected date and search.')
+                                        : (
+                                            <AccordionList
+                                                items={filteredTimelines}
+                                                expandedEmployees={expandedEmployees}
+                                                toggleEmployee={toggleEmployee}
+                                                setAllExpanded={setAllExpanded}
+                                                renderContent={(timeline) => (
+                                                    <div className="space-y-2">
+                                                        {timeline.sessions.map((session, index) => (
+                                                            <div key={`${timeline.user_id}-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                                                                        session.type === 'work' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                                                    }`}>
+                                                                        {session.type === 'work' ? <Timer className="h-4 w-4" /> : <Coffee className="h-4 w-4" />}
+                                                                    </span>
                                                                     <div>
-                                                                        <h3 className="font-bold text-slate-800 text-xl">{timeline.user_name}</h3>
-                                                                        <p className="text-sm text-slate-600">{timeline.designation}</p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className="grid grid-cols-2 gap-4">
-                                                                        <div className="text-center bg-emerald-100 rounded-xl p-3">
-                                                                            <div className="text-xs text-emerald-600 font-medium">Work</div>
-                                                                            <div className="text-lg font-bold text-emerald-700">{formatHours(timeline.total_work_hours)}</div>
+                                                                        <div className="text-sm font-semibold text-slate-900">
+                                                                            {session.type === 'work' ? 'Work Session' : 'Break'}
                                                                         </div>
-                                                                        <div className="text-center bg-amber-100 rounded-xl p-3">
-                                                                            <div className="text-xs text-amber-600 font-medium">Break</div>
-                                                                            <div className="text-lg font-bold text-amber-700">{formatHours(timeline.total_break_hours)}</div>
+                                                                        <div className="text-xs text-slate-500">
+                                                                            {session.start_time} to {session.end_time || 'Ongoing'}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="p-2 bg-slate-100 rounded-lg">
-                                                                        {expandedEmployees[timeline.user_id] ? (
-                                                                            <ChevronUp className="w-5 h-5 text-slate-600" />
-                                                                        ) : (
-                                                                            <ChevronDown className="w-5 h-5 text-slate-600" />
-                                                                        )}
-                                                                    </div>
                                                                 </div>
+                                                                <div className="text-sm font-bold text-slate-900">{session.duration}</div>
                                                             </div>
-
-                                                            {/* Timeline Content - Expandable */}
-                                                            {expandedEmployees[timeline.user_id] && (
-                                                                <div className="px-6 pb-6 pt-4 bg-gradient-to-r from-slate-50 to-purple-50/30 border-t-2 border-slate-200">
-                                                                    <div className="relative">
-                                                                        <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-slate-300"></div>
-                                                                        <div className="space-y-4">
-                                                                            {timeline.sessions.map((session, sessionIndex) => (
-                                                                                <div key={sessionIndex} className="relative flex items-start gap-4 ml-3">
-                                                                                    <div className={`relative z-10 p-3 rounded-xl shadow-lg border-2 ${
-                                                                                        session.type === 'work' 
-                                                                                            ? 'bg-emerald-500 border-emerald-300' 
-                                                                                            : 'bg-amber-500 border-amber-300'
-                                                                                    }`}>
-                                                                                        {session.type === 'work' ? (
-                                                                                            <Timer className="w-5 h-5 text-white" />
-                                                                                        ) : (
-                                                                                            <Coffee className="w-5 h-5 text-white" />
-                                                                                        )}
-                                                                                    </div>
-                                                                                    <div className="flex-1 bg-white rounded-xl p-4 border-2 border-slate-200 hover:border-purple-300 transition-all duration-300 hover:shadow-md">
-                                                                                        <div className="flex items-center justify-between mb-2">
-                                                                                            <span className={`font-bold text-lg ${
-                                                                                                session.type === 'work' ? 'text-emerald-700' : 'text-amber-700'
-                                                                                            }`}>
-                                                                                                {session.type === 'work' ? 'Work Session' : 'Break Time'}
-                                                                                            </span>
-                                                                                            <span className="font-bold text-purple-600 text-lg">
-                                                                                                {session.duration}
-                                                                                            </span>
-                                                                                        </div>
-                                                                                        <div className="flex items-center gap-4 text-sm text-slate-600">
-                                                                                            <div className="flex items-center gap-1">
-                                                                                                <PlayCircle className="w-4 h-4 text-green-500" />
-                                                                                                <span>{session.start_time}</span>
-                                                                                            </div>
-                                                                                            <span>→</span>
-                                                                                            <div className="flex items-center gap-1">
-                                                                                                <Square className="w-4 h-4 text-red-500" />
-                                                                                                <span>{session.end_time || 'Ongoing'}</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            />
+                                        )
                                 )}
                             </>
                         )}
-                    </div>
+                    </section>
                 </div>
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+function AccordionList({ items, expandedEmployees, toggleEmployee, setAllExpanded, renderContent }) {
+    return (
+        <div>
+            <div className="flex justify-end gap-2 border-b border-slate-200 px-4 py-3">
+                <button
+                    type="button"
+                    onClick={() => setAllExpanded(items, true)}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                >
+                    Expand all
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setAllExpanded(items, false)}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                >
+                    Collapse all
+                </button>
+            </div>
+
+            <div className="divide-y divide-slate-200">
+                {items.map((item) => {
+                    const expanded = Boolean(expandedEmployees[item.user_id]);
+                    return (
+                        <div key={item.user_id}>
+                            <button
+                                type="button"
+                                onClick={() => toggleEmployee(item.user_id)}
+                                className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50"
+                            >
+                                <EmployeeIdentity employee={item} size="large" />
+                                <div className="flex items-center gap-3">
+                                    {item.entries && <span className="text-sm font-semibold text-slate-600">{item.entries.length} actions</span>}
+                                    {item.sessions && (
+                                        <span className="hidden text-sm text-slate-600 sm:inline">
+                                            {formatHours(item.total_work_hours)} work, {formatHours(item.total_break_hours)} break
+                                        </span>
+                                    )}
+                                    {expanded ? <ChevronUp className="h-5 w-5 text-slate-500" /> : <ChevronDown className="h-5 w-5 text-slate-500" />}
+                                </div>
+                            </button>
+                            {expanded && <div className="border-t border-slate-100 bg-slate-50 p-4">{renderContent(item)}</div>}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
     );
 }

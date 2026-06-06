@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('client_id')->constrained()->onDelete('cascade');
             $table->foreignId('upwork_profile_id')->constrained()->onDelete('cascade');
             $table->timestamps();
-            
+
             // Ensure a client can't have the same profile multiple times
             $table->unique(['client_id', 'upwork_profile_id']);
         });

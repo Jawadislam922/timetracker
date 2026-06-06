@@ -1,8 +1,9 @@
 import React from 'react';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
-import AnimatedBackground from '../Components/AnimatedBackground';
 import TagInput from '../Components/TagInput';
 import { Head, useForm, Link } from '@inertiajs/react';
+import PageHeader from '../Components/Layout/PageHeader';
+import PageShell from '../Components/Layout/PageShell';
 
 export default function ClientCreate({ auth, upworkProfiles, workTypes }) {
     const form = useForm({
@@ -105,26 +106,16 @@ export default function ClientCreate({ auth, upworkProfiles, workTypes }) {
         <AuthenticatedLayout user={auth.user}>
             <Head title="Add Client" />
             
-            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
-                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
-                    {/* Header Card with Gradient Icon */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
-                        <div className="flex items-center gap-4">
-                            <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-lg">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h2 className="text-3xl font-bold text-slate-900">Add Client</h2>
-                                <p className="text-slate-600 mt-1">Create a3 new client for your projects</p>
-                            </div>
-                        </div>
-                    </div>
+            <PageShell width="max-w-5xl">
+                <PageHeader
+                    eyebrow="Clients"
+                    title="Add Client"
+                    description="Create a client and connect the relevant work type and profiles."
+                />
 
                     {/* Form Card */}
-                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-                        <div className="p-6 md:p-8">
+                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="p-5 sm:p-6">
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Client Name */}
@@ -354,7 +345,7 @@ export default function ClientCreate({ auth, upworkProfiles, workTypes }) {
 
                                 {/* Preview Card - only show if name is entered */}
                                 {form.data.name && (
-                                    <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl border-2 border-purple-200">
+                                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
                                         <div className="flex items-center mb-5">
                                             <div className="w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl mr-4 shadow-lg">
                                                 {form.data.name.charAt(0).toUpperCase()}
@@ -425,7 +416,7 @@ export default function ClientCreate({ auth, upworkProfiles, workTypes }) {
                                     <button
                                         type="submit"
                                         disabled={form.processing}
-                                        className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {form.processing ? (
                                             <>
@@ -457,9 +448,7 @@ export default function ClientCreate({ auth, upworkProfiles, workTypes }) {
                             </form>
                         </div>
                     </div>
-                </div>
-            </div>
+            </PageShell>
         </AuthenticatedLayout>
     );
 }
-

@@ -14,9 +14,9 @@ class UpworkProfileController extends Controller
     public function index()
     {
         $profiles = UpworkProfile::orderBy('name')->get();
-        
+
         return Inertia::render('UpworkProfiles/Index', [
-            'profiles' => $profiles
+            'profiles' => $profiles,
         ]);
     }
 
@@ -35,7 +35,7 @@ class UpworkProfileController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:upwork_profiles,name',
-            'email' => 'nullable|email|max:255',
+            'email' => ['nullable', 'not_regex:/[\r\n]/', 'email', 'max:255'],
             'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
         ]);
@@ -52,7 +52,7 @@ class UpworkProfileController extends Controller
     public function show(UpworkProfile $upworkProfile)
     {
         return Inertia::render('UpworkProfiles/Show', [
-            'profile' => $upworkProfile->load('workHours')
+            'profile' => $upworkProfile->load('workHours'),
         ]);
     }
 
@@ -62,7 +62,7 @@ class UpworkProfileController extends Controller
     public function edit(UpworkProfile $upworkProfile)
     {
         return Inertia::render('UpworkProfiles/Edit', [
-            'profile' => $upworkProfile
+            'profile' => $upworkProfile,
         ]);
     }
 
@@ -72,8 +72,8 @@ class UpworkProfileController extends Controller
     public function update(Request $request, UpworkProfile $upworkProfile)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:upwork_profiles,name,' . $upworkProfile->id,
-            'email' => 'nullable|email|max:255',
+            'name' => 'required|string|max:255|unique:upwork_profiles,name,'.$upworkProfile->id,
+            'email' => ['nullable', 'not_regex:/[\r\n]/', 'email', 'max:255'],
             'description' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
         ]);

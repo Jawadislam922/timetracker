@@ -1,10 +1,14 @@
 <?php
 
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ClientController;
-use App\Http\Controllers\PortfolioController;
-use App\Http\Controllers\PortfolioUploadController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeAttendanceController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SlackReportController;
+use App\Http\Controllers\TimeEntryController;
+use App\Http\Controllers\UpworkProfileController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkHourController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -29,62 +33,73 @@ Route::get('/', function () {
     ]);
 });
 
-// Public portfolio view
-Route::get('/portfolio/{slug}', [PortfolioController::class, 'showPublic'])->name('portfolio.public');
-
-Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
-    // Portfolio management routes
-    Route::get('/app/portfolio', [PortfolioController::class, 'index'])->name('portfolio.index');
-    Route::get('/app/portfolio/new', [PortfolioController::class, 'create'])->name('portfolio.create');
-    Route::post('/app/portfolio', [PortfolioController::class, 'store'])->name('portfolio.store');
-    Route::get('/app/portfolio/{id}/edit', [PortfolioController::class, 'edit'])->name('portfolio.edit');
-    Route::get('/app/portfolio/{slug}', [PortfolioController::class, 'editBySlug'])->name('portfolio.edit.slug');
-    Route::put('/app/portfolio/{id}', [PortfolioController::class, 'update'])->name('portfolio.update');
-    Route::post('/app/portfolio/{id}/publish', [PortfolioController::class, 'publish'])->name('portfolio.publish');
-    Route::post('/app/upload-image', [PortfolioUploadController::class, 'store'])->name('portfolio.upload');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Admin only routes
-    Route::middleware(['role:admin'])->group(function () {
-        Route::resource('users', UserController::class)->except(['show']);
-        Route::get('/report', [\App\Http\Controllers\WorkHourController::class, 'report'])->name('work-hours.report');
-        Route::get('/work-hours/export', [\App\Http\Controllers\WorkHourController::class, 'export'])->name('work-hours.export');
-        
-        // Client export/import routes (must be before resource routes)
-        Route::get('/clients/export', [\App\Http\Controllers\ClientController::class, 'export'])->name('clients.export');
-        Route::post('/clients/import', [\App\Http\Controllers\ClientController::class, 'import'])->name('clients.import');
-        Route::delete('/clients/bulk-destroy', [\App\Http\Controllers\ClientController::class, 'bulkDestroy'])->name('clients.bulk-destroy');
-        Route::resource('clients', ClientController::class);
-        
-        Route::resource('upwork-profiles', \App\Http\Controllers\UpworkProfileController::class);
-        
-        // Employee Attendance routes
-        Route::get('/employee-attendance', [\App\Http\Controllers\EmployeeAttendanceController::class, 'index'])->name('employee-attendance.index');
-        Route::get('/employee-attendance/summary', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getSummary'])->name('employee-attendance.summary');
-        Route::get('/employee-attendance/detailed', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getDetailed'])->name('employee-attendance.detailed');
-        Route::get('/employee-attendance/timeline', [\App\Http\Controllers\EmployeeAttendanceController::class, 'getTimeline'])->name('employee-attendance.timeline');
-        Route::get('/employee-attendance/export', [\App\Http\Controllers\EmployeeAttendanceController::class, 'export'])->name('employee-attendance.export');
-    });
+    Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
+    Route::get('/users/create', [UserController::class, 'create'])->middleware('permission:users.manage')->name('users.create');
+    Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.manage')->name('users.store');
+    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->middleware('permission:users.manage')->name('users.edit');
+    Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])->middleware('permission:users.manage')->name('users.update');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])->middleware('permission:users.delete')->name('users.destroy');
 
-    // Routes accessible to both admin and employee
-    Route::resource('work-hours', \App\Http\Controllers\WorkHourController::class)->except(['show']);
-    Route::get('/work-hours-export', [\App\Http\Controllers\WorkHourController::class, 'exportPersonal'])->name('work-hours.export-personal');
-    Route::post('/work-hours/bulk-delete', [\App\Http\Controllers\WorkHourController::class, 'bulkDelete'])->name('work-hours.bulk-delete');
-    
+    Route::get('/report', [WorkHourController::class, 'report'])
+        ->middleware('permission:reports.view')
+        ->name('work-hours.report');
+    Route::get('/work-hours/export', [WorkHourController::class, 'export'])
+        ->middleware('permission:reports.export')
+        ->name('work-hours.export');
+    Route::post('/report/slack', [SlackReportController::class, 'store'])
+        ->middleware('permission:reports.send_slack')
+        ->name('work-hours.slack');
+
+    Route::get('/clients/export', [ClientController::class, 'export'])
+        ->middleware('permission:clients.import_export')
+        ->name('clients.export');
+    Route::post('/clients/import', [ClientController::class, 'import'])
+        ->middleware('permission:clients.import_export')
+        ->name('clients.import');
+    Route::delete('/clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
+        ->middleware('permission:clients.manage')
+        ->name('clients.bulk-destroy');
+    Route::get('/clients', [ClientController::class, 'index'])->middleware('permission:clients.view')->name('clients.index');
+    Route::get('/clients/create', [ClientController::class, 'create'])->middleware('permission:clients.manage')->name('clients.create');
+    Route::post('/clients', [ClientController::class, 'store'])->middleware('permission:clients.manage')->name('clients.store');
+    Route::get('/clients/{client}/edit', [ClientController::class, 'edit'])->middleware('permission:clients.manage')->name('clients.edit');
+    Route::match(['put', 'patch'], '/clients/{client}', [ClientController::class, 'update'])->middleware('permission:clients.manage')->name('clients.update');
+    Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->middleware('permission:clients.manage')->name('clients.destroy');
+
+    Route::get('/upwork-profiles', [UpworkProfileController::class, 'index'])->middleware('permission:profiles.view')->name('upwork-profiles.index');
+    Route::get('/upwork-profiles/create', [UpworkProfileController::class, 'create'])->middleware('permission:profiles.manage')->name('upwork-profiles.create');
+    Route::post('/upwork-profiles', [UpworkProfileController::class, 'store'])->middleware('permission:profiles.manage')->name('upwork-profiles.store');
+    Route::get('/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'show'])->middleware('permission:profiles.view')->name('upwork-profiles.show');
+    Route::get('/upwork-profiles/{upwork_profile}/edit', [UpworkProfileController::class, 'edit'])->middleware('permission:profiles.manage')->name('upwork-profiles.edit');
+    Route::match(['put', 'patch'], '/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'update'])->middleware('permission:profiles.manage')->name('upwork-profiles.update');
+    Route::delete('/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'destroy'])->middleware('permission:profiles.manage')->name('upwork-profiles.destroy');
+
+    Route::get('/employee-attendance', [EmployeeAttendanceController::class, 'index'])->middleware('permission:attendance.view')->name('employee-attendance.index');
+    Route::get('/employee-attendance/summary', [EmployeeAttendanceController::class, 'getSummary'])->middleware('permission:attendance.view')->name('employee-attendance.summary');
+    Route::get('/employee-attendance/detailed', [EmployeeAttendanceController::class, 'getDetailed'])->middleware('permission:attendance.view')->name('employee-attendance.detailed');
+    Route::get('/employee-attendance/timeline', [EmployeeAttendanceController::class, 'getTimeline'])->middleware('permission:attendance.view')->name('employee-attendance.timeline');
+    Route::get('/employee-attendance/export', [EmployeeAttendanceController::class, 'export'])->middleware('permission:attendance.export')->name('employee-attendance.export');
+
+    Route::resource('work-hours', WorkHourController::class)->except(['show']);
+    Route::get('/work-hours-export', [WorkHourController::class, 'exportPersonal'])->name('work-hours.export-personal');
+    Route::post('/work-hours/bulk-delete', [WorkHourController::class, 'bulkDelete'])->name('work-hours.bulk-delete');
+
     // Time tracking routes
     Route::prefix('time-entries')->group(function () {
-        Route::get('/', [\App\Http\Controllers\TimeEntryController::class, 'index'])->name('time-entries.index');
-        Route::post('/', [\App\Http\Controllers\TimeEntryController::class, 'store'])->name('time-entries.store');
-        Route::get('/today', [\App\Http\Controllers\TimeEntryController::class, 'getTodaysEntries'])->name('time-entries.today');
-        Route::get('/today-summary', [\App\Http\Controllers\TimeEntryController::class, 'getTodaysSummary'])->name('time-entries.today-summary');
-        Route::get('/export', [\App\Http\Controllers\TimeEntryController::class, 'export'])->name('time-entries.export');
+        Route::get('/', [TimeEntryController::class, 'index'])->name('time-entries.index');
+        Route::post('/', [TimeEntryController::class, 'store'])->name('time-entries.store');
+        Route::get('/today', [TimeEntryController::class, 'getTodaysEntries'])->name('time-entries.today');
+        Route::get('/today-summary', [TimeEntryController::class, 'getTodaysSummary'])->name('time-entries.today-summary');
+        Route::get('/export', [TimeEntryController::class, 'export'])->name('time-entries.export');
     });
 });
 

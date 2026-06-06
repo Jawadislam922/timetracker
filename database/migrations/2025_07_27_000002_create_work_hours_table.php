@@ -15,7 +15,7 @@ return new class extends Migration
             $table->decimal('hours', 5, 2);
             $table->text('description')->nullable();
             $table->string('work_type')->nullable();
-            $table->foreignId('project_id')->nullable();
+            $table->unsignedBigInteger('client_id')->nullable()->index();
             $table->string('tracker')->nullable();
             $table->timestamps();
         });

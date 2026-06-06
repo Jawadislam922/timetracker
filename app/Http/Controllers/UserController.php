@@ -2,78 +2,99 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class UserController extends Controller
 {
     public function index(Request $request)
     {
         $perPage = $request->get('perPage', 10);
-        
+        $rawRoles = $request->input('roles', $request->input('role', []));
+        $rawDesignations = $request->input('designations', $request->input('designation', []));
+        $roles = collect(is_array($rawRoles) ? $rawRoles : [$rawRoles])
+            ->map(fn ($role) => (string) $role)
+            ->filter(fn ($role) => $role !== '' && $role !== 'all')
+            ->unique()
+            ->values()
+            ->all();
+        $designations = collect(is_array($rawDesignations) ? $rawDesignations : [$rawDesignations])
+            ->map(fn ($designation) => (string) $designation)
+            ->filter(fn ($designation) => $designation !== '' && $designation !== 'all')
+            ->unique()
+            ->values()
+            ->all();
+
         // Validate perPage to ensure it's within reasonable limits
-        if (!in_array($perPage, [10, 25, 50, 100])) {
+        if (! in_array($perPage, [10, 25, 50, 100])) {
             $perPage = 10;
         }
-        
+
         // Start building the query
         $query = User::query();
-        
+
         // Apply search filter
         if ($request->filled('search')) {
             $search = $request->get('search');
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%')
-                  ->orWhere('email', 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%');
             });
         }
-        
+
         // Apply shift filter (designation field stores shift information)
-        if ($request->filled('designation')) {
-            $designation = $request->get('designation');
-            if ($designation === 'no_designation') {
-                $query->where(function($q) {
-                    $q->whereNull('designation')
-                      ->orWhere('designation', '');
-                });
-            } elseif ($designation !== 'all') {
-                $query->where('designation', $designation);
-            }
+        if (! empty($designations)) {
+            $query->where(function ($designationQuery) use ($designations) {
+                $regularDesignations = array_values(array_diff($designations, ['no_designation']));
+
+                if (! empty($regularDesignations)) {
+                    $designationQuery->whereIn('designation', $regularDesignations);
+                }
+
+                if (in_array('no_designation', $designations, true)) {
+                    $method = empty($regularDesignations) ? 'where' : 'orWhere';
+                    $designationQuery->{$method}(function ($emptyQuery) {
+                        $emptyQuery->whereNull('designation')->orWhere('designation', '');
+                    });
+                }
+            });
         }
-        
-        // Apply role filter
-        if ($request->filled('role') && $request->get('role') !== 'all') {
-            $query->where('role', $request->get('role'));
+
+        if (! empty($roles)) {
+            $query->whereIn('role', $roles);
         }
-        
+
         $users = $query->orderBy('name')
             ->paginate($perPage)
             ->appends($request->query());
-        
+
         // Calculate weekly hours for each user and format as HH:MM
         $startOfWeek = now()->startOfWeek()->format('Y-m-d');
         $endOfWeek = now()->endOfWeek()->format('Y-m-d');
-        
+
         $users->getCollection()->transform(function ($user) use ($startOfWeek, $endOfWeek) {
             // Get the sum of hours for this week
             $weeklyHours = $user->workHours()
                 ->whereBetween('date', [$startOfWeek, $endOfWeek])
                 ->sum('hours');
-            
+
             // Convert decimal hours to HH:MM format
             $hours = floor($weeklyHours);
             $minutes = round(($weeklyHours - $hours) * 60);
-            
+
             // Format as HH:MM
             $user->weekly_hours_worked = sprintf('%02d:%02d', $hours, $minutes);
-            
+            $user->role_label = $user->role_label;
+
             return $user;
         });
-            
+
         // Get all unique shifts (stored as designations) and roles for filter dropdowns
         $allDesignations = User::whereNotNull('designation')
             ->where('designation', '!=', '')
@@ -81,41 +102,40 @@ class UserController extends Controller
             ->pluck('designation')
             ->sort()
             ->values();
-            
-        $allRoles = User::distinct()
-            ->pluck('role')
-            ->sort()
-            ->values();
-            
+
         return Inertia::render('UsersList', [
             'users' => $users,
             'filters' => [
                 'search' => $request->get('search', ''),
-                'designation' => $request->get('designation', 'all'),
-                'role' => $request->get('role', 'all'),
+                'designations' => $designations,
+                'roles' => $roles,
             ],
             'filterOptions' => [
                 'designations' => $allDesignations,
-                'roles' => $allRoles,
+                'roles' => collect(User::ROLES)->map(
+                    fn (string $label, string $value) => ['value' => $value, 'label' => $label]
+                )->values(),
             ],
         ]);
     }
 
     public function create()
     {
-        return Inertia::render('UserCreate');
+        return Inertia::render('UserCreate', $this->accessFormProps());
     }
 
     public function store(Request $request)
     {
         $rules = [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|string|min:8',
-            'role' => 'required|in:admin,employee',
+            'email' => ['required', 'not_regex:/[\r\n]/', 'email', 'unique:users'],
+            'password' => ['required', 'string', Password::min(12)],
+            'role' => ['nullable', Rule::in(array_keys(User::ROLES))],
+            'permissions' => 'nullable|array',
+            'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'designation' => 'nullable|string|max:255',
         ];
-        
+
         // Only add avatar validation if file is present
         if ($request->hasFile('avatar')) {
             $rules['avatar'] = 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048';
@@ -132,24 +152,38 @@ class UserController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
+            'role' => $request->user()->isSuperAdmin() ? ($validated['role'] ?? 'member') : 'member',
+            'permissions' => $request->user()->isSuperAdmin()
+                ? $this->validatedPermissions($validated['permissions'] ?? [])
+                : [],
             'designation' => $validated['designation'] ?? null,
         ];
-        
+
         // Only add avatar if we have one
         if ($avatarPath) {
             $userData['avatar'] = $avatarPath;
         }
 
         User::create($userData);
-        
+
         return redirect()->route('users.index')->with('success', 'User created successfully!');
     }
 
     public function edit(User $user)
     {
+        $this->guardSuperAdminTarget($user);
+
         return Inertia::render('UserEdit', [
-            'user' => $user,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'permissions' => $user->permissions ?? [],
+                'avatar_url' => $user->avatar_url,
+                'designation' => $user->designation,
+            ],
+            ...$this->accessFormProps(),
         ]);
     }
 
@@ -159,47 +193,102 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => [
                 'required',
+                'not_regex:/[\r\n]/',
                 'email',
                 Rule::unique('users')->ignore($user->id),
             ],
-            'password' => 'nullable|string|min:8',
-            'role' => 'required|in:admin,employee',
+            'password' => ['nullable', 'string', Password::min(12)],
+            'role' => ['nullable', Rule::in(array_keys(User::ROLES))],
+            'permissions' => 'nullable|array',
+            'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'designation' => 'nullable|string|max:255',
         ];
-        
+
         // Only add avatar validation if file is present
         if ($request->hasFile('avatar')) {
             $rules['avatar'] = 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048';
         }
 
         $validated = $request->validate($rules);
+        $this->guardSuperAdminTarget($user);
+
+        if ($request->user()->is($user)
+            && $request->user()->isSuperAdmin()
+            && ($validated['role'] ?? 'member') !== 'super_admin') {
+            throw ValidationException::withMessages([
+                'role' => 'You cannot remove Super Admin access from your own account.',
+            ]);
+        }
 
         $user->name = $validated['name'];
         $user->email = $validated['email'];
-        $user->role = $validated['role'];
         $user->designation = $validated['designation'] ?? null;
-        
+
+        if ($request->user()->isSuperAdmin()) {
+            $user->role = $validated['role'] ?? 'member';
+            $user->permissions = $user->role === 'super_admin'
+                ? []
+                : $this->validatedPermissions($validated['permissions'] ?? []);
+        }
+
         // Only update password if it's provided and not empty
-        if (!empty($validated['password']) && $validated['password'] !== '') {
+        if (! empty($validated['password']) && $validated['password'] !== '') {
             $user->password = Hash::make($validated['password']);
         }
 
         if ($request->hasFile('avatar')) {
             // Delete old avatar if exists
-            if ($user->avatar && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->avatar)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar);
+            if ($user->avatar && Storage::disk('public')->exists($user->avatar)) {
+                Storage::disk('public')->delete($user->avatar);
             }
             $user->avatar = $request->file('avatar')->store('avatars', 'public');
         }
 
         $user->save();
-        
+
         return redirect()->route('users.index')->with('success', 'User updated successfully!');
     }
 
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
+        if ($request->user()->is($user)) {
+            throw ValidationException::withMessages([
+                'user' => 'You cannot delete your own account.',
+            ]);
+        }
+
+        $this->guardSuperAdminTarget($user);
         $user->delete();
-        return redirect()->route('users.index');
+
+        return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+    }
+
+    private function accessFormProps(): array
+    {
+        return [
+            'roles' => config('access.roles'),
+            'permissionGroups' => config('access.permissions'),
+            'canManageAccess' => request()->user()->isSuperAdmin(),
+        ];
+    }
+
+    private function permissionKeys(): array
+    {
+        return collect(config('access.permissions'))
+            ->flatMap(fn (array $permissions) => array_keys($permissions))
+            ->values()
+            ->all();
+    }
+
+    private function validatedPermissions(array $permissions): array
+    {
+        return array_values(array_unique(array_intersect($permissions, $this->permissionKeys())));
+    }
+
+    private function guardSuperAdminTarget(User $user): void
+    {
+        if ($user->isSuperAdmin() && ! request()->user()->isSuperAdmin()) {
+            abort(403, 'Only a Super Admin can manage another Super Admin account.');
+        }
     }
 }

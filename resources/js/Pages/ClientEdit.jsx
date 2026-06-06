@@ -1,8 +1,9 @@
 import React from 'react';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
-import AnimatedBackground from '../Components/AnimatedBackground';
 import TagInput from '../Components/TagInput';
 import { Head, useForm, Link } from '@inertiajs/react';
+import PageHeader from '../Components/Layout/PageHeader';
+import PageShell from '../Components/Layout/PageShell';
 
 export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) {
     // Initialize with existing multiple profiles or fallback to single profile
@@ -110,29 +111,16 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
         <AuthenticatedLayout user={auth.user}>
             <Head title="Edit Client" />
             
-            {/* Page Background */}
-            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
-                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
-                    {/* Header Section */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
-                        <div className="flex items-center gap-6">
-                            <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-lg">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                            </div>
-                            <div className="flex-1">
-                                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-1">
-                                    Edit Client
-                                </h1>
-                                <p className="text-slate-600 text-base md:text-lg">Update client information and details</p>
-                            </div>
-                        </div>
-                    </div>
+            <PageShell width="max-w-5xl">
+                <PageHeader
+                    eyebrow="Clients"
+                    title="Edit Client"
+                    description={`Update information and assignments for ${client.name}.`}
+                />
                     
                     {/* Form Section */}
-                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-                        <div className="p-6 md:p-8">
+                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="p-5 sm:p-6">
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Client Name */}
@@ -237,7 +225,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                                     {selectedProfiles.map((profile) => (
                                                         <div
                                                             key={profile.id}
-                                                            className="flex items-center justify-between p-3 bg-white/10 backdrop-blur-lg border border-slate-300 rounded-lg"
+                                                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3"
                                                         >
                                                             <div>
                                                                 <div className="font-medium text-slate-900">{profile.name}</div>
@@ -273,7 +261,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                                 className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all text-slate-900 placeholder-slate-400"
                                             />
                                             {showProfileDropdown && filteredProfiles.length > 0 && (
-                                                <div ref={profileDropdownRef} className="absolute z-50 w-full mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-2xl backdrop-blur-xl max-h-60 overflow-y-auto">
+                                                <div ref={profileDropdownRef} className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
                                                     {filteredProfiles.map((profile) => (
                                                         <button
                                                             key={profile.id}
@@ -326,7 +314,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                 </div>
 
                                 {/* Current Client Display */}
-                                <div className="p-6 bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl rounded-xl border border-slate-300">
+                                <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
                                     <div className="flex items-center mb-4">
                                         <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center text-slate-900 font-bold text-xl mr-4 shadow-lg">
                                             {client.name.charAt(0).toUpperCase()}
@@ -390,7 +378,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                     <button
                                         type="submit"
                                         disabled={form.processing}
-                                        className="flex-1 inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-slate-900 rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50 backdrop-blur-xl"
+                                        className="inline-flex flex-1 items-center justify-center rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -399,7 +387,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                     </button>
                                     <Link
                                         href={route('clients.index')}
-                                        className="flex-1 inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-white/10 to-white/5 hover:from-white/20 hover:to-white/10 text-slate-900 rounded-xl font-medium transition-all shadow-lg hover:shadow-xl border border-slate-300 backdrop-blur-xl"
+                                        className="inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -410,9 +398,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                             </form>
                         </div>
                     </div>
-                </div>
-            </div>
+            </PageShell>
         </AuthenticatedLayout>
     );
 }
-

@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TimeEntry;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class EmployeeAttendanceController extends Controller
@@ -16,16 +14,8 @@ class EmployeeAttendanceController extends Controller
      */
     public function index()
     {
-        // Only admins can access this page
-        if (Auth::user()->role !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         return Inertia::render('EmployeeAttendance', [
-            'auth' => [
-                'user' => Auth::user()
-            ],
-            'serverDate' => Carbon::today('Asia/Karachi')->toDateString()
+            'serverDate' => Carbon::today('Asia/Karachi')->toDateString(),
         ]);
     }
 
@@ -34,12 +24,8 @@ class EmployeeAttendanceController extends Controller
      */
     public function getSummary(Request $request)
     {
-        if (Auth::user()->role !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
-        
+
         $employees = User::all()->map(function ($employee) use ($date) {
             $entries = $employee->timeEntries()
                 ->whereDate('action_date', $date)
@@ -51,10 +37,10 @@ class EmployeeAttendanceController extends Controller
             }
 
             $stats = $this->calculateTimeStats($entries);
-            
+
             // Get first clock in time
             $firstClockIn = $entries->where('action_type', 'clock_in')->first();
-            
+
             // Get last action
             $lastEntry = $entries->last();
 
@@ -68,12 +54,12 @@ class EmployeeAttendanceController extends Controller
                 'current_status' => $stats['status'],
                 'first_clock_in' => $firstClockIn ? $firstClockIn->formatted_action_time : null,
                 'last_action_time' => $lastEntry ? $lastEntry->formatted_action_time : null,
-                'total_entries' => $entries->count()
+                'total_entries' => $entries->count(),
             ];
         })->filter()->values();
 
         return response()->json([
-            'employees' => $employees
+            'employees' => $employees,
         ]);
     }
 
@@ -82,12 +68,8 @@ class EmployeeAttendanceController extends Controller
      */
     public function getDetailed(Request $request)
     {
-        if (Auth::user()->role !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
-        
+
         $activities = User::all()->map(function ($employee) use ($date) {
             $entries = $employee->timeEntries()
                 ->whereDate('action_date', $date)
@@ -108,14 +90,14 @@ class EmployeeAttendanceController extends Controller
                         'id' => $entry->id,
                         'action_type' => $entry->action_type,
                         'formatted_time' => $entry->formatted_action_time,
-                        'notes' => $entry->notes
+                        'notes' => $entry->notes,
                     ];
-                })
+                }),
             ];
         })->filter()->values();
 
         return response()->json([
-            'activities' => $activities
+            'activities' => $activities,
         ]);
     }
 
@@ -124,12 +106,8 @@ class EmployeeAttendanceController extends Controller
      */
     public function getTimeline(Request $request)
     {
-        if (Auth::user()->role !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
-        
+
         $timelines = User::all()->map(function ($employee) use ($date) {
             $entries = $employee->timeEntries()
                 ->whereDate('action_date', $date)
@@ -150,12 +128,12 @@ class EmployeeAttendanceController extends Controller
                 'designation' => $employee->designation ?? 'Employee',
                 'total_work_hours' => $stats['workHours'],
                 'total_break_hours' => $stats['breakHours'],
-                'sessions' => $sessions
+                'sessions' => $sessions,
             ];
         })->filter()->values();
 
         return response()->json([
-            'timelines' => $timelines
+            'timelines' => $timelines,
         ]);
     }
 
@@ -164,16 +142,12 @@ class EmployeeAttendanceController extends Controller
      */
     public function export(Request $request)
     {
-        if (Auth::user()->role !== 'admin') {
-            abort(403, 'Unauthorized access');
-        }
-
         $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
-        
+
         $csv = "Employee,Designation,Status,Work Hours,Break Hours,First Clock In,Last Action,Total Actions\n";
-        
+
         $employees = User::all();
-        
+
         foreach ($employees as $employee) {
             $entries = $employee->timeEntries()
                 ->whereDate('action_date', $date)
@@ -189,32 +163,32 @@ class EmployeeAttendanceController extends Controller
             $lastEntry = $entries->last();
 
             $csv .= implode(',', [
-                '"' . $employee->name . '"',
-                '"' . ($employee->designation ?? 'Employee') . '"',
-                '"' . $stats['status'] . '"',
+                '"'.$employee->name.'"',
+                '"'.($employee->designation ?? 'Employee').'"',
+                '"'.$stats['status'].'"',
                 number_format($stats['workHours'], 2),
                 number_format($stats['breakHours'], 2),
-                '"' . ($firstClockIn ? $firstClockIn->formatted_action_time : '-') . '"',
-                '"' . ($lastEntry ? $lastEntry->formatted_action_time : '-') . '"',
-                $entries->count()
-            ]) . "\n";
+                '"'.($firstClockIn ? $firstClockIn->formatted_action_time : '-').'"',
+                '"'.($lastEntry ? $lastEntry->formatted_action_time : '-').'"',
+                $entries->count(),
+            ])."\n";
 
             // Add detailed entries
             $csv .= "\nDetailed Activity:\n";
             $csv .= "Time,Action,Notes\n";
             foreach ($entries as $entry) {
                 $csv .= implode(',', [
-                    '"' . $entry->formatted_action_time . '"',
-                    '"' . str_replace('_', ' ', ucwords($entry->action_type)) . '"',
-                    '"' . ($entry->notes ?? '') . '"'
-                ]) . "\n";
+                    '"'.$entry->formatted_action_time.'"',
+                    '"'.str_replace('_', ' ', ucwords($entry->action_type)).'"',
+                    '"'.($entry->notes ?? '').'"',
+                ])."\n";
             }
             $csv .= "\n";
         }
 
         return response($csv)
             ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', 'attachment; filename="employee-attendance-' . $date . '.csv"');
+            ->header('Content-Disposition', 'attachment; filename="employee-attendance-'.$date.'.csv"');
     }
 
     /**
@@ -232,7 +206,7 @@ class EmployeeAttendanceController extends Controller
         foreach ($entries as $entry) {
             $entryTime = new Carbon($entry->action_timestamp);
             $lastAction = $entry->action_type;
-            
+
             switch ($entry->action_type) {
                 case 'clock_in':
                     $currentSessionStart = $entryTime;
@@ -276,7 +250,7 @@ class EmployeeAttendanceController extends Controller
             'workHours' => round($effectiveWorkMinutes / 60, 2),
             'breakHours' => round($totalBreakMinutes / 60, 2),
             'lastAction' => $lastAction,
-            'status' => $status
+            'status' => $status,
         ];
     }
 
@@ -304,7 +278,7 @@ class EmployeeAttendanceController extends Controller
                             'type' => 'work',
                             'start_time' => $currentWorkStart->format('g:i A'),
                             'end_time' => $entryTime->format('g:i A'),
-                            'duration' => $this->formatDuration($duration)
+                            'duration' => $this->formatDuration($duration),
                         ];
                         $currentWorkStart = null;
                     }
@@ -321,7 +295,7 @@ class EmployeeAttendanceController extends Controller
                             'type' => 'break',
                             'start_time' => $currentBreakStart->format('g:i A'),
                             'end_time' => $entryTime->format('g:i A'),
-                            'duration' => $this->formatDuration($duration)
+                            'duration' => $this->formatDuration($duration),
                         ];
                         $currentBreakStart = null;
                     }
@@ -336,7 +310,7 @@ class EmployeeAttendanceController extends Controller
                 'type' => 'work',
                 'start_time' => $currentWorkStart->format('g:i A'),
                 'end_time' => null,
-                'duration' => $this->formatDuration($duration) . ' (ongoing)'
+                'duration' => $this->formatDuration($duration).' (ongoing)',
             ];
         }
 
@@ -346,7 +320,7 @@ class EmployeeAttendanceController extends Controller
                 'type' => 'break',
                 'start_time' => $currentBreakStart->format('g:i A'),
                 'end_time' => null,
-                'duration' => $this->formatDuration($duration) . ' (ongoing)'
+                'duration' => $this->formatDuration($duration).' (ongoing)',
             ];
         }
 
@@ -364,6 +338,7 @@ class EmployeeAttendanceController extends Controller
         if ($hours > 0) {
             return "{$hours}h {$minutes}m";
         }
+
         return "{$minutes}m";
     }
 }

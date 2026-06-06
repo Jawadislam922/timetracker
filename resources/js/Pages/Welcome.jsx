@@ -182,7 +182,7 @@ export default function Welcome({ auth, laravelVersion, phpVersion }) {
                     {/* Footer */}
                     <div className="text-center mt-20">
                         <p className="text-gray-400 text-sm">
-                            © 2025 Sparking Asia. Crafted with ❤️ for productivity.
+                            © {new Date().getFullYear()} Sparking Asia. Crafted with ❤️ for productivity.
                         </p>
                     </div>
                 </div>

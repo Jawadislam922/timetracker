@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
-import AnimatedBackground from '../Components/AnimatedBackground';
 import { TraditionalPagination } from '../Components/Pagination';
 import { Head, Link, router } from '@inertiajs/react';
 import { timeFormat } from '../helpers';
+import { exportRowsToCsv } from '@/Utils/csvExport';
+import SearchableMultiSelect from '../Components/Filters/SearchableMultiSelect';
+import ActiveFilterChips from '../Components/Filters/ActiveFilterChips';
+import PageHeader from '../Components/Layout/PageHeader';
+import PageShell from '../Components/Layout/PageShell';
 
 // Toast Notification Component
 function Toast({ message, type = 'success', onClose }) {
@@ -69,6 +72,14 @@ const formatWorkType = (workType) => {
     return types[workType] || workType;
 };
 
+const slackFieldOptions = [
+    { value: 'client', label: 'Client', description: 'Group entries by client.' },
+    { value: 'work_type', label: 'Work type', description: 'Show tracker, manual, fixed, and other work types.' },
+    { value: 'tracker', label: 'Tracker', description: 'Group entries by tracker or profile name.' },
+    { value: 'hours', label: 'Hours', description: 'Include summed hours for each group.' },
+    { value: 'user_total', label: 'User total', description: 'Show each person\'s total hours for the selected period.' },
+];
+
 export default function WorkHoursReport({ 
     auth, 
     workHours, 
@@ -79,19 +90,37 @@ export default function WorkHoursReport({
     endDate = null,
     userId = 'all',
     workType = 'all',
-    client = 'all'
+    client = 'all',
+    selectedFilters = {},
+    filterOptions = {},
+    slackConfigured = false,
+    slackWeeklyEnabled = false,
 }) {
+    const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.export');
+    const canSendSlack = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.send_slack');
     const [toast, setToast] = useState(flash?.success || flash?.error || '');
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
     const [dateFilter, setDateFilter] = useState(filter);
     const [customStartDate, setCustomStartDate] = useState(startDate ? new Date(startDate) : null);
     const [customEndDate, setCustomEndDate] = useState(endDate ? new Date(endDate) : null);
-    const [selectedUser, setSelectedUser] = useState(userId);
-    const [selectedWorkType, setSelectedWorkType] = useState(workType);
-    const [selectedClient, setSelectedClient] = useState(client);
+    const [selectedUsers, setSelectedUsers] = useState(selectedFilters.userIds || (userId !== 'all' ? [String(userId)] : []));
+    const [selectedWorkTypes, setSelectedWorkTypes] = useState(selectedFilters.workTypes || (workType !== 'all' ? [workType] : []));
+    const [selectedClients, setSelectedClients] = useState(selectedFilters.clients || (client !== 'all' ? [client] : []));
+    const [selectedTrackers, setSelectedTrackers] = useState(selectedFilters.trackers || []);
+    const [selectedDesignations, setSelectedDesignations] = useState(selectedFilters.designations || []);
     const [searchTerm, setSearchTerm] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [showSlackDialog, setShowSlackDialog] = useState(false);
+    const [isSendingSlack, setIsSendingSlack] = useState(false);
+    const [slackUserIds, setSlackUserIds] = useState([]);
+    const [slackFields, setSlackFields] = useState(slackFieldOptions.map((field) => field.value));
+    const [slackStartDate, setSlackStartDate] = useState(() => {
+        const date = new Date();
+        date.setDate(date.getDate() - 6);
+        return startDate || formatDateLocal(date);
+    });
+    const [slackEndDate, setSlackEndDate] = useState(endDate || formatDateLocal(new Date()));
 
     useEffect(() => {
         if (flash?.success || flash?.error) {
@@ -100,25 +129,50 @@ export default function WorkHoursReport({
         }
     }, [flash]);
 
-    // Get unique values for filters
-    const uniqueClients = [...new Set(workHours?.data?.map(entry => entry.client?.name).filter(Boolean))] || [];
-    const uniqueWorkTypes = [...new Set(workHours?.data?.map(entry => entry.work_type).filter(Boolean))] || [];
+    const userOptions = (filterOptions.users || users || []).map((user) => ({
+        value: String(user.id),
+        label: user.name,
+    }));
 
-    // Apply filters with optional parameter overrides
-    const applyFilters = (overrides = {}) => {
+    const workTypeOptions = (filterOptions.workTypes || []).map((type) => ({
+        value: type,
+        label: formatWorkType(type),
+    }));
+
+    const clientOptions = (filterOptions.clients || []).map((clientName) => ({
+        value: clientName,
+        label: clientName,
+    }));
+
+    const trackerOptions = (filterOptions.trackers || []).map((tracker) => ({
+        value: tracker,
+        label: tracker,
+    }));
+
+    const designationOptions = (filterOptions.designations || []).map((designation) => ({
+        value: designation,
+        label: designation,
+    }));
+
+    const buildFilterParams = (overrides = {}) => {
         const currentDateFilter = overrides.dateFilter !== undefined ? overrides.dateFilter : dateFilter;
-        const currentUser = overrides.selectedUser !== undefined ? overrides.selectedUser : selectedUser;
-        const currentWorkType = overrides.selectedWorkType !== undefined ? overrides.selectedWorkType : selectedWorkType;
-        const currentClient = overrides.selectedClient !== undefined ? overrides.selectedClient : selectedClient;
         const currentStartDate = overrides.customStartDate !== undefined ? overrides.customStartDate : customStartDate;
         const currentEndDate = overrides.customEndDate !== undefined ? overrides.customEndDate : customEndDate;
+        const currentUsers = overrides.selectedUsers !== undefined ? overrides.selectedUsers : selectedUsers;
+        const currentWorkTypes = overrides.selectedWorkTypes !== undefined ? overrides.selectedWorkTypes : selectedWorkTypes;
+        const currentClients = overrides.selectedClients !== undefined ? overrides.selectedClients : selectedClients;
+        const currentTrackers = overrides.selectedTrackers !== undefined ? overrides.selectedTrackers : selectedTrackers;
+        const currentDesignations = overrides.selectedDesignations !== undefined ? overrides.selectedDesignations : selectedDesignations;
         
         const params = {
-            userId: currentUser,
-            workType: currentWorkType,
-            client: currentClient,
             filter: currentDateFilter,
         };
+
+        if (currentUsers.length) params.userIds = currentUsers;
+        if (currentWorkTypes.length) params.workTypes = currentWorkTypes;
+        if (currentClients.length) params.clients = currentClients;
+        if (currentTrackers.length) params.trackers = currentTrackers;
+        if (currentDesignations.length) params.designations = currentDesignations;
 
         if (currentDateFilter === 'custom' && currentStartDate && currentEndDate) {
             params.startDate = formatDateLocal(currentStartDate);
@@ -129,7 +183,12 @@ export default function WorkHoursReport({
             params.endDate = range.end;
         }
 
-        router.get(route('work-hours.report'), params, {
+        return params;
+    };
+
+    // Apply filters with optional parameter overrides
+    const applyFilters = (overrides = {}) => {
+        router.get(route('work-hours.report'), buildFilterParams(overrides), {
             preserveState: true,
             preserveScroll: true,
         });
@@ -139,50 +198,102 @@ export default function WorkHoursReport({
         setDateFilter('all');
         setCustomStartDate(null);
         setCustomEndDate(null);
-        setSelectedUser('all');
-        setSelectedWorkType('all');
-        setSelectedClient('all');
+        setSelectedUsers([]);
+        setSelectedWorkTypes([]);
+        setSelectedClients([]);
+        setSelectedTrackers([]);
+        setSelectedDesignations([]);
         setSearchTerm('');
         
         router.get(route('work-hours.report'));
     };
 
-    const exportToExcel = async () => {
+    const removeFilterValue = (type, value) => {
+        if (type === 'users') {
+            const next = selectedUsers.filter((item) => item !== value);
+            setSelectedUsers(next);
+            applyFilters({ selectedUsers: next });
+        } else if (type === 'workTypes') {
+            const next = selectedWorkTypes.filter((item) => item !== value);
+            setSelectedWorkTypes(next);
+            applyFilters({ selectedWorkTypes: next });
+        } else if (type === 'clients') {
+            const next = selectedClients.filter((item) => item !== value);
+            setSelectedClients(next);
+            applyFilters({ selectedClients: next });
+        } else if (type === 'trackers') {
+            const next = selectedTrackers.filter((item) => item !== value);
+            setSelectedTrackers(next);
+            applyFilters({ selectedTrackers: next });
+        } else if (type === 'designations') {
+            const next = selectedDesignations.filter((item) => item !== value);
+            setSelectedDesignations(next);
+            applyFilters({ selectedDesignations: next });
+        } else if (type === 'date') {
+            setDateFilter('all');
+            setCustomStartDate(null);
+            setCustomEndDate(null);
+            applyFilters({ dateFilter: 'all', customStartDate: null, customEndDate: null });
+        }
+    };
+
+    const labelForValue = (options, value) => options.find((option) => String(option.value) === String(value))?.label || value;
+
+    const activeFilterChips = [
+        ...(dateFilter !== 'all'
+            ? [{
+                key: 'date',
+                label: dateFilter === 'custom' && customStartDate && customEndDate
+                    ? `Date: ${formatDateLocal(customStartDate)} to ${formatDateLocal(customEndDate)}`
+                    : `Date: ${dateFilter === 'week' ? 'This Week' : dateFilter === 'month' ? 'This Month' : 'Today'}`,
+                onRemove: () => removeFilterValue('date'),
+            }]
+            : []),
+        ...selectedUsers.map((value) => ({
+            key: `users-${value}`,
+            label: `User: ${labelForValue(userOptions, value)}`,
+            onRemove: () => removeFilterValue('users', value),
+        })),
+        ...selectedWorkTypes.map((value) => ({
+            key: `workTypes-${value}`,
+            label: `Type: ${formatWorkType(value)}`,
+            onRemove: () => removeFilterValue('workTypes', value),
+        })),
+        ...selectedClients.map((value) => ({
+            key: `clients-${value}`,
+            label: `Client: ${value}`,
+            onRemove: () => removeFilterValue('clients', value),
+        })),
+        ...selectedTrackers.map((value) => ({
+            key: `trackers-${value}`,
+            label: `Tracker: ${value}`,
+            onRemove: () => removeFilterValue('trackers', value),
+        })),
+        ...selectedDesignations.map((value) => ({
+            key: `designations-${value}`,
+            label: `Shift: ${value}`,
+            onRemove: () => removeFilterValue('designations', value),
+        })),
+    ];
+
+    const exportToCSV = async () => {
         setIsExporting(true);
         setToast('Preparing export data...');
         setToastType('success');
         
         try {
-            // Build the export URL with all current filters
-            const params = {};
+            const params = buildFilterParams();
+            const query = new URLSearchParams();
 
-            // Add user filter if not 'all'
-            if (selectedUser !== 'all') {
-                params.userId = selectedUser;
-            }
+            Object.entries(params).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    value.forEach((item) => query.append(`${key}[]`, item));
+                } else if (value !== undefined && value !== null && value !== '') {
+                    query.append(key, value);
+                }
+            });
 
-            // Add work type filter if not 'all'
-            if (selectedWorkType !== 'all') {
-                params.workType = selectedWorkType;
-            }
-
-            // Add client filter if not 'all'
-            if (selectedClient !== 'all') {
-                params.client = selectedClient;
-            }
-
-            // Add date filters
-            if (dateFilter === 'custom' && customStartDate && customEndDate) {
-                params.startDate = formatDateLocal(customStartDate);
-                params.endDate = formatDateLocal(customEndDate);
-            } else if (dateFilter !== 'all' && dateFilter !== 'custom') {
-                const range = getDateRange(dateFilter);
-                params.startDate = range.start;
-                params.endDate = range.end;
-            }
-
-            // Create query string
-            const queryString = new URLSearchParams(params).toString();
+            const queryString = query.toString();
             const url = queryString 
                 ? `${route('work-hours.export')}?${queryString}`
                 : route('work-hours.export');
@@ -224,12 +335,9 @@ export default function WorkHoursReport({
                     'Description': entry.description || ''
                 }));
 
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Work Hours Report');
-            XLSX.writeFile(wb, `work-hours-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+            exportRowsToCsv(exportData, `work-hours-report-${new Date().toISOString().split('T')[0]}.csv`);
             
-            setToast(`Successfully exported ${exportData.length} entries to Excel`);
+            setToast(`Successfully exported ${exportData.length} entries to CSV`);
             setToastType('success');
         } catch (error) {
             console.error('Export error:', error);
@@ -238,6 +346,57 @@ export default function WorkHoursReport({
         } finally {
             setIsExporting(false);
         }
+    };
+
+    const openSlackDialog = () => {
+        if (dateFilter === 'custom' && customStartDate && customEndDate) {
+            setSlackStartDate(formatDateLocal(customStartDate));
+            setSlackEndDate(formatDateLocal(customEndDate));
+        } else if (dateFilter !== 'all' && dateFilter !== 'custom') {
+            const range = getDateRange(dateFilter);
+            setSlackStartDate(range.start);
+            setSlackEndDate(range.end);
+        }
+
+        setSlackUserIds(selectedUsers.length ? selectedUsers : userOptions.map((option) => option.value));
+        setShowSlackDialog(true);
+    };
+
+    const toggleSlackField = (field) => {
+        setSlackFields((current) => (
+            current.includes(field)
+                ? current.filter((item) => item !== field)
+                : [...current, field]
+        ));
+    };
+
+    const sendToSlack = () => {
+        setIsSendingSlack(true);
+
+        router.post(route('work-hours.slack'), {
+            start_date: slackStartDate,
+            end_date: slackEndDate,
+            user_ids: slackUserIds,
+            include_fields: slackFields,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowSlackDialog(false);
+                setToast('Report sent to Slack.');
+                setToastType('success');
+            },
+            onError: (errors) => {
+                setToast(
+                    errors.slack
+                    || errors.end_date
+                    || errors.user_ids
+                    || errors.include_fields
+                    || 'Unable to send the Slack report.'
+                );
+                setToastType('error');
+            },
+            onFinish: () => setIsSendingSlack(false),
+        });
     };
 
     // Filter data based on search
@@ -264,58 +423,55 @@ export default function WorkHoursReport({
             
             {toast && <Toast message={toast} type={toastType} onClose={() => setToast('')} />}
             
-            {/* Background */}
-            <div className="fixed inset-0 bg-gradient-to-br from-slate-50 to-blue-50/30">
-                <AnimatedBackground />
-            </div>
-
-            {/* Main Content */}
-            <div className="py-12 min-h-screen relative z-10">
-                <div className="max-w-full mx-auto px-6 lg:px-12 xl:px-16">
-                    
-                    {/* Header Card */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 mb-8 border border-slate-100">
-                        <div className="flex items-start gap-6">
-                            <div className="flex-shrink-0">
-                                <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl shadow-lg">
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                </div>
-                            </div>
-                            <div className="flex-1">
-                                <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-2">Work Hours Report</h1>
-                                <p className="text-slate-600 text-base lg:text-lg">View and analyze team work hours with detailed reports</p>
-                            </div>
-                        </div>
-                    </div>
+            <PageShell>
+                    <PageHeader
+                        title="Work Hours Report"
+                        description="Review and export team work hours."
+                        actions={(
+                            <>
+                                {canSendSlack && (
+                                    <button
+                                        type="button"
+                                        onClick={openSlackDialog}
+                                        className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                                    >
+                                        <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path d="M6.5 14.5a2 2 0 11-2-2h2v2zm1 0a2 2 0 114 0v5a2 2 0 11-4 0v-5zm2-8a2 2 0 112-2v2h-2zm0 1a2 2 0 110 4h-5a2 2 0 110-4h5zm8 2a2 2 0 112 2h-2v-2zm-1 0a2 2 0 11-4 0v-5a2 2 0 114 0v5zm-2 8a2 2 0 11-2 2v-2h2zm0-1a2 2 0 110-4h5a2 2 0 110 4h-5z" />
+                                        </svg>
+                                        Send to Slack
+                                    </button>
+                                )}
+                                {canExport && (
+                                    <button
+                                        onClick={exportToCSV}
+                                        disabled={isExporting}
+                                        className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:bg-slate-400"
+                                    >
+                                        <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        {isExporting ? 'Exporting...' : 'Export CSV'}
+                                    </button>
+                                )}
+                            </>
+                        )}
+                    />
 
                     {/* Filters & Actions Card */}
-                    <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-slate-100">
-                        <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
-                            <div className="flex flex-wrap gap-3">
+                    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={() => setShowFilters(!showFilters)}
-                                    className={`inline-flex items-center px-4 py-2 ${showFilters ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-700'} hover:bg-emerald-600 hover:text-white rounded-xl font-medium transition-all shadow-md`}
+                                    className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold transition ${showFilters ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                                 >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                                     </svg>
                                     {showFilters ? 'Hide Filters' : 'Show Filters'}
                                 </button>
 
-                                <button
-                                    onClick={exportToExcel}
-                                    disabled={isExporting}
-                                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-400 text-white rounded-xl font-medium transition-all shadow-lg"
-                                >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    {isExporting ? 'Exporting...' : 'Export Report'}
-                                </button>
-
-                                {(selectedUser !== 'all' || selectedWorkType !== 'all' || selectedClient !== 'all' || dateFilter !== 'all') && (
+                                {activeFilterChips.length > 0 && (
                                     <button
                                         onClick={clearFilters}
                                         className="inline-flex items-center px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white rounded-xl font-medium transition-all"
@@ -329,13 +485,13 @@ export default function WorkHoursReport({
                             </div>
 
                             {/* Search */}
-                            <div className="relative">
+                            <div className="relative w-full sm:w-72 lg:w-80">
                                 <input
                                     type="text"
-                                    placeholder="Search..."
+                                    placeholder="Search report..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                                 <svg className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -345,14 +501,15 @@ export default function WorkHoursReport({
 
                         {/* Filters Panel */}
                         {showFilters && (
-                            <div className="pt-4 border-t border-slate-200 space-y-4">
+                            <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
                                 {/* Date Range */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Date Range</label>
+                                    <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-600">Date Range</label>
                                     <div className="flex flex-wrap gap-2">
                                         {['all', 'today', 'week', 'month', 'custom'].map(filter => (
                                             <button
                                                 key={filter}
+                                                type="button"
                                                 onClick={() => {
                                                     setDateFilter(filter);
                                                     if (filter !== 'custom') {
@@ -360,9 +517,9 @@ export default function WorkHoursReport({
                                                         applyFilters({ dateFilter: filter });
                                                     }
                                                 }}
-                                                className={`px-4 py-2 rounded-lg font-medium transition-all capitalize ${
+                                                className={`rounded-lg px-3 py-2 text-sm font-medium capitalize transition ${
                                                     dateFilter === filter
-                                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                                                        ? 'bg-slate-900 text-white'
                                                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                                 }`}
                                             >
@@ -396,8 +553,9 @@ export default function WorkHoursReport({
                                             </div>
                                             <div className="flex items-end">
                                                 <button
+                                                    type="button"
                                                     onClick={applyFilters}
-                                                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-all"
+                                                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium transition-all"
                                                 >
                                                     Apply
                                                 </button>
@@ -407,81 +565,77 @@ export default function WorkHoursReport({
                                 </div>
 
                                 {/* Other Filters */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    {/* User Filter */}
-                                    {auth.user.role === 'admin' && users.length > 0 && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">User</label>
-                                            <select
-                                                value={selectedUser}
-                                                onChange={(e) => {
-                                                    const newValue = e.target.value;
-                                                    setSelectedUser(newValue);
-                                                    applyFilters({ selectedUser: newValue });
-                                                }}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                            >
-                                                <option value="all">All Users</option>
-                                                {users.map(user => (
-                                                    <option key={user.id} value={user.id}>{user.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                                    {userOptions.length > 0 && (
+                                        <SearchableMultiSelect
+                                            label="Users"
+                                            options={userOptions}
+                                            selectedValues={selectedUsers}
+                                            onChange={(values) => {
+                                                setSelectedUsers(values);
+                                                applyFilters({ selectedUsers: values });
+                                            }}
+                                            placeholder="All users"
+                                        />
                                     )}
 
-                                    {/* Work Type Filter */}
-                                    {uniqueWorkTypes.length > 0 && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Work Type</label>
-                                            <select
-                                                value={selectedWorkType}
-                                                onChange={(e) => {
-                                                    const newValue = e.target.value;
-                                                    setSelectedWorkType(newValue);
-                                                    applyFilters({ selectedWorkType: newValue });
-                                                }}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                            >
-                                                <option value="all">All Types</option>
-                                                {uniqueWorkTypes.map(type => (
-                                                    <option key={type} value={type}>{formatWorkType(type)}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
+                                    <SearchableMultiSelect
+                                        label="Work Type"
+                                        options={workTypeOptions}
+                                        selectedValues={selectedWorkTypes}
+                                        onChange={(values) => {
+                                            setSelectedWorkTypes(values);
+                                            applyFilters({ selectedWorkTypes: values });
+                                        }}
+                                        placeholder="All types"
+                                    />
 
-                                    {/* Client Filter */}
-                                    {uniqueClients.length > 0 && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-2">Client</label>
-                                            <select
-                                                value={selectedClient}
-                                                onChange={(e) => {
-                                                    const newValue = e.target.value;
-                                                    setSelectedClient(newValue);
-                                                    applyFilters({ selectedClient: newValue });
-                                                }}
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                                            >
-                                                <option value="all">All Clients</option>
-                                                {uniqueClients.map(client => (
-                                                    <option key={client} value={client}>{client}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
+                                    <SearchableMultiSelect
+                                        label="Clients"
+                                        options={clientOptions}
+                                        selectedValues={selectedClients}
+                                        onChange={(values) => {
+                                            setSelectedClients(values);
+                                            applyFilters({ selectedClients: values });
+                                        }}
+                                        placeholder="All clients"
+                                    />
+
+                                    <SearchableMultiSelect
+                                        label="Trackers"
+                                        options={trackerOptions}
+                                        selectedValues={selectedTrackers}
+                                        onChange={(values) => {
+                                            setSelectedTrackers(values);
+                                            applyFilters({ selectedTrackers: values });
+                                        }}
+                                        placeholder="All trackers"
+                                    />
+
+                                    <SearchableMultiSelect
+                                        label="Shift"
+                                        options={designationOptions}
+                                        selectedValues={selectedDesignations}
+                                        onChange={(values) => {
+                                            setSelectedDesignations(values);
+                                            applyFilters({ selectedDesignations: values });
+                                        }}
+                                        placeholder="All shifts"
+                                    />
                                 </div>
                             </div>
                         )}
+
+                        <ActiveFilterChips chips={activeFilterChips} onClearAll={activeFilterChips.length ? clearFilters : null} />
                     </div>
 
                     {/* Data Table */}
-                    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+                    <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200">
-                                <thead className="bg-gradient-to-r from-emerald-500 to-teal-500">
+                                <thead className="bg-slate-900">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Date</th>
+                                        <th className="sticky left-0 z-10 whitespace-nowrap bg-slate-900 px-4 py-3 text-left text-xs font-bold uppercase text-white">Date</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">User</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Client</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Work Type</th>
@@ -493,8 +647,8 @@ export default function WorkHoursReport({
                                 <tbody className="divide-y divide-slate-200">
                                     {filteredData.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="px-6 py-12 text-center">
-                                                <div className="flex flex-col items-center">
+                                            <td colSpan="7" className="px-0 py-12 text-center">
+                                                <div className="sticky left-0 flex w-[calc(100vw-4rem)] flex-col items-center px-4 sm:w-auto">
                                                     <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                                     </svg>
@@ -506,7 +660,7 @@ export default function WorkHoursReport({
                                     ) : (
                                         filteredData.map((entry, index) => (
                                             <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-emerald-50 transition-colors`}>
-                                                <td className="px-4 py-3 text-sm text-slate-900 font-medium">{entry.date}</td>
+                                                <td className="sticky left-0 z-[1] whitespace-nowrap bg-inherit px-4 py-3 text-sm font-medium text-slate-900">{entry.date}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-900">{entry.user?.name || 'N/A'}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-900">{entry.client?.name || 'No Client'}</td>
                                                 <td className="px-4 py-3 text-sm">
@@ -519,7 +673,7 @@ export default function WorkHoursReport({
                                                         {entry.tracker}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-bold text-green-600">{timeFormat(entry.hours)}</td>
+                                                <td className="px-4 py-3 text-sm font-bold text-green-700">{timeFormat(entry.hours)}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-700">
                                                     <div className="max-w-xs truncate" title={entry.description}>
                                                         {entry.description || '-'}
@@ -533,7 +687,7 @@ export default function WorkHoursReport({
                                     <tfoot className="bg-gradient-to-r from-emerald-50 to-teal-50">
                                         <tr>
                                             <td colSpan="5" className="px-4 py-3 text-right font-bold text-slate-900">Total:</td>
-                                            <td className="px-4 py-3 font-bold text-green-600 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
+                                            <td className="px-4 py-3 font-bold text-green-700 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
                                             <td></td>
                                         </tr>
                                     </tfoot>
@@ -557,8 +711,138 @@ export default function WorkHoursReport({
                             </div>
                         )}
                     </div>
+            </PageShell>
+
+            {showSlackDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+                        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-950">Send report to Slack</h2>
+                                <p className="mt-1 text-sm text-slate-600">Choose the people and details included in this report.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowSlackDialog(false)}
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                title="Close"
+                            >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="space-y-5 overflow-y-auto px-5 py-4">
+                            <div className={`rounded-lg border px-3 py-2 text-sm ${
+                                slackConfigured
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                            }`}>
+                                {slackConfigured ? 'Slack webhook connected.' : 'Slack webhook is not configured.'}
+                                {slackWeeklyEnabled && ' Automatic reports run Sundays at 10:00 AM Pakistan time.'}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label htmlFor="slack-start-date" className="mb-1.5 block text-sm font-semibold text-slate-700">Start date</label>
+                                    <input
+                                        id="slack-start-date"
+                                        type="date"
+                                        value={slackStartDate}
+                                        max={slackEndDate}
+                                        onChange={(event) => setSlackStartDate(event.target.value)}
+                                        className="w-full rounded-lg border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor="slack-end-date" className="mb-1.5 block text-sm font-semibold text-slate-700">End date</label>
+                                    <input
+                                        id="slack-end-date"
+                                        type="date"
+                                        value={slackEndDate}
+                                        min={slackStartDate}
+                                        onChange={(event) => setSlackEndDate(event.target.value)}
+                                        className="w-full rounded-lg border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <SearchableMultiSelect
+                                label="Users to include"
+                                options={userOptions}
+                                selectedValues={slackUserIds}
+                                onChange={setSlackUserIds}
+                                placeholder="Select users"
+                                searchPlaceholder="Search users..."
+                            />
+
+                            <fieldset>
+                                <legend className="text-sm font-semibold text-slate-800">Data to include</legend>
+                                <p className="mt-1 text-sm text-slate-600">
+                                    User names are always shown. Select at least one additional field.
+                                </p>
+                                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {slackFieldOptions.map((field) => {
+                                        const checked = slackFields.includes(field.value);
+
+                                        return (
+                                            <label
+                                                key={field.value}
+                                                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+                                                    checked
+                                                        ? 'border-blue-300 bg-blue-50'
+                                                        : 'border-slate-200 bg-white hover:border-slate-300'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleSlackField(field.value)}
+                                                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span>
+                                                    <span className="block text-sm font-semibold text-slate-900">{field.label}</span>
+                                                    <span className="mt-0.5 block text-xs leading-5 text-slate-600">{field.description}</span>
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </fieldset>
+
+                            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                                Slack will send these choices as table columns. They are independent from the filters on the report page.
+                            </p>
+                        </div>
+
+                        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowSlackDialog(false)}
+                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={sendToSlack}
+                                disabled={
+                                    !slackConfigured
+                                    || isSendingSlack
+                                    || !slackStartDate
+                                    || !slackEndDate
+                                    || slackUserIds.length === 0
+                                    || slackFields.length === 0
+                                }
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            >
+                                {isSendingSlack ? 'Sending...' : 'Send report'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
         </AuthenticatedLayout>
     );
 }

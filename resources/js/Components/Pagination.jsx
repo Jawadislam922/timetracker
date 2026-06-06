@@ -72,10 +72,10 @@ export const TraditionalPagination = ({
     return (
         <div className={`flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}>
             {/* Results Info */}
-            <div className="text-white/70 text-sm">
-                Showing <span className="font-medium text-white">{from}</span> to{' '}
-                <span className="font-medium text-white">{to}</span> of{' '}
-                <span className="font-medium text-white">{total}</span> results
+            <div className="text-sm font-medium text-slate-600">
+                Showing <span className="font-semibold text-slate-950">{from}</span> to{' '}
+                <span className="font-semibold text-slate-950">{to}</span> of{' '}
+                <span className="font-semibold text-slate-950">{total}</span> results
             </div>
             
             {/* Pagination Links */}
@@ -85,7 +85,7 @@ export const TraditionalPagination = ({
                         return (
                             <span
                                 key={index}
-                                className="px-3 py-2 text-white/40 cursor-not-allowed"
+                                className="px-3 py-2 text-slate-500 cursor-not-allowed"
                                 dangerouslySetInnerHTML={{ __html: link.label }}
                             />
                         );
@@ -95,7 +95,7 @@ export const TraditionalPagination = ({
                         return (
                             <span
                                 key={index}
-                                className="px-4 py-2 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg font-medium shadow-lg"
+                                className="px-4 py-2 bg-slate-900 text-white rounded-lg font-semibold shadow-sm"
                                 dangerouslySetInnerHTML={{ __html: link.label }}
                             />
                         );
@@ -107,7 +107,7 @@ export const TraditionalPagination = ({
                             href={link.url}
                             preserveState={preserveState}
                             preserveScroll={preserveScroll}
-                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white/70 hover:text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg backdrop-blur-xl border border-white/20 hover:border-white/40"
+                            className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium transition hover:bg-slate-50 hover:text-slate-950 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                             dangerouslySetInnerHTML={{ __html: link.label }}
                         />
                     );

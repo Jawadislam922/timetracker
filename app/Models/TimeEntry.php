@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Carbon\Carbon;
 
 class TimeEntry extends Model
 {
@@ -16,13 +15,13 @@ class TimeEntry extends Model
         'action_timestamp',
         'action_date',
         'action_time',
-        'notes'
+        'notes',
     ];
 
     protected $casts = [
         'action_timestamp' => 'datetime',
         'action_date' => 'date',
-        'action_time' => 'datetime:H:i:s'
+        'action_time' => 'datetime:H:i:s',
     ];
 
     public function user()

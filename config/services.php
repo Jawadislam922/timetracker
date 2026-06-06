@@ -31,4 +31,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'slack_reports' => [
+        'webhook_url' => env('SLACK_REPORT_WEBHOOK_URL'),
+        'weekly_enabled' => (bool) env('SLACK_WEEKLY_REPORT_ENABLED', false),
+        'timezone' => env('SLACK_REPORT_TIMEZONE', 'Asia/Karachi'),
+    ],
+
 ];

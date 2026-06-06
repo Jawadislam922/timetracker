@@ -21,7 +21,7 @@ class CreateAdminUser extends Command
      *
      * @var string
      */
-    protected $description = 'Create a new admin user interactively or with options';
+    protected $description = 'Create a new Super Admin user interactively or with options';
 
     /**
      * Execute the console command.
@@ -34,7 +34,7 @@ class CreateAdminUser extends Command
         // Get user details
         $name = $this->option('name') ?: $this->ask('Admin name');
         $email = $this->option('email') ?: $this->ask('Admin email');
-        
+
         // Validate email
         $validator = Validator::make(['email' => $email], [
             'email' => 'required|email|unique:users,email',
@@ -43,21 +43,24 @@ class CreateAdminUser extends Command
         if ($validator->fails()) {
             $this->error('Validation failed:');
             foreach ($validator->errors()->all() as $error) {
-                $this->error('  - ' . $error);
+                $this->error('  - '.$error);
             }
+
             return 1;
         }
 
         $password = $this->option('password') ?: $this->secret('Admin password');
-        
-        if (!$password || strlen($password) < 8) {
-            $this->error('Password must be at least 8 characters long.');
+
+        if (! $password || strlen($password) < 12) {
+            $this->error('Password must be at least 12 characters long.');
+
             return 1;
         }
 
         // Confirm creation
-        if (!$this->confirm("Create admin user '$name' with email '$email'?", true)) {
+        if (! $this->confirm("Create admin user '$name' with email '$email'?", true)) {
             $this->warn('Operation cancelled.');
+
             return 0;
         }
 
@@ -65,13 +68,13 @@ class CreateAdminUser extends Command
             $user = User::create([
                 'name' => $name,
                 'email' => $email,
-                'role' => 'admin',
+                'role' => 'super_admin',
                 'email_verified_at' => now(),
                 'password' => Hash::make($password),
             ]);
 
             $this->newLine();
-            $this->info('✓ Admin user created successfully!');
+            $this->info('Admin user created successfully!');
             $this->table(
                 ['ID', 'Name', 'Email', 'Role'],
                 [[$user->id, $user->name, $user->email, $user->role]]
@@ -79,7 +82,8 @@ class CreateAdminUser extends Command
 
             return 0;
         } catch (\Exception $e) {
-            $this->error('Failed to create admin user: ' . $e->getMessage());
+            $this->error('Failed to create admin user: '.$e->getMessage());
+
             return 1;
         }
     }

@@ -1,0 +1,236 @@
+import { useState } from 'react';
+import { Link, useForm } from '@inertiajs/react';
+import { ArrowLeft, Camera, Check, ShieldCheck, UserRound, Users } from 'lucide-react';
+import Avatar from '@/Components/Avatar';
+
+const roleIcons = {
+    super_admin: ShieldCheck,
+    admin: Users,
+    member: UserRound,
+};
+
+export default function UserForm({
+    user = null,
+    roles = {},
+    permissionGroups = {},
+    canManageAccess = false,
+}) {
+    const editing = Boolean(user);
+    const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
+    const form = useForm({
+        _method: editing ? 'patch' : 'post',
+        name: user?.name || '',
+        email: user?.email || '',
+        password: '',
+        designation: user?.designation || '',
+        role: user?.role || 'member',
+        permissions: user?.permissions || [],
+        avatar: null,
+    });
+
+    const togglePermission = (permission) => {
+        const selected = form.data.permissions.includes(permission);
+        form.setData(
+            'permissions',
+            selected
+                ? form.data.permissions.filter((item) => item !== permission)
+                : [...form.data.permissions, permission]
+        );
+    };
+
+    const selectRole = (role) => {
+        form.setData('role', role);
+        if (role === 'super_admin') form.setData('permissions', []);
+    };
+
+    const handleAvatar = (event) => {
+        const file = event.target.files?.[0] || null;
+        form.setData('avatar', file);
+        setAvatarPreview(file ? URL.createObjectURL(file) : user?.avatar_url || null);
+    };
+
+    const submit = (event) => {
+        event.preventDefault();
+        form.post(editing ? route('users.update', user.id) : route('users.store'), {
+            forceFormData: true,
+            preserveScroll: true,
+        });
+    };
+
+    return (
+        <form onSubmit={submit} className="space-y-6">
+            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-5 py-4">
+                    <h2 className="font-bold text-slate-950">Account details</h2>
+                    <p className="mt-1 text-sm text-slate-600">Identity, login, and shift information.</p>
+                </div>
+
+                <div className="grid gap-6 p-5 lg:grid-cols-[180px_1fr]">
+                    <div>
+                        <div className="flex flex-col items-center gap-3 rounded-lg bg-slate-50 p-4">
+                            {avatarPreview ? (
+                                <img src={avatarPreview} alt="" className="h-24 w-24 rounded-full object-cover" />
+                            ) : (
+                                <Avatar user={{ name: form.data.name || 'User' }} size="xl" />
+                            )}
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                                <Camera className="h-4 w-4" />
+                                Choose photo
+                                <input type="file" accept="image/*" onChange={handleAvatar} className="hidden" />
+                            </label>
+                            {form.errors.avatar && <p className="text-xs font-medium text-rose-600">{form.errors.avatar}</p>}
+                        </div>
+                    </div>
+
+                    <div className="grid gap-5 md:grid-cols-2">
+                        <Field label="Full name" error={form.errors.name}>
+                            <input
+                                value={form.data.name}
+                                onChange={(event) => form.setData('name', event.target.value)}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                            />
+                        </Field>
+                        <Field label="Email address" error={form.errors.email}>
+                            <input
+                                type="email"
+                                value={form.data.email}
+                                onChange={(event) => form.setData('email', event.target.value)}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                required
+                            />
+                        </Field>
+                        <Field
+                            label={editing ? 'New password' : 'Password'}
+                            hint={editing ? 'Leave blank to keep the current password.' : 'Use at least 8 characters.'}
+                            error={form.errors.password}
+                        >
+                            <input
+                                type="password"
+                                value={form.data.password}
+                                onChange={(event) => form.setData('password', event.target.value)}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                required={!editing}
+                            />
+                        </Field>
+                        <Field label="Shift" hint="For example: Morning, Evening, or Night." error={form.errors.designation}>
+                            <input
+                                value={form.data.designation}
+                                onChange={(event) => form.setData('designation', event.target.value)}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                        </Field>
+                    </div>
+                </div>
+            </section>
+
+            {canManageAccess && (
+                <>
+                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b border-slate-200 px-5 py-4">
+                            <h2 className="font-bold text-slate-950">Role</h2>
+                            <p className="mt-1 text-sm text-slate-600">Roles describe responsibility; permissions control exact access.</p>
+                        </div>
+                        <div className="grid gap-3 p-5 md:grid-cols-3">
+                            {Object.entries(roles).map(([key, role]) => {
+                                const Icon = roleIcons[key] || UserRound;
+                                const selected = form.data.role === key;
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => selectRole(key)}
+                                        className={`flex min-h-28 items-start gap-3 rounded-lg border p-4 text-left transition ${
+                                            selected
+                                                ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600'
+                                                : 'border-slate-200 bg-white hover:border-slate-400'
+                                        }`}
+                                    >
+                                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                            <Icon className="h-5 w-5" />
+                                        </span>
+                                        <span>
+                                            <span className="flex items-center gap-2 font-bold text-slate-950">
+                                                {role.label}
+                                                {selected && <Check className="h-4 w-4 text-blue-700" />}
+                                            </span>
+                                            <span className="mt-1 block text-sm leading-5 text-slate-600">{role.description}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b border-slate-200 px-5 py-4">
+                            <h2 className="font-bold text-slate-950">Selected access</h2>
+                            <p className="mt-1 text-sm text-slate-600">
+                                {form.data.role === 'super_admin'
+                                    ? 'Super Admin already has every permission.'
+                                    : 'Choose only the areas this account needs.'}
+                            </p>
+                        </div>
+                        <div className="divide-y divide-slate-200">
+                            {Object.entries(permissionGroups).map(([group, permissions]) => (
+                                <div key={group} className="grid gap-3 px-5 py-4 md:grid-cols-[160px_1fr]">
+                                    <h3 className="text-sm font-bold text-slate-900">{group}</h3>
+                                    <div className="grid gap-2 xl:grid-cols-2">
+                                        {Object.entries(permissions).map(([permission, label]) => (
+                                            <label
+                                                key={permission}
+                                                className={`flex items-start gap-3 rounded-lg px-3 py-2 ${
+                                                    form.data.role === 'super_admin'
+                                                        ? 'cursor-not-allowed bg-slate-50'
+                                                        : 'cursor-pointer hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={form.data.role === 'super_admin' || form.data.permissions.includes(permission)}
+                                                    disabled={form.data.role === 'super_admin'}
+                                                    onChange={() => togglePermission(permission)}
+                                                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-sm text-slate-700">{label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {form.errors.permissions && <p className="px-5 pb-4 text-sm font-medium text-rose-600">{form.errors.permissions}</p>}
+                    </section>
+                </>
+            )}
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                <Link
+                    href={route('users.index')}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    Cancel
+                </Link>
+                <button
+                    type="submit"
+                    disabled={form.processing}
+                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    {form.processing ? 'Saving...' : editing ? 'Save changes' : 'Create user'}
+                </button>
+            </div>
+        </form>
+    );
+}
+
+function Field({ label, hint = null, error = null, children }) {
+    return (
+        <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-800">{label}</span>
+            {children}
+            {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+            {error && <span className="mt-1 block text-xs font-medium text-rose-600">{error}</span>}
+        </label>
+    );
+}

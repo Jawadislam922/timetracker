@@ -1,274 +1,143 @@
-# ⏱️ Time Tracker Application
+# Sparking Asia Time Tracker
 
-A comprehensive time tracking and portfolio management system built with Laravel 10 and React (Inertia.js).
+Internal Laravel and React application for employee work diaries, attendance,
+client assignments, reporting, and weekly Slack summaries.
 
-## 📋 Features
+## Features
 
-### Time Management
-- **Work Hours Tracking** - Log and manage work hours with client assignments
-- **Time Entry System** - Real-time clock in/out functionality
-- **Time Reports** - Generate detailed reports with export capabilities
-- **Client Management** - Organize work by clients with tags and work types
+- Personal work diary with manual work-hour entries
+- Team work-hours report with searchable multi-select filters
+- CSV export for authorized users
+- Attendance monitoring and dashboard summaries
+- Client and Upwork profile management
+- Super Admin, Admin, and Member roles with granular permissions
+- Administrator-managed accounts with public registration disabled
+- Manual Slack reports with selectable users and table columns
+- Automatic weekly Slack report every Sunday at 10:00 AM
 
-### Portfolio Management
-- **Employee Portfolios** - Create and manage professional portfolios
-- **Multiple Themes** - Choose from 6 built-in themes (emerald, indigo, rose, amber, sparkingasia, lime)
-- **Public Portfolio URLs** - Share portfolios via custom slug URLs
-- **Draft Mode** - Save portfolios as drafts before publishing
-- **Portfolio Items** - Showcase projects with images, descriptions, and links
-- **Sections**: Profile, About, Services, Skills, Employment, Stats, Contact
+Portfolio functionality has intentionally been removed.
 
-### User Management
-- **Role-based Access Control** - Admin and Employee roles
-- **User Profiles** - Avatar uploads, designations, and personal info
-- **Email Verification** - Built-in authentication with Laravel Breeze
+## Requirements
 
-### Upwork Integration
-- **Upwork Profiles** - Manage multiple Upwork accounts
-- **Client-Profile Linking** - Associate clients with Upwork profiles
-- **Work Type Classification** - Tracker/Manual, Fixed, Outside of Upwork
+- PHP 8.2 or newer
+- Composer 2
+- Node.js 20 or newer
+- npm 10 or newer
+- MySQL 8 or compatible MariaDB version
 
-## 🛠️ Tech Stack
+## Local Setup
 
-### Backend
-- **Laravel 10.x** - PHP Framework
-- **MySQL** - Database
-- **Laravel Sanctum** - API Authentication
-- **Inertia.js** - Server-side rendering adapter
-
-### Frontend
-- **React 18** - UI Library
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Utility-first CSS
-- **Vite** - Build tool
-- **Chart.js** - Data visualization
-- **React Hook Form** - Form handling
-- **Zod** - Schema validation
-
-## 📦 Installation
-
-### Prerequisites
-- PHP 8.1 or higher
-- Composer
-- Node.js 16+ and npm
-- MySQL 5.7+
-
-### Setup Steps
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd timetracker
-```
-
-2. **Install PHP dependencies**
 ```bash
 composer install
-```
-
-3. **Install Node dependencies**
-```bash
-npm install
-```
-
-4. **Environment setup**
-```bash
-cp .env.example .env
+npm ci
+copy .env.example .env
 php artisan key:generate
 ```
 
-5. **Configure database**
-Update `.env` with your database credentials:
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=timetracker
-DB_USERNAME=root
-DB_PASSWORD=
-```
+Configure the database values in `.env`, then run:
 
-6. **Configure admin user** (Optional)
-Add to `.env`:
-```env
-ADMIN_NAME="Admin User"
-ADMIN_EMAIL="admin@example.com"
-ADMIN_PASSWORD="secure_password_here"
-```
-
-7. **Run migrations**
 ```bash
 php artisan migrate
-```
-
-8. **Create admin user**
-```bash
-php artisan db:seed --class=AdminUserSeeder
-# OR interactively:
 php artisan user:create-admin
-```
-
-9. **Create storage symlink**
-```bash
-php artisan storage:link
-```
-
-10. **Build frontend assets**
-```bash
-# Development
-npm run dev
-
-# Production
 npm run build
-```
-
-11. **Start the server**
-```bash
 php artisan serve
 ```
 
-Visit `http://localhost:8000` in your browser.
+Open `http://localhost:8000`.
 
-## 🗂️ Project Structure
+For development with hot module replacement, use `npm run dev` in a second
+terminal instead of `npm run build`.
 
-```
-timetracker/
-├── app/
-│   ├── Console/Commands/       # Artisan commands
-│   ├── Http/
-│   │   ├── Controllers/        # Application controllers
-│   │   ├── Middleware/         # Custom middleware
-│   │   └── Requests/           # Form request validation
-│   ├── Models/                 # Eloquent models
-│   └── Policies/               # Authorization policies
-├── database/
-│   ├── migrations/             # Database migrations
-│   └── seeders/                # Database seeders
-├── resources/
-│   ├── js/
-│   │   ├── Components/         # React components
-│   │   ├── Layouts/            # Layout components
-│   │   └── Pages/              # Inertia pages
-│   └── css/                    # Stylesheets
-├── routes/
-│   ├── web.php                 # Web routes
-│   └── api.php                 # API routes
-└── public/                     # Public assets
-```
+If Windows PowerShell blocks `npm.ps1`, use `npm.cmd` for the same commands,
+for example `npm.cmd run build`.
 
-## 🎯 Usage
+## Demo Data
 
-### Creating Portfolios
-
-1. Navigate to **Portfolio** section
-2. Click **Create New Portfolio**
-3. Fill in your details:
-   - Profile information (name, title, tagline)
-   - About section
-   - Services offered
-   - Skills (grouped by categories)
-   - Employment history
-   - Portfolio items (projects)
-   - Contact information
-4. Choose a theme
-5. Save as draft or publish immediately
-6. Share your public portfolio URL: `/portfolio/{your-slug}`
-
-### Time Tracking
-
-1. **Quick Entry**: Use the dashboard timer to clock in/out
-2. **Manual Entry**: Add work hours with client, date, and description
-3. **Reports**: Generate filtered reports by date range, user, or client
-4. **Export**: Download reports as Excel files
-
-### Managing Clients
-
-1. Navigate to **Clients**
-2. Add client details (name, tags, work type)
-3. Associate with Upwork profiles if applicable
-4. Import/Export clients in bulk via Excel
-
-## 🔐 User Roles
-
-### Admin
-- Full access to all features
-- User management (create, edit, delete users)
-- View all work hours and time entries
-- Client and Upwork profile management
-- System-wide reports
-
-### Employee
-- Personal time tracking
-- Portfolio management
-- View personal work hours
-- Export personal time reports
-
-## 🚀 Artisan Commands
+The optional demo seeder creates sample users, attendance, clients, profiles,
+and work-hour entries:
 
 ```bash
-# Create admin user interactively
-php artisan user:create-admin
-
-# Create admin with options
-php artisan user:create-admin --name="Admin" --email="admin@example.com" --password="secret"
-
-# Migrate portfolio contact data
-php artisan portfolio:migrate-contact
-
-# Migrate portfolio skills format
-php artisan portfolio:migrate-skills
+php artisan db:seed --class=DemoDataSeeder
 ```
 
-## 🧪 Testing
+Do not run the demo seeder on production.
 
-```bash
-# Run PHPUnit tests
-php artisan test
+## Access Control
 
-# Run specific test
-php artisan test --filter=ExampleTest
-```
+- **Super Admin:** Every permission and integration setting
+- **Admin:** Permissions selected by a Super Admin
+- **Member:** Personal work diary plus any explicitly assigned permissions
 
-## 📝 Environment Variables
+The permission catalogue is defined in `config/access.php`.
+New accounts are created from the Users page by an authorized administrator.
 
-Key environment variables:
+## Slack Reports
+
+Set these values only in the server `.env` file:
 
 ```env
-APP_NAME="Time Tracker"
-APP_URL=http://localhost
-
-ADMIN_NAME="Admin User"
-ADMIN_EMAIL="admin@example.com"
-ADMIN_PASSWORD="secure_password"
-
-DB_DATABASE=timetracker
-DB_USERNAME=root
-DB_PASSWORD=
-
-VITE_APP_NAME="${APP_NAME}"
+SLACK_REPORT_WEBHOOK_URL=
+SLACK_WEEKLY_REPORT_ENABLED=false
+SLACK_REPORT_TIMEZONE=Asia/Karachi
 ```
 
-## 🤝 Contributing
+The webhook must never be committed. See `SLACK_INTEGRATION.md` for the
+scheduler and report details.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Verification
 
-## 📄 License
+```bash
+composer validate --strict
+composer audit --locked
+npm audit --omit=dev
+php artisan test
+npm run build
+php artisan route:cache
+php artisan config:cache
+```
 
-This project is licensed under the MIT License.
+Clear local caches after verification:
 
-## 🐛 Known Issues
+```bash
+php artisan optimize:clear
+```
 
-- None currently reported
+## Production Deployment
 
-## 📞 Support
+1. Copy `.env.production.example` to `.env` on the server.
+2. Set a production `APP_KEY`, database credentials, URL, mail settings, and
+   optional Slack settings.
+3. Set `APP_ENV=production` and `APP_DEBUG=false`.
+4. Point the web server document root to the application's `public` directory.
+5. Run:
 
-For support, please contact the development team or open an issue on GitHub.
+```bash
+composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+npm ci
+npm run build
+php artisan migrate --force
+php artisan storage:link
+php artisan optimize
+```
 
----
+Configure Laravel's scheduler to run every minute:
 
-**Built with ❤️ using Laravel and React**
+```cron
+* * * * * cd /path/to/timetracker && php artisan schedule:run >> /dev/null 2>&1
+```
 
+The repository's `.cpanel.yml` performs the same deployment steps while
+preserving the server's existing `.env`.
+
+## Security
+
+- Never commit `.env`, webhook URLs, API tokens, database passwords, or admin
+  passwords.
+- Create the first administrator interactively with
+  `php artisan user:create-admin`, or set `ADMIN_EMAIL` and `ADMIN_PASSWORD`
+  before running `AdminUserSeeder`.
+- Rotate any credential that has appeared in chat, screenshots, or logs.
+
+## License
+
+MIT

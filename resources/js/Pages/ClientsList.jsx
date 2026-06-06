@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
-import AnimatedBackground from '../Components/AnimatedBackground';
 import { Head, Link, router } from '@inertiajs/react';
 import { TraditionalPagination } from '../Components/Pagination';
+import PageHeader from '../Components/Layout/PageHeader';
+import PageShell from '../Components/Layout/PageShell';
 
 function Toast({ message, onClose, type = 'success' }) {
     if (!message) return null;
@@ -20,10 +21,12 @@ function Toast({ message, onClose, type = 'success' }) {
 }
 
 export default function ClientsList({ auth, clients, flash, filters = {}, workTypes = {} }) {
+    const canManage = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.manage');
+    const canImportExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.import_export');
     const [deleteId, setDeleteId] = useState(null);
     const [toast, setToast] = useState(flash?.success || flash?.error || '');
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
-    const [selectedPerPage, setSelectedPerPage] = useState(10);
+    const [selectedPerPage, setSelectedPerPage] = useState(Number(filters.perPage || clients?.per_page || 10));
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [selectedClients, setSelectedClients] = useState(new Set());
     const [selectAll, setSelectAll] = useState(false);
@@ -211,42 +214,32 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Clients" />
-            <AnimatedBackground />
-            
-            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
-                <div className="px-6 lg:px-12 xl:px-16 py-8">
-                    {/* Header Card */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 mb-8 border border-slate-100">
-                        <div className="flex items-start gap-6">
-                            {/* Gradient Icon */}
-                            <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl shadow-lg">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                            </div>
-                            {/* Title and Description */}
-                            <div className="flex-1">
-                                <h1 className="text-3xl font-bold text-slate-900 mb-2">Clients</h1>
-                                <p className="text-slate-600">Manage your client relationships and contacts</p>
-                            </div>
-                        </div>
-                    </div>
+            <PageShell>
+                    <PageHeader
+                        title="Clients"
+                        description="Manage client records, work types, profiles, and tags."
+                        actions={canManage && (
+                            <Link href={route('clients.create')} className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                                Add Client
+                            </Link>
+                        )}
+                    />
                     
                     {/* Main Content Card */}
-                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100">
-                        <div className="p-6 md:p-8">
+                    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="p-3">
                             {/* Actions Bar */}
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                                <div className="flex items-center gap-4">
+                            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                                <div className="flex flex-wrap items-center gap-2">
                                     {/* Bulk Actions */}
-                                    {selectedClients.size > 0 && (
-                                        <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 rounded-xl border border-purple-200">
+                                    {canManage && selectedClients.size > 0 && (
+                                        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
                                             <span className="text-purple-700 text-sm font-medium">
                                                 {selectedClients.size} selected
                                             </span>
                                             <button
                                                 onClick={handleBulkDelete}
-                                                className="inline-flex items-center px-3 py-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-semibold transition-all text-sm shadow-md"
+                                                className="inline-flex items-center rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
                                             >
                                                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -263,31 +256,31 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                     )}
 
                                     {/* Export/Import Buttons */}
-                                    <div className="flex items-center gap-2">
+                                    {canImportExport && <div className="flex flex-wrap items-center gap-2">
                                         <button
                                             onClick={exportClients}
-                                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl text-sm"
+                                            className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
                                         >
                                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                             Export
                                         </button>
-                                        <label className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl cursor-pointer text-sm">
+                                        <label className="inline-flex cursor-pointer items-center rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600">
                                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                                             </svg>
                                             Import
                                             <input
                                                 type="file"
-                                                accept=".csv,.xlsx,.xls"
+                                                accept=".csv,.txt"
                                                 onChange={handleImport}
                                                 className="hidden"
                                             />
                                         </label>
                                         <button
                                             onClick={downloadSample}
-                                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl text-sm"
+                                            className="inline-flex items-center rounded-lg bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
                                             title="Download sample CSV template"
                                         >
                                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,105 +288,83 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                             </svg>
                                             Sample
                                         </button>
-                                    </div>
+                                    </div>}
                                     
                                 </div>
                                 
-                                <div className="flex items-center gap-3">
-                                    {/* Per Page Selector */}
-                                    <div className="flex items-center gap-2">
-                                        <label className="text-slate-600 text-sm font-medium">Show:</label>
+                                <div className="relative min-w-0 flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Search clients by name or tag..."
+                                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-blue-500"
+                                        value={searchTerm}
+                                        onChange={handleSearch}
+                                    />
+                                    <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    {searchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={clearSearch}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                                            title="Clear search"
+                                        >
+                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex shrink-0 items-center gap-2">
+                                        <label htmlFor="clients-per-page" className="text-xs font-semibold uppercase text-slate-500">Rows</label>
                                         <select 
+                                            id="clients-per-page"
                                             value={selectedPerPage} 
                                             onChange={(e) => handlePerPageChange(parseInt(e.target.value))}
-                                            className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-900 text-sm"
+                                            className="w-20 rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-900 focus:border-blue-500 focus:ring-blue-500"
                                         >
                                             <option value={10}>10</option>
                                             <option value={25}>25</option>
                                             <option value={50}>50</option>
                                             <option value={100}>100</option>
                                         </select>
-                                        <span className="text-slate-600 text-sm">entries</span>
-                                    </div>
-                                    
-                                    <Link href={route('clients.create')} className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl">
-                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add Client
-                                    </Link>
                                 </div>
                             </div>
                             
-                            {/* Search Section */}
-                            <div className="mb-6">
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    <h3 className="text-sm font-semibold text-slate-900 mb-3">Search Clients</h3>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            placeholder="Search by name or tags..."
-                                            className="w-full px-4 py-3 pl-10 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-900 placeholder-slate-400 text-sm"
-                                            value={searchTerm}
-                                            onChange={handleSearch}
-                                        />
-                                        <svg className="w-5 h-5 text-purple-500 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                        {searchTerm && (
-                                            <button
-                                                onClick={clearSearch}
-                                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        )}
-                                    </div>
-                                    {searchTerm && (
-                                        <div className="mt-2 text-sm text-slate-600">
-                                            Searching for: <span className="text-blue-300 font-medium">"{searchTerm}"</span>
-                                            <button onClick={clearSearch} className="ml-2 text-red-300 hover:text-red-200 underline">
-                                                Clear
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div className="overflow-x-auto rounded-xl border border-slate-200">
+                            <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
                                 <table className="min-w-full divide-y divide-slate-200 table-fixed">
-                                    <thead className="bg-gradient-to-r from-purple-500 to-pink-500">
+                                    <thead className="bg-slate-900">
                                         <tr>
-                                            <th className="w-12 px-6 py-4 text-left">
+                                            {canManage && <th className="w-12 px-6 py-4 text-left">
                                                 <input
                                                     type="checkbox"
                                                     checked={selectAll}
                                                     onChange={handleSelectAll}
                                                     className="w-4 h-4 text-purple-600 bg-white/20 border-white/30 rounded focus:ring-purple-500 focus:ring-2"
                                                 />
-                                            </th>
+                                            </th>}
                                             <th className="w-16 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">ID</th>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
                                             <th className="w-32 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Work Type</th>
                                             <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Upwork Profile</th>
                                             <th className="w-48 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Tags</th>
                                             <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Weekly Hours Worked</th>
-                                            <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider sticky right-0 bg-gradient-to-r from-purple-500 to-pink-500 border-l border-pink-600">Actions</th>
+                                            {canManage && <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider sticky right-0 bg-slate-900 border-l border-slate-700">Actions</th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200 bg-white">
                                         {clients?.data?.map((client, index) => (
                                             <tr key={client.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-purple-50 transition-all duration-200`}>
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                {canManage && <td className="px-6 py-4 whitespace-nowrap">
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedClients.has(client.id)}
                                                         onChange={() => handleClientSelect(client.id)}
                                                         className="w-4 h-4 text-purple-600 bg-white border-slate-300 rounded focus:ring-purple-500 focus:ring-2"
                                                     />
-                                                </td>
+                                                </td>}
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600">{client.id}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-900 font-medium">{client.name}</td>
                                                 <td className="px-6 py-4 text-sm">
@@ -451,7 +422,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-inherit border-l border-slate-200">
+                                                {canManage && <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-inherit border-l border-slate-200">
                                                     <div className="flex space-x-2">
                                                         <Link href={route('clients.edit', client.id)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                             Edit
@@ -460,27 +431,29 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                             Delete
                                                         </button>
                                                     </div>
-                                                </td>
+                                                </td>}
                                             </tr>
                                         ))}
                                         {(!clients?.data || clients.data.length === 0) && (
                                             <tr>
-                                                <td colSpan={8} className="px-6 py-12 text-center">
-                                                    <div className="flex flex-col items-center">
+                                                <td colSpan={canManage ? 8 : 6} className="px-0 py-12 text-center">
+                                                    <div className="sticky left-0 flex w-[calc(100vw-4rem)] flex-col items-center px-4 sm:w-auto">
                                                         <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                                         </svg>
                                                         <h3 className="text-lg font-medium text-slate-900 mb-2">No clients found</h3>
                                                         <p className="text-slate-600 mb-4">Get started by adding your first client.</p>
-                                                        <Link 
-                                                            href={route('clients.create')}
-                                                            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-semibold transition-all shadow-lg"
-                                                        >
-                                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                            </svg>
-                                                            Add First Client
-                                                        </Link>
+                                                        {canManage && (
+                                                            <Link
+                                                                href={route('clients.create')}
+                                                                className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-700"
+                                                            >
+                                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                                </svg>
+                                                                Add First Client
+                                                            </Link>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -491,7 +464,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                             
                             {/* Pagination Controls */}
                             {clients?.data && clients.data.length > 0 && (
-                                <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <TraditionalPagination 
                                         pagination={clients}
                                         className="justify-between items-center"
@@ -502,20 +475,19 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                             )}
                         </div>
                     </div>
-                </div>
-            </div>
+            </PageShell>
             
             <Toast message={toast} onClose={closeToast} type={toastType} />
             
             {/* Single Delete Modal */}
             {deleteId && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-md">
-                    <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md border border-slate-200">
+                    <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
                         <h2 className="text-xl font-bold mb-4 text-slate-900">Confirm Delete</h2>
                         <p className="mb-6 text-slate-600">Are you sure you want to delete this client?</p>
                         <div className="flex justify-end gap-3">
                             <button onClick={() => setDeleteId(null)} className="px-6 py-2 bg-white hover:bg-slate-50 text-slate-900 rounded-lg font-semibold transition-all border border-slate-200">Cancel</button>
-                            <button onClick={handleDelete} className="px-6 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-semibold transition-all shadow-lg">Delete</button>
+                            <button onClick={handleDelete} className="rounded-lg bg-red-600 px-5 py-2 text-white font-semibold hover:bg-red-700">Delete</button>
                         </div>
                     </div>
                 </div>
@@ -524,14 +496,14 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
             {/* Bulk Delete Modal */}
             {showBulkDeleteModal && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-md">
-                    <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-md border border-slate-200">
+                    <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
                         <h2 className="text-xl font-bold mb-4 text-slate-900">Confirm Bulk Delete</h2>
                         <p className="mb-6 text-slate-600">
                             Are you sure you want to delete {selectedClients.size} selected client(s)? This action cannot be undone.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button onClick={() => setShowBulkDeleteModal(false)} className="px-6 py-2 bg-white hover:bg-slate-50 text-slate-900 rounded-lg font-semibold transition-all border border-slate-200">Cancel</button>
-                            <button onClick={confirmBulkDelete} className="px-6 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-semibold transition-all shadow-lg">Delete {selectedClients.size} Client(s)</button>
+                            <button onClick={confirmBulkDelete} className="rounded-lg bg-red-600 px-5 py-2 text-white font-semibold hover:bg-red-700">Delete {selectedClients.size} Client(s)</button>
                         </div>
                     </div>
                 </div>
@@ -539,4 +511,3 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
         </AuthenticatedLayout>
     );
 }
-

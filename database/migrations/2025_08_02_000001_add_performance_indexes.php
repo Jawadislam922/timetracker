@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -31,10 +30,8 @@ return new class extends Migration
 
     private function addIndexIfNotExists($table, $column)
     {
-        $indexName = $table . '_' . $column . '_index';
-        $exists = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = '{$indexName}'");
-        
-        if (empty($exists)) {
+        $indexName = $table.'_'.$column.'_index';
+        if (! Schema::hasIndex($table, $indexName)) {
             Schema::table($table, function (Blueprint $blueprint) use ($column) {
                 $blueprint->index($column);
             });
@@ -43,10 +40,10 @@ return new class extends Migration
 
     private function dropIndexIfExists($table, $indexName)
     {
-        $exists = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = '{$indexName}'");
-        
-        if (!empty($exists)) {
-            DB::statement("ALTER TABLE {$table} DROP INDEX {$indexName}");
+        if (Schema::hasIndex($table, $indexName)) {
+            Schema::table($table, function (Blueprint $blueprint) use ($indexName) {
+                $blueprint->dropIndex($indexName);
+            });
         }
     }
 };

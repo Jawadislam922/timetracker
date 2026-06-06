@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
-import AnimatedBackground from '../Components/AnimatedBackground';
 import { Head, useForm, Link } from '@inertiajs/react';
+import PageHeader from '../Components/Layout/PageHeader';
+import PageShell from '../Components/Layout/PageShell';
 
 export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
     const form = useForm({
@@ -359,31 +360,18 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         <AuthenticatedLayout user={auth.user}>
             <Head title="Add Work Entry" />
             
-            {/* Page Background */}
-            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
-                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
-                    {/* Header Section */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
-                        <div className="flex items-center gap-6">
-                            <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl shadow-lg">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div className="flex-1">
-                                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-1">
-                                    Add Work Entry
-                                </h1>
-                                <p className="text-slate-600 text-base md:text-lg">Log your work hours and track your progress</p>
-                            </div>
-                        </div>
-                    </div>
+            <PageShell width="max-w-6xl">
+                <PageHeader
+                    eyebrow="Work diary"
+                    title="Add Work Entry"
+                    description="Log time against the correct work type, client, and profile."
+                />
 
                     {/* Form Section */}
-                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-visible">
-                        <div className="p-6 md:p-8">
+                    <div className="overflow-visible rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="p-5 sm:p-6">
                             <form onSubmit={handleSubmit}>
-                                <div className="mb-6 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200 p-6">
+                                <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                                     <div className="mb-4">
                                         <div className="flex items-center gap-3 mb-3">
                                             <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg">
@@ -409,16 +397,16 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                             )}
                                         </p>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                         {workTypes.map((type) => (
                                             <button
                                                 key={type.value}
                                                 type="button"
                                                 onClick={() => handleWorkTypeChange(type.value)}
-                                                className={`p-3 rounded-xl font-semibold transition-all text-sm shadow-md ${
+                                                className={`min-h-11 rounded-lg p-2.5 text-sm font-semibold transition ${
                                                     form.data.work_type === type.value
-                                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg scale-105'
-                                                        : 'bg-white border-2 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-emerald-300'
+                                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                                        : 'border border-slate-300 bg-white text-slate-700 hover:border-emerald-400 hover:bg-emerald-50'
                                                 }`}
                                             >
                                                 {type.label}
@@ -778,7 +766,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                     <button
                                         type="submit"
                                         disabled={form.processing}
-                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
+                                        className="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
                                     >
                                         {form.processing ? (
                                             <>
@@ -801,8 +789,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                             </form>
                         </div>
                     </div>
-                </div>
-            </div>
+            </PageShell>
         </AuthenticatedLayout>
     );
 }

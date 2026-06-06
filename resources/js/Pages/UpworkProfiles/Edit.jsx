@@ -1,7 +1,8 @@
 import React from 'react';
 import AuthenticatedLayout from '../../Layouts/AuthenticatedLayout';
-import AnimatedBackground from '../../Components/AnimatedBackground';
 import { Head, useForm, Link } from '@inertiajs/react';
+import PageHeader from '../../Components/Layout/PageHeader';
+import PageShell from '../../Components/Layout/PageShell';
 
 export default function Edit({ auth, profile }) {
     const { data, setData, put, processing, errors } = useForm({
@@ -20,26 +21,16 @@ export default function Edit({ auth, profile }) {
         <AuthenticatedLayout user={auth.user}>
             <Head title="Edit Upwork Profile" />
             
-            <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 min-h-screen">
-                <div className="px-6 lg:px-12 xl:px-16 py-8 space-y-8">
-                    {/* Header Card with Gradient Icon */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8 border border-slate-100">
-                        <div className="flex items-center gap-4">
-                            <div className="p-4 bg-gradient-to-r from-green-500 to-teal-500 rounded-2xl shadow-lg">
-                                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h2 className="text-3xl font-bold text-slate-900">Edit Upwork Profile</h2>
-                                <p className="text-slate-600 mt-1">Update profile information for {profile.name}</p>
-                            </div>
-                        </div>
-                    </div>
+            <PageShell width="max-w-5xl">
+                <PageHeader
+                    eyebrow="Upwork profiles"
+                    title="Edit Profile"
+                    description={`Update profile information for ${profile.name}.`}
+                />
 
                     {/* Form Card */}
-                    <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-                        <div className="p-6 md:p-8">
+                    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="p-5 sm:p-6">
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Profile Name */}
@@ -163,7 +154,7 @@ export default function Edit({ auth, profile }) {
                                     <button
                                         type="submit"
                                         disabled={processing}
-                                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="inline-flex items-center rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {processing ? (
                                             <>
@@ -186,9 +177,7 @@ export default function Edit({ auth, profile }) {
                             </form>
                         </div>
                     </div>
-                </div>
-            </div>
+            </PageShell>
         </AuthenticatedLayout>
     );
 }
-

@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\TimeEntry;
-use Illuminate\Http\Request;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class TimeEntryController extends Controller
@@ -30,29 +31,40 @@ class TimeEntryController extends Controller
                     'formatted_date' => $entry->formatted_action_date,
                     'formatted_time' => $entry->formatted_action_time,
                     'notes' => $entry->notes,
-                    'user_name' => $entry->user->name
+                    'user_name' => $entry->user->name,
                 ];
-            })
+            }),
         ]);
     }
 
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'action_type' => 'required|in:clock_in,clock_out,break_start,break_end',
-            'notes' => 'nullable|string|max:255'
+            'notes' => 'nullable|string|max:255',
         ]);
 
         $now = Carbon::now('Asia/Karachi');
         $user = Auth::user();
+        $actionType = $validated['action_type'];
+        $lastAction = TimeEntry::forUser($user->id)
+            ->forDate($now->toDateString())
+            ->orderBy('action_timestamp', 'desc')
+            ->value('action_type');
+
+        if (! $this->isActionAllowed($lastAction, $actionType)) {
+            return response()->json([
+                'message' => $this->blockedActionMessage($lastAction, $actionType),
+            ], 422);
+        }
 
         $entry = TimeEntry::create([
             'user_id' => $user->id,
-            'action_type' => $request->action_type,
+            'action_type' => $actionType,
             'action_timestamp' => $now,
             'action_date' => $now->toDateString(),
             'action_time' => $now->toTimeString(),
-            'notes' => $request->notes
+            'notes' => $validated['notes'] ?? null,
         ]);
 
         return response()->json([
@@ -63,10 +75,38 @@ class TimeEntryController extends Controller
                 'formatted_date' => $entry->formatted_action_date,
                 'formatted_time' => $entry->formatted_action_time,
                 'notes' => $entry->notes,
-                'user_name' => $user->name
+                'user_name' => $user->name,
             ],
-            'message' => 'Time entry recorded successfully'
+            'message' => 'Time entry recorded successfully',
         ]);
+    }
+
+    private function isActionAllowed(?string $lastAction, string $nextAction): bool
+    {
+        if ($lastAction === null) {
+            return $nextAction === 'clock_in';
+        }
+
+        return match ($lastAction) {
+            'clock_in' => in_array($nextAction, ['clock_out', 'break_start'], true),
+            'break_start' => $nextAction === 'break_end',
+            'break_end' => in_array($nextAction, ['clock_out', 'break_start'], true),
+            'clock_out' => $nextAction === 'clock_in',
+            default => false,
+        };
+    }
+
+    private function blockedActionMessage(?string $lastAction, string $nextAction): string
+    {
+        if ($lastAction === null) {
+            return 'Please clock in before recording another action.';
+        }
+
+        if ($lastAction === 'break_start' && $nextAction === 'clock_out') {
+            return 'Please end your break before clocking out.';
+        }
+
+        return 'This time action is not available from your current status.';
     }
 
     public function export(Request $request)
@@ -91,13 +131,13 @@ class TimeEntryController extends Controller
                 $entry->formatted_action_time,
                 $entry->user->name,
                 str_replace('_', ' ', ucwords($entry->action_type)),
-                '"' . ($entry->notes ?? '') . '"'
-            ]) . "\n";
+                '"'.($entry->notes ?? '').'"',
+            ])."\n";
         }
 
         return response($csv)
             ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', 'attachment; filename="time-entries-' . now()->format('Y-m-d') . '.csv"');
+            ->header('Content-Disposition', 'attachment; filename="time-entries-'.now()->format('Y-m-d').'.csv"');
     }
 
     public function getTodaysEntries()
@@ -119,9 +159,9 @@ class TimeEntryController extends Controller
                     'formatted_date' => $entry->formatted_action_date,
                     'formatted_time' => $entry->formatted_action_time,
                     'notes' => $entry->notes,
-                    'user_name' => $entry->user->name
+                    'user_name' => $entry->user->name,
                 ];
-            })
+            }),
         ]);
     }
 
@@ -132,27 +172,26 @@ class TimeEntryController extends Controller
         $weekStart = Carbon::now('Asia/Karachi')->startOfWeek();
         $monthStart = Carbon::now('Asia/Karachi')->startOfMonth();
 
-        if ($user->role === 'admin') {
-            // Admins see all employees
-            $employeesData = \App\Models\User::all()->map(function ($employee) use ($today, $weekStart, $monthStart) {
+        if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {
+            $employeesData = User::all()->map(function ($employee) use ($today, $weekStart, $monthStart) {
                 // Load today's entries
                 $todayEntries = $employee->timeEntries()
                     ->whereDate('action_date', $today)
                     ->orderBy('action_timestamp', 'asc')
                     ->get();
-                
+
                 // Load weekly entries
                 $weeklyEntries = $employee->timeEntries()
                     ->where('action_date', '>=', $weekStart)
                     ->orderBy('action_timestamp', 'asc')
                     ->get();
-                
+
                 // Load monthly entries
                 $monthlyEntries = $employee->timeEntries()
                     ->where('action_date', '>=', $monthStart)
                     ->orderBy('action_timestamp', 'asc')
                     ->get();
-                
+
                 return $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
             })->filter(function ($employee) {
                 // Only show employees who have entries today
@@ -160,24 +199,24 @@ class TimeEntryController extends Controller
             });
 
             return response()->json([
-                'employees' => $employeesData->values()
+                'employees' => $employeesData->values(),
             ]);
         } else {
             // Regular users see only their own data
             $employee = $user;
-            
+
             // Load today's entries
             $todayEntries = $employee->timeEntries()
                 ->whereDate('action_date', $today)
                 ->orderBy('action_timestamp', 'asc')
                 ->get();
-            
+
             // Load weekly entries
             $weeklyEntries = $employee->timeEntries()
                 ->where('action_date', '>=', $weekStart)
                 ->orderBy('action_timestamp', 'asc')
                 ->get();
-            
+
             // Load monthly entries
             $monthlyEntries = $employee->timeEntries()
                 ->where('action_date', '>=', $monthStart)
@@ -185,7 +224,7 @@ class TimeEntryController extends Controller
                 ->get();
 
             return response()->json([
-                'employees' => [$this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries)]
+                'employees' => [$this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries)],
             ]);
         }
     }
@@ -194,10 +233,10 @@ class TimeEntryController extends Controller
     {
         // Calculate today's stats
         $todayStats = $this->calculateTimeStats($todayEntries);
-        
+
         // Calculate weekly stats
         $weeklyStats = $this->calculateTimeStats($weeklyEntries);
-        
+
         // Calculate monthly stats
         $monthlyStats = $this->calculateTimeStats($monthlyEntries);
 
@@ -215,7 +254,7 @@ class TimeEntryController extends Controller
             'total_entries' => $todayEntries->count(),
             'last_action' => $todayStats['lastAction'],
             'current_status' => $todayStats['status'],
-            'last_action_time' => $todayEntries->last()?->formatted_action_time
+            'last_action_time' => $todayEntries->last()?->formatted_action_time,
         ];
     }
 
@@ -231,7 +270,7 @@ class TimeEntryController extends Controller
         foreach ($entries as $entry) {
             $entryTime = new Carbon($entry->action_timestamp);
             $lastAction = $entry->action_type;
-            
+
             switch ($entry->action_type) {
                 case 'clock_in':
                     $currentSessionStart = $entryTime;
@@ -275,7 +314,7 @@ class TimeEntryController extends Controller
             'workHours' => round($effectiveWorkMinutes / 60, 2),
             'breakHours' => round($totalBreakMinutes / 60, 2),
             'lastAction' => $lastAction,
-            'status' => $status
+            'status' => $status,
         ];
     }
 }

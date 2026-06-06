@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
-use Illuminate\Http\Request;
-use Inertia\Middleware;
 use App\Models\TimeEntry;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -19,7 +19,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * Determine the current asset version.
      */
-    public function version(Request $request): string|null
+    public function version(Request $request): ?string
     {
         return parent::version($request);
     }
@@ -33,8 +33,22 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $lastActionToday = null;
+        $authUser = null;
 
         if ($user) {
+            $authUser = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'role_label' => $user->role_label,
+                'avatar' => $user->avatar,
+                'avatar_url' => $user->avatar_url,
+                'designation' => $user->designation,
+                'permissions' => $user->effectivePermissions(),
+                'is_super_admin' => $user->isSuperAdmin(),
+            ];
+
             try {
                 $today = Carbon::today('Asia/Karachi');
                 $entry = TimeEntry::query()
@@ -52,7 +66,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $user,
+                'user' => $authUser,
                 'lastActionToday' => $lastActionToday,
             ],
         ];

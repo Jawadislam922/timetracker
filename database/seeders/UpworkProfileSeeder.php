@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\UpworkProfile;
+use Illuminate\Database\Seeder;
 
 class UpworkProfileSeeder extends Seeder
 {
@@ -13,7 +13,7 @@ class UpworkProfileSeeder extends Seeder
     public function run(): void
     {
         $trackers = config('workhours.trackers', []);
-        
+
         foreach ($trackers as $tracker) {
             UpworkProfile::firstOrCreate(
                 ['name' => $tracker],
