@@ -11,10 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('clients', function (Blueprint $table) {
-            $table->string('work_type')->nullable();
-            $table->foreignId('upwork_profile_id')->nullable()->constrained('upwork_profiles')->onDelete('set null');
-        });
+        if (! Schema::hasColumn('clients', 'work_type')) {
+            Schema::table('clients', function (Blueprint $table) {
+                $table->string('work_type')->nullable();
+            });
+        }
+
+        if (! Schema::hasColumn('clients', 'upwork_profile_id')) {
+            Schema::table('clients', function (Blueprint $table) {
+                $table->foreignId('upwork_profile_id')
+                    ->nullable()
+                    ->constrained('upwork_profiles')
+                    ->nullOnDelete();
+            });
+        }
     }
 
     /**
@@ -22,9 +32,16 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('clients', function (Blueprint $table) {
-            $table->dropForeign(['upwork_profile_id']);
-            $table->dropColumn(['work_type', 'upwork_profile_id']);
-        });
+        if (Schema::hasColumn('clients', 'upwork_profile_id')) {
+            Schema::table('clients', function (Blueprint $table) {
+                $table->dropConstrainedForeignId('upwork_profile_id');
+            });
+        }
+
+        if (Schema::hasColumn('clients', 'work_type')) {
+            Schema::table('clients', function (Blueprint $table) {
+                $table->dropColumn('work_type');
+            });
+        }
     }
 };
