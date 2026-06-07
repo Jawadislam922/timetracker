@@ -25,6 +25,7 @@ export default function UserForm({
         designation: user?.designation || '',
         role: user?.role || 'member',
         permissions: user?.permissions || [],
+        include_in_slack_reports: user?.include_in_slack_reports ?? true,
         avatar: null,
     });
 
@@ -200,6 +201,30 @@ export default function UserForm({
                             ))}
                         </div>
                         {form.errors.permissions && <p className="px-5 pb-4 text-sm font-medium text-rose-600">{form.errors.permissions}</p>}
+                    </section>
+
+                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b border-slate-200 px-5 py-4">
+                            <h2 className="font-bold text-slate-950">Slack reporting</h2>
+                            <p className="mt-1 text-sm text-slate-600">Control whether this person is included in routine hours reports.</p>
+                        </div>
+                        <label className="flex cursor-pointer items-start gap-3 p-5">
+                            <input
+                                type="checkbox"
+                                checked={form.data.include_in_slack_reports}
+                                onChange={(event) => form.setData('include_in_slack_reports', event.target.checked)}
+                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>
+                                <span className="block text-sm font-semibold text-slate-900">Include in Slack reports by default</span>
+                                <span className="mt-1 block text-sm leading-5 text-slate-600">
+                                    Enabled users are preselected in manual reports and included in automatic Sunday reports.
+                                </span>
+                            </span>
+                        </label>
+                        {form.errors.include_in_slack_reports && (
+                            <p className="px-5 pb-4 text-sm font-medium text-rose-600">{form.errors.include_in_slack_reports}</p>
+                        )}
                     </section>
                 </>
             )}

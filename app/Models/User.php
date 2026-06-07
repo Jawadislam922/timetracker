@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'permissions',
+        'include_in_slack_reports',
         'avatar',
         'designation', // Stores shift information (Morning, Evening, Night, etc.)
     ];
@@ -48,6 +49,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'permissions' => 'array',
+        'include_in_slack_reports' => 'boolean',
     ];
 
     const ROLES = [

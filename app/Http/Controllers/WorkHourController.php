@@ -444,7 +444,7 @@ class WorkHourController extends Controller
         // Preserve query parameters in pagination links
         $workHours->appends($request->query());
 
-        $users = User::orderBy('name')->get(['id', 'name']);
+        $users = User::orderBy('name')->get(['id', 'name', 'include_in_slack_reports']);
 
         return Inertia::render('WorkHoursReport', [
             'workHours' => $workHours,

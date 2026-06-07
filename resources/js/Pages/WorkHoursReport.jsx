@@ -132,6 +132,7 @@ export default function WorkHoursReport({
     const userOptions = (filterOptions.users || users || []).map((user) => ({
         value: String(user.id),
         label: user.name,
+        includedByDefault: user.include_in_slack_reports ?? true,
     }));
 
     const workTypeOptions = (filterOptions.workTypes || []).map((type) => ({
@@ -358,7 +359,11 @@ export default function WorkHoursReport({
             setSlackEndDate(range.end);
         }
 
-        setSlackUserIds(selectedUsers.length ? selectedUsers : userOptions.map((option) => option.value));
+        setSlackUserIds(
+            selectedUsers.length
+                ? selectedUsers
+                : userOptions.filter((option) => option.includedByDefault).map((option) => option.value)
+        );
         setShowSlackDialog(true);
     };
 

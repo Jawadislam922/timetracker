@@ -29,6 +29,10 @@ class SlackReportService
         $endDate = $end->toDateString();
         $query = WorkHour::query()->whereBetween('date', [$startDate, $endDate]);
 
+        if (empty($filters['userIds'])) {
+            $query->whereHas('user', fn ($userQuery) => $userQuery->where('include_in_slack_reports', true));
+        }
+
         $this->applyFilters($query, $filters);
 
         $entries = $query
@@ -41,7 +45,9 @@ class SlackReportService
             ->when(
                 ! empty($filters['userIds']),
                 fn ($userQuery) => $userQuery->whereIn('id', $filters['userIds']),
-                fn ($userQuery) => $userQuery->whereIn('id', $entries->pluck('user_id')->unique())
+                fn ($userQuery) => $userQuery
+                    ->where('include_in_slack_reports', true)
+                    ->whereIn('id', $entries->pluck('user_id')->unique())
             )
             ->orderBy('name')
             ->get(['id', 'name']);

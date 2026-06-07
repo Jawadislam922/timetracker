@@ -199,4 +199,69 @@ class SlackReportTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_automatic_report_excludes_users_disabled_for_slack_reporting(): void
+    {
+        Http::fake(['hooks.slack.test/*' => Http::response('ok')]);
+
+        $included = User::factory()->create([
+            'name' => 'Included Staff',
+            'include_in_slack_reports' => true,
+        ]);
+        $excluded = User::factory()->create([
+            'name' => 'Excluded Manager',
+            'include_in_slack_reports' => false,
+        ]);
+
+        foreach ([$included, $excluded] as $user) {
+            WorkHour::create([
+                'user_id' => $user->id,
+                'date' => '2026-06-06',
+                'hours' => 8,
+                'description' => 'Weekly work',
+                'work_type' => 'office_work',
+            ]);
+        }
+
+        $this->artisan('reports:send-weekly-slack', [
+            '--start' => '2026-06-01',
+            '--end' => '2026-06-07',
+        ])->assertSuccessful();
+
+        Http::assertSent(function ($request) {
+            $payload = json_encode($request->data());
+
+            return str_contains($payload, 'Included Staff')
+                && ! str_contains($payload, 'Excluded Manager')
+                && str_contains($request['text'], 'Total hours: 8');
+        });
+    }
+
+    public function test_manual_report_can_explicitly_include_a_user_disabled_by_default(): void
+    {
+        Http::fake(['hooks.slack.test/*' => Http::response('ok')]);
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $manager = User::factory()->create([
+            'name' => 'Occasional Manager',
+            'include_in_slack_reports' => false,
+        ]);
+
+        WorkHour::create([
+            'user_id' => $manager->id,
+            'date' => '2026-06-06',
+            'hours' => 2,
+            'description' => 'Occasional work',
+            'work_type' => 'office_work',
+        ]);
+
+        $this->actingAs($admin)->post(route('work-hours.slack'), [
+            'start_date' => '2026-06-01',
+            'end_date' => '2026-06-07',
+            'user_ids' => [$manager->id],
+            'include_fields' => ['hours'],
+        ])->assertSessionHasNoErrors();
+
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'Occasional Manager'));
+    }
 }

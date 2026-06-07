@@ -133,6 +133,7 @@ class UserController extends Controller
             'role' => ['nullable', Rule::in(array_keys(User::ROLES))],
             'permissions' => 'nullable|array',
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
+            'include_in_slack_reports' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
         ];
 
@@ -156,6 +157,9 @@ class UserController extends Controller
             'permissions' => $request->user()->isSuperAdmin()
                 ? $this->validatedPermissions($validated['permissions'] ?? [])
                 : [],
+            'include_in_slack_reports' => $request->user()->isSuperAdmin()
+                ? ($validated['include_in_slack_reports'] ?? true)
+                : true,
             'designation' => $validated['designation'] ?? null,
         ];
 
@@ -180,6 +184,7 @@ class UserController extends Controller
                 'email' => $user->email,
                 'role' => $user->role,
                 'permissions' => $user->permissions ?? [],
+                'include_in_slack_reports' => $user->include_in_slack_reports,
                 'avatar_url' => $user->avatar_url,
                 'designation' => $user->designation,
             ],
@@ -201,6 +206,7 @@ class UserController extends Controller
             'role' => ['nullable', Rule::in(array_keys(User::ROLES))],
             'permissions' => 'nullable|array',
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
+            'include_in_slack_reports' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
         ];
 
@@ -229,6 +235,7 @@ class UserController extends Controller
             $user->permissions = $user->role === 'super_admin'
                 ? []
                 : $this->validatedPermissions($validated['permissions'] ?? []);
+            $user->include_in_slack_reports = $validated['include_in_slack_reports'] ?? true;
         }
 
         // Only update password if it's provided and not empty
