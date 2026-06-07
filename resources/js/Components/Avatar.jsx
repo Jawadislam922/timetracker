@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export default function Avatar({ user, size = 'md', className = '' }) {
+    const [imageFailed, setImageFailed] = useState(false);
     const sizeClasses = {
         sm: 'w-8 h-8 text-xs',
         md: 'w-10 h-10 text-sm',
@@ -10,12 +11,17 @@ export default function Avatar({ user, size = 'md', className = '' }) {
 
     const baseClasses = `rounded-full object-cover border flex-shrink-0 ${sizeClasses[size]} ${className}`;
 
-    if (user.avatar) {
+    useEffect(() => {
+        setImageFailed(false);
+    }, [user.avatar]);
+
+    if (user.avatar && !imageFailed) {
         return (
             <img
                 src={`/storage/${user.avatar}`}
                 alt={`${user.name}'s avatar`}
                 className={baseClasses}
+                onError={() => setImageFailed(true)}
             />
         );
     }

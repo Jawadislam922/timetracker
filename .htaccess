@@ -5,6 +5,9 @@
 
     RewriteEngine On
 
+    # Let Laravel serve avatars on hosts that restrict storage symlinks.
+    RewriteRule ^storage/avatars/(.+)$ index.php [L]
+
     # Serve only files that belong to Laravel's public directory.
     RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
     RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
