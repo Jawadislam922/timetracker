@@ -24,7 +24,7 @@ class EmployeeAttendanceController extends Controller
      */
     public function getSummary(Request $request)
     {
-        $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
+        $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
         $employees = User::all()->map(function ($employee) use ($date) {
             $entries = $employee->timeEntries()
@@ -68,7 +68,7 @@ class EmployeeAttendanceController extends Controller
      */
     public function getDetailed(Request $request)
     {
-        $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
+        $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
         $activities = User::all()->map(function ($employee) use ($date) {
             $entries = $employee->timeEntries()
@@ -106,7 +106,7 @@ class EmployeeAttendanceController extends Controller
      */
     public function getTimeline(Request $request)
     {
-        $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
+        $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
         $timelines = User::all()->map(function ($employee) use ($date) {
             $entries = $employee->timeEntries()
@@ -142,7 +142,7 @@ class EmployeeAttendanceController extends Controller
      */
     public function export(Request $request)
     {
-        $date = $request->input('date', Carbon::today('Asia/Karachi')->toDateString());
+        $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
         $csv = "Employee,Designation,Status,Work Hours,Break Hours,First Clock In,Last Action,Total Actions\n";
 
@@ -204,7 +204,7 @@ class EmployeeAttendanceController extends Controller
         $status = 'Not Started';
 
         foreach ($entries as $entry) {
-            $entryTime = new Carbon($entry->action_timestamp);
+            $entryTime = Carbon::parse($entry->action_timestamp)->setTimezone('Asia/Karachi');
             $lastAction = $entry->action_type;
 
             switch ($entry->action_type) {
@@ -214,7 +214,7 @@ class EmployeeAttendanceController extends Controller
                     break;
                 case 'clock_out':
                     if ($currentSessionStart) {
-                        $totalWorkMinutes += $entryTime->diffInMinutes($currentSessionStart);
+                        $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $entryTime);
                         $currentSessionStart = null;
                     }
                     $status = 'Clocked Out';
@@ -225,7 +225,7 @@ class EmployeeAttendanceController extends Controller
                     break;
                 case 'break_end':
                     if ($currentBreakStart) {
-                        $totalBreakMinutes += $entryTime->diffInMinutes($currentBreakStart);
+                        $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $entryTime);
                         $currentBreakStart = null;
                     }
                     $status = 'Working';
@@ -233,14 +233,16 @@ class EmployeeAttendanceController extends Controller
             }
         }
 
-        // If still clocked in, add time until now
-        if ($currentSessionStart) {
-            $totalWorkMinutes += Carbon::now('Asia/Karachi')->diffInMinutes($currentSessionStart);
+        $now = Carbon::now('Asia/Karachi');
+
+        // If still clocked in today, add elapsed time until now.
+        if ($currentSessionStart && $currentSessionStart->isSameDay($now)) {
+            $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $now);
         }
 
-        // If still on break, add break time until now
-        if ($currentBreakStart) {
-            $totalBreakMinutes += Carbon::now('Asia/Karachi')->diffInMinutes($currentBreakStart);
+        // If still on break today, add elapsed break time until now.
+        if ($currentBreakStart && $currentBreakStart->isSameDay($now)) {
+            $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $now);
         }
 
         // Calculate effective work time (excluding breaks)
@@ -264,7 +266,7 @@ class EmployeeAttendanceController extends Controller
         $currentBreakStart = null;
 
         foreach ($entries as $entry) {
-            $entryTime = new Carbon($entry->action_timestamp);
+            $entryTime = Carbon::parse($entry->action_timestamp)->setTimezone('Asia/Karachi');
 
             switch ($entry->action_type) {
                 case 'clock_in':
@@ -273,12 +275,12 @@ class EmployeeAttendanceController extends Controller
 
                 case 'clock_out':
                     if ($currentWorkStart) {
-                        $duration = $currentWorkStart->diff($entryTime);
+                        $durationMinutes = $this->positiveMinutesBetween($currentWorkStart, $entryTime);
                         $sessions[] = [
                             'type' => 'work',
                             'start_time' => $currentWorkStart->format('g:i A'),
                             'end_time' => $entryTime->format('g:i A'),
-                            'duration' => $this->formatDuration($duration),
+                            'duration' => $this->formatDuration($durationMinutes),
                         ];
                         $currentWorkStart = null;
                     }
@@ -290,12 +292,12 @@ class EmployeeAttendanceController extends Controller
 
                 case 'break_end':
                     if ($currentBreakStart) {
-                        $duration = $currentBreakStart->diff($entryTime);
+                        $durationMinutes = $this->positiveMinutesBetween($currentBreakStart, $entryTime);
                         $sessions[] = [
                             'type' => 'break',
                             'start_time' => $currentBreakStart->format('g:i A'),
                             'end_time' => $entryTime->format('g:i A'),
-                            'duration' => $this->formatDuration($duration),
+                            'duration' => $this->formatDuration($durationMinutes),
                         ];
                         $currentBreakStart = null;
                     }
@@ -303,24 +305,26 @@ class EmployeeAttendanceController extends Controller
             }
         }
 
-        // Add ongoing session if exists
-        if ($currentWorkStart) {
-            $duration = $currentWorkStart->diff(Carbon::now('Asia/Karachi'));
+        $now = Carbon::now('Asia/Karachi');
+
+        // Add ongoing session if it belongs to today.
+        if ($currentWorkStart && $currentWorkStart->isSameDay($now)) {
+            $durationMinutes = $this->positiveMinutesBetween($currentWorkStart, $now);
             $sessions[] = [
                 'type' => 'work',
                 'start_time' => $currentWorkStart->format('g:i A'),
                 'end_time' => null,
-                'duration' => $this->formatDuration($duration).' (ongoing)',
+                'duration' => $this->formatDuration($durationMinutes).' (ongoing)',
             ];
         }
 
-        if ($currentBreakStart) {
-            $duration = $currentBreakStart->diff(Carbon::now('Asia/Karachi'));
+        if ($currentBreakStart && $currentBreakStart->isSameDay($now)) {
+            $durationMinutes = $this->positiveMinutesBetween($currentBreakStart, $now);
             $sessions[] = [
                 'type' => 'break',
                 'start_time' => $currentBreakStart->format('g:i A'),
                 'end_time' => null,
-                'duration' => $this->formatDuration($duration).' (ongoing)',
+                'duration' => $this->formatDuration($durationMinutes).' (ongoing)',
             ];
         }
 
@@ -330,10 +334,15 @@ class EmployeeAttendanceController extends Controller
     /**
      * Format duration in human readable format
      */
-    private function formatDuration($duration)
+    private function positiveMinutesBetween(Carbon $start, Carbon $end): int
     {
-        $hours = $duration->h;
-        $minutes = $duration->i;
+        return max(0, (int) floor($start->diffInMinutes($end, false)));
+    }
+
+    private function formatDuration(int $durationMinutes)
+    {
+        $hours = intdiv($durationMinutes, 60);
+        $minutes = $durationMinutes % 60;
 
         if ($hours > 0) {
             return "{$hours}h {$minutes}m";

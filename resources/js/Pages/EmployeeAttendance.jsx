@@ -47,12 +47,22 @@ const actionMeta = (actionType) => {
 };
 
 const EmployeeIdentity = ({ employee, size = 'small' }) => {
+    const [imageFailed, setImageFailed] = useState(false);
     const avatarSize = size === 'large' ? 'h-11 w-11' : 'h-9 w-9';
+
+    useEffect(() => {
+        setImageFailed(false);
+    }, [employee.avatar]);
 
     return (
         <div className="flex min-w-0 items-center gap-3">
-            {employee.avatar ? (
-                <img src={employee.avatar} alt="" className={`${avatarSize} rounded-full object-cover`} />
+            {employee.avatar && !imageFailed ? (
+                <img
+                    src={employee.avatar}
+                    alt=""
+                    className={`${avatarSize} shrink-0 rounded-full object-cover`}
+                    onError={() => setImageFailed(true)}
+                />
             ) : (
                 <span className={`flex ${avatarSize} shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700`}>
                     {employee.user_name.charAt(0).toUpperCase()}

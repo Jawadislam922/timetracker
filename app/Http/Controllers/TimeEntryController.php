@@ -268,7 +268,7 @@ class TimeEntryController extends Controller
         $status = 'Not Started';
 
         foreach ($entries as $entry) {
-            $entryTime = new Carbon($entry->action_timestamp);
+            $entryTime = Carbon::parse($entry->action_timestamp)->setTimezone('Asia/Karachi');
             $lastAction = $entry->action_type;
 
             switch ($entry->action_type) {
@@ -278,7 +278,7 @@ class TimeEntryController extends Controller
                     break;
                 case 'clock_out':
                     if ($currentSessionStart) {
-                        $totalWorkMinutes += $entryTime->diffInMinutes($currentSessionStart);
+                        $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $entryTime);
                         $currentSessionStart = null;
                     }
                     $status = 'Clocked Out';
@@ -289,7 +289,7 @@ class TimeEntryController extends Controller
                     break;
                 case 'break_end':
                     if ($currentBreakStart) {
-                        $totalBreakMinutes += $entryTime->diffInMinutes($currentBreakStart);
+                        $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $entryTime);
                         $currentBreakStart = null;
                     }
                     $status = 'Working';
@@ -297,14 +297,16 @@ class TimeEntryController extends Controller
             }
         }
 
-        // If still clocked in, add time until now
-        if ($currentSessionStart) {
-            $totalWorkMinutes += Carbon::now('Asia/Karachi')->diffInMinutes($currentSessionStart);
+        $now = Carbon::now('Asia/Karachi');
+
+        // If still clocked in today, add elapsed time until now.
+        if ($currentSessionStart && $currentSessionStart->isSameDay($now)) {
+            $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $now);
         }
 
-        // If still on break, add break time until now
-        if ($currentBreakStart) {
-            $totalBreakMinutes += Carbon::now('Asia/Karachi')->diffInMinutes($currentBreakStart);
+        // If still on break today, add elapsed break time until now.
+        if ($currentBreakStart && $currentBreakStart->isSameDay($now)) {
+            $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $now);
         }
 
         // Calculate effective work time (excluding breaks)
@@ -316,5 +318,10 @@ class TimeEntryController extends Controller
             'lastAction' => $lastAction,
             'status' => $status,
         ];
+    }
+
+    private function positiveMinutesBetween(Carbon $start, Carbon $end): int
+    {
+        return max(0, (int) floor($start->diffInMinutes($end, false)));
     }
 }

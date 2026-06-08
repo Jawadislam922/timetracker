@@ -8,10 +8,12 @@
  * @returns {string} Formatted time string
  */
 export const formatHours = (hours) => {
-    if (!hours || hours === 0) return '0m';
+    const safeHours = Math.max(0, Number(hours) || 0);
+
+    if (safeHours === 0) return '0m';
     
-    const h = Math.floor(hours);
-    const m = Math.round((hours - h) * 60);
+    const h = Math.floor(safeHours);
+    const m = Math.round((safeHours - h) * 60);
     
     if (h === 0) return `${m}m`;
     if (m === 0) return `${h}h`;
