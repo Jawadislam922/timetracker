@@ -47,8 +47,9 @@ class TimeEntryController extends Controller
         $now = Carbon::now('Asia/Karachi');
         $user = Auth::user();
         $actionType = $validated['action_type'];
+        $attendanceDate = $user->attendanceDateFor($now);
         $lastAction = TimeEntry::forUser($user->id)
-            ->forDate($now->toDateString())
+            ->forDate($attendanceDate)
             ->orderBy('action_timestamp', 'desc')
             ->value('action_type');
 
@@ -62,7 +63,7 @@ class TimeEntryController extends Controller
             'user_id' => $user->id,
             'action_type' => $actionType,
             'action_timestamp' => $now,
-            'action_date' => $now->toDateString(),
+            'action_date' => $attendanceDate,
             'action_time' => $now->toTimeString(),
             'notes' => $validated['notes'] ?? null,
         ]);
@@ -143,7 +144,7 @@ class TimeEntryController extends Controller
     public function getTodaysEntries()
     {
         $user = Auth::user();
-        $today = Carbon::today('Asia/Karachi');
+        $today = $user->attendanceDateFor(Carbon::now('Asia/Karachi'));
 
         $entries = TimeEntry::forUser($user->id)
             ->forDate($today)
@@ -168,12 +169,14 @@ class TimeEntryController extends Controller
     public function getTodaysSummary()
     {
         $user = Auth::user();
-        $today = Carbon::today('Asia/Karachi');
+        $now = Carbon::now('Asia/Karachi');
         $weekStart = Carbon::now('Asia/Karachi')->startOfWeek();
         $monthStart = Carbon::now('Asia/Karachi')->startOfMonth();
 
         if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {
-            $employeesData = User::all()->map(function ($employee) use ($today, $weekStart, $monthStart) {
+            $employeesData = User::all()->map(function ($employee) use ($now, $weekStart, $monthStart) {
+                $today = $employee->attendanceDateFor($now);
+
                 // Load today's entries
                 $todayEntries = $employee->timeEntries()
                     ->whereDate('action_date', $today)
@@ -204,6 +207,7 @@ class TimeEntryController extends Controller
         } else {
             // Regular users see only their own data
             $employee = $user;
+            $today = $employee->attendanceDateFor($now);
 
             // Load today's entries
             $todayEntries = $employee->timeEntries()
@@ -299,14 +303,21 @@ class TimeEntryController extends Controller
 
         $now = Carbon::now('Asia/Karachi');
 
-        // If still clocked in today, add elapsed time until now.
-        if ($currentSessionStart && $currentSessionStart->isSameDay($now)) {
-            $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $now);
+        // Include a reasonable overnight session without counting stale clock-ins.
+        if ($currentSessionStart) {
+            $ongoingWorkMinutes = $this->positiveMinutesBetween($currentSessionStart, $now);
+
+            if ($ongoingWorkMinutes <= 18 * 60) {
+                $totalWorkMinutes += $ongoingWorkMinutes;
+            }
         }
 
-        // If still on break today, add elapsed break time until now.
-        if ($currentBreakStart && $currentBreakStart->isSameDay($now)) {
-            $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $now);
+        if ($currentBreakStart) {
+            $ongoingBreakMinutes = $this->positiveMinutesBetween($currentBreakStart, $now);
+
+            if ($ongoingBreakMinutes <= 18 * 60) {
+                $totalBreakMinutes += $ongoingBreakMinutes;
+            }
         }
 
         // Calculate effective work time (excluding breaks)

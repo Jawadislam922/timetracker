@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class EmployeeAttendanceTest extends TestCase
@@ -82,5 +84,310 @@ class EmployeeAttendanceTest extends TestCase
         $this->assertSame('Clocked Out', $employeeRow['current_status']);
 
         Carbon::setTestNow();
+    }
+
+    public function test_super_admin_can_manually_mark_monthly_attendance(): void
+    {
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+        $employee = User::factory()->create(['name' => 'Manual Mark User']);
+
+        $this->actingAs($superAdmin)
+            ->patchJson(route('employee-attendance.manual-status'), [
+                'user_id' => $employee->id,
+                'date' => '2026-06-08',
+                'status_code' => 'L',
+            ])
+            ->assertOk();
+
+        $employeeRow = collect(
+            $this->actingAs($superAdmin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-08');
+
+        $this->assertSame('L', $day['status_code']);
+        $this->assertSame('manual', $day['source']);
+        $this->assertSame(1, $employeeRow['summary']['leave']);
+    }
+
+    public function test_admin_with_manual_mark_permission_can_mark_attendance(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'permissions' => ['attendance.manual_mark'],
+        ]);
+        $employee = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->patchJson(route('employee-attendance.manual-status'), [
+                'user_id' => $employee->id,
+                'date' => '2026-06-08',
+                'status_code' => 'WFH',
+            ])
+            ->assertOk();
+    }
+
+    public function test_member_cannot_manually_mark_attendance(): void
+    {
+        $member = User::factory()->create([
+            'role' => 'member',
+            'permissions' => ['attendance.view'],
+        ]);
+        $employee = User::factory()->create();
+
+        $this->actingAs($member)
+            ->patchJson(route('employee-attendance.manual-status'), [
+                'user_id' => $employee->id,
+                'date' => '2026-06-08',
+                'status_code' => 'L',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_super_admin_can_apply_and_replace_a_selected_users_calendar_range(): void
+    {
+        $superAdmin = User::factory()->create(['role' => 'super_admin']);
+        $selectedEmployee = User::factory()->create(['name' => 'Selected Calendar User']);
+        $otherEmployee = User::factory()->create(['name' => 'Other Calendar User']);
+
+        $this->actingAs($superAdmin)
+            ->postJson(route('employee-attendance.calendar'), [
+                'operation' => 'apply',
+                'scope' => 'selected',
+                'user_ids' => [$selectedEmployee->id],
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-12',
+                'status_code' => 'L',
+                'note' => 'Approved leave',
+            ])
+            ->assertOk()
+            ->assertJsonPath('affected', 3);
+
+        $this->assertDatabaseCount('manual_attendance_marks', 3);
+        $this->assertDatabaseMissing('manual_attendance_marks', [
+            'user_id' => $otherEmployee->id,
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->postJson(route('employee-attendance.calendar'), [
+                'operation' => 'apply',
+                'scope' => 'selected',
+                'user_ids' => [$selectedEmployee->id],
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-12',
+                'status_code' => 'WFH',
+            ])
+            ->assertOk()
+            ->assertJsonPath('affected', 3);
+
+        $this->assertDatabaseCount('manual_attendance_marks', 3);
+        $this->assertTrue(
+            ManualAttendanceMark::query()
+                ->where('user_id', $selectedEmployee->id)
+                ->whereDate('attendance_date', '2026-06-10')
+                ->where('status_code', 'WFH')
+                ->exists()
+        );
+    }
+
+    public function test_super_admin_can_clear_a_company_calendar_range(): void
+    {
+        $superAdmin = User::factory()->create(['role' => 'super_admin']);
+        $employeeOne = User::factory()->create();
+        $employeeTwo = User::factory()->create();
+
+        foreach ([$employeeOne, $employeeTwo] as $employee) {
+            $this->actingAs($superAdmin)
+                ->patchJson(route('employee-attendance.manual-status'), [
+                    'user_id' => $employee->id,
+                    'date' => '2026-06-10',
+                    'status_code' => 'PH',
+                ])
+                ->assertOk();
+        }
+
+        $this->actingAs($superAdmin)
+            ->postJson(route('employee-attendance.calendar'), [
+                'operation' => 'clear',
+                'scope' => 'company',
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-10',
+            ])
+            ->assertOk()
+            ->assertJsonPath('affected', 2);
+
+        $this->assertDatabaseCount('manual_attendance_marks', 0);
+    }
+
+    public function test_member_cannot_update_the_attendance_calendar(): void
+    {
+        $member = User::factory()->create([
+            'role' => 'member',
+            'permissions' => ['attendance.view'],
+        ]);
+
+        $this->actingAs($member)
+            ->postJson(route('employee-attendance.calendar'), [
+                'operation' => 'apply',
+                'scope' => 'company',
+                'start_date' => '2026-06-10',
+                'end_date' => '2026-06-10',
+                'status_code' => 'H',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_monthly_grid_marks_late_when_first_clock_in_exceeds_shift_grace(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-08 10:00:00', 'Asia/Karachi'));
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'Late Shift User',
+            'shift_start_time' => '08:00:00',
+            'shift_grace_minutes' => 10,
+        ]);
+
+        TimeEntry::create([
+            'user_id' => $employee->id,
+            'action_type' => 'clock_in',
+            'action_timestamp' => Carbon::parse('2026-06-08 08:11:00', 'Asia/Karachi'),
+            'action_date' => '2026-06-08',
+            'action_time' => '08:11:00',
+        ]);
+
+        $employeeRow = collect(
+            $this->actingAs($admin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-08');
+
+        $this->assertSame('LI', $day['status_code']);
+        $this->assertSame('automatic', $day['source']);
+        $this->assertSame(1, $employeeRow['summary']['late_joining']);
+        $this->assertSame(1, $employeeRow['summary']['present']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_monthly_grid_keeps_present_when_first_clock_in_is_within_shift_grace(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-08 10:00:00', 'Asia/Karachi'));
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'On Time Shift User',
+            'shift_start_time' => '08:00:00',
+            'shift_grace_minutes' => 10,
+        ]);
+
+        TimeEntry::create([
+            'user_id' => $employee->id,
+            'action_type' => 'clock_in',
+            'action_timestamp' => Carbon::parse('2026-06-08 08:10:00', 'Asia/Karachi'),
+            'action_date' => '2026-06-08',
+            'action_time' => '08:10:00',
+        ]);
+
+        $employeeRow = collect(
+            $this->actingAs($admin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-08');
+
+        $this->assertSame('P', $day['status_code']);
+        $this->assertSame(1, $employeeRow['summary']['present']);
+        $this->assertSame(0, $employeeRow['summary']['late_joining']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_super_admin_can_send_monthly_attendance_to_slack(): void
+    {
+        config(['services.slack_reports.webhook_url' => 'https://hooks.slack.test/services/example']);
+        Http::fake([
+            'hooks.slack.test/*' => Http::response('ok'),
+        ]);
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create(['name' => 'Slack Attendance User']);
+
+        TimeEntry::create([
+            'user_id' => $employee->id,
+            'action_type' => 'clock_in',
+            'action_timestamp' => Carbon::parse('2026-06-01 09:00:00', 'Asia/Karachi'),
+            'action_date' => '2026-06-01',
+            'action_time' => '09:00:00',
+        ]);
+
+        TimeEntry::create([
+            'user_id' => $employee->id,
+            'action_type' => 'clock_out',
+            'action_timestamp' => Carbon::parse('2026-06-01 17:00:00', 'Asia/Karachi'),
+            'action_date' => '2026-06-01',
+            'action_time' => '17:00:00',
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('employee-attendance.slack'), [
+                'month' => '2026-06',
+                'user_ids' => [$employee->id],
+                'include_fields' => ['present', 'absent', 'total_work_hours'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Attendance report sent to Slack for June 2026.');
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://hooks.slack.test/services/example'
+            && $request['text'] === 'Attendance Report | June 2026 | 1 users');
+    }
+
+    public function test_attendance_slack_report_counts_late_joining_from_shift_grace(): void
+    {
+        config(['services.slack_reports.webhook_url' => 'https://hooks.slack.test/services/example']);
+        Http::fake([
+            'hooks.slack.test/*' => Http::response('ok'),
+        ]);
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'Slack Late User',
+            'shift_start_time' => '08:00:00',
+            'shift_grace_minutes' => 10,
+        ]);
+
+        TimeEntry::create([
+            'user_id' => $employee->id,
+            'action_type' => 'clock_in',
+            'action_timestamp' => Carbon::parse('2026-06-01 08:11:00', 'Asia/Karachi'),
+            'action_date' => '2026-06-01',
+            'action_time' => '08:11:00',
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('employee-attendance.slack'), [
+                'month' => '2026-06',
+                'user_ids' => [$employee->id],
+                'include_fields' => ['present', 'late_joining'],
+            ])
+            ->assertOk();
+
+        Http::assertSent(function ($request) {
+            $tableBlock = collect($request['blocks'])->firstWhere('type', 'table');
+            $row = $tableBlock['rows'][1] ?? [];
+
+            return $request->url() === 'https://hooks.slack.test/services/example'
+                && ($row[0]['text'] ?? null) === 'Slack Late User'
+                && ($row[1]['text'] ?? null) === '1'
+                && ($row[2]['text'] ?? null) === '1';
+        });
     }
 }

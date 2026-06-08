@@ -3,6 +3,12 @@
 Internal Laravel and React application for employee work diaries, attendance,
 client assignments, reporting, and weekly Slack summaries.
 
+## Codex Handoff
+
+Before continuing development in a new Codex session or account, read
+`CODEX_HANDOFF.md`. It records the current local work, non-negotiable workflow
+rules, verification status, production cautions, and prioritized next steps.
+
 ## Features
 
 - Personal work diary with manual work-hour entries

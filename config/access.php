@@ -36,6 +36,7 @@ return [
         ],
         'Attendance' => [
             'attendance.view' => 'View team attendance',
+            'attendance.manual_mark' => 'Manually mark and correct attendance statuses',
             'attendance.export' => 'Export attendance data',
         ],
         'Reports' => [

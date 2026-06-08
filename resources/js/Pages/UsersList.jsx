@@ -227,7 +227,14 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{user.designation || 'No shift'}</td>
+                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                                    <div className="font-medium text-slate-800">{user.designation || 'No shift'}</div>
+                                                    {user.shift_start_display && (
+                                                        <div className="text-xs text-slate-500">
+                                                            {user.shift_start_display} + {user.shift_grace_minutes ?? 15}m grace
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td className="whitespace-nowrap px-4 py-3">
                                                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${roleStyles[user.role] || 'bg-slate-100 text-slate-700'}`}>
                                                         {user.role === 'super_admin' && <ShieldCheck className="h-3.5 w-3.5" />}

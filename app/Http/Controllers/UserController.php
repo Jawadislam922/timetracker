@@ -91,6 +91,7 @@ class UserController extends Controller
             // Format as HH:MM
             $user->weekly_hours_worked = sprintf('%02d:%02d', $hours, $minutes);
             $user->role_label = $user->role_label;
+            $user->shift_start_display = $user->shift_start_time?->format('g:i A');
 
             return $user;
         });
@@ -135,6 +136,8 @@ class UserController extends Controller
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'include_in_slack_reports' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
+            'shift_start_time' => ['nullable', 'date_format:H:i'],
+            'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
         ];
 
         // Only add avatar validation if file is present
@@ -161,6 +164,8 @@ class UserController extends Controller
                 ? ($validated['include_in_slack_reports'] ?? true)
                 : true,
             'designation' => $validated['designation'] ?? null,
+            'shift_start_time' => $validated['shift_start_time'] ?? null,
+            'shift_grace_minutes' => $validated['shift_grace_minutes'] ?? 15,
         ];
 
         // Only add avatar if we have one
@@ -187,6 +192,8 @@ class UserController extends Controller
                 'include_in_slack_reports' => $user->include_in_slack_reports,
                 'avatar_url' => $user->avatar_url,
                 'designation' => $user->designation,
+                'shift_start_time' => $user->shift_start_time?->format('H:i'),
+                'shift_grace_minutes' => $user->shift_grace_minutes ?? 15,
             ],
             ...$this->accessFormProps(),
         ]);
@@ -208,6 +215,8 @@ class UserController extends Controller
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'include_in_slack_reports' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
+            'shift_start_time' => ['nullable', 'date_format:H:i'],
+            'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
         ];
 
         // Only add avatar validation if file is present
@@ -229,6 +238,8 @@ class UserController extends Controller
         $user->name = $validated['name'];
         $user->email = $validated['email'];
         $user->designation = $validated['designation'] ?? null;
+        $user->shift_start_time = $validated['shift_start_time'] ?? null;
+        $user->shift_grace_minutes = $validated['shift_grace_minutes'] ?? 15;
 
         if ($request->user()->isSuperAdmin()) {
             $user->role = $validated['role'] ?? 'member';

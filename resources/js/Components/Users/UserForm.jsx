@@ -23,6 +23,8 @@ export default function UserForm({
         email: user?.email || '',
         password: '',
         designation: user?.designation || '',
+        shift_start_time: user?.shift_start_time || '',
+        shift_grace_minutes: user?.shift_grace_minutes ?? 15,
         role: user?.role || 'member',
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
@@ -120,6 +122,27 @@ export default function UserForm({
                                 onChange={(event) => form.setData('designation', event.target.value)}
                                 className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
                             />
+                        </Field>
+                        <Field label="Shift start time" hint="Used to detect late joining automatically." error={form.errors.shift_start_time}>
+                            <input
+                                type="time"
+                                value={form.data.shift_start_time}
+                                onChange={(event) => form.setData('shift_start_time', event.target.value)}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                        </Field>
+                        <Field label="Grace period" hint="Late after shift start plus this many minutes." error={form.errors.shift_grace_minutes}>
+                            <select
+                                value={form.data.shift_grace_minutes}
+                                onChange={(event) => form.setData('shift_grace_minutes', Number(event.target.value))}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            >
+                                {[0, 5, 10, 15, 20, 30, 45, 60].map((minutes) => (
+                                    <option key={minutes} value={minutes}>
+                                        {minutes === 0 ? 'No grace period' : `${minutes} minutes`}
+                                    </option>
+                                ))}
+                            </select>
                         </Field>
                     </div>
                 </div>

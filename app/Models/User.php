@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -27,6 +28,8 @@ class User extends Authenticatable
         'include_in_slack_reports',
         'avatar',
         'designation', // Stores shift information (Morning, Evening, Night, etc.)
+        'shift_start_time',
+        'shift_grace_minutes',
     ];
 
     /**
@@ -50,6 +53,8 @@ class User extends Authenticatable
         'password' => 'hashed',
         'permissions' => 'array',
         'include_in_slack_reports' => 'boolean',
+        'shift_start_time' => 'datetime:H:i',
+        'shift_grace_minutes' => 'integer',
     ];
 
     const ROLES = [
@@ -101,12 +106,14 @@ class User extends Authenticatable
             ->flatMap(fn (array $group) => array_keys($group))
             ->all();
         $assigned = array_values(array_intersect($this->permissions ?? [], $validPermissions));
+
         $implications = [
             'users.manage' => ['users.view'],
             'users.delete' => ['users.view'],
             'clients.manage' => ['clients.view'],
             'clients.import_export' => ['clients.view'],
             'profiles.manage' => ['profiles.view'],
+            'attendance.manual_mark' => ['attendance.view'],
             'attendance.export' => ['attendance.view'],
             'reports.export' => ['reports.view'],
             'reports.send_slack' => ['reports.view'],
@@ -143,5 +150,28 @@ class User extends Authenticatable
     public function timeEntries()
     {
         return $this->hasMany(TimeEntry::class);
+    }
+
+    public function attendanceDateFor(Carbon $timestamp): string
+    {
+        $localTimestamp = $timestamp->copy()->setTimezone('Asia/Karachi');
+
+        if (! $this->shift_start_time) {
+            return $localTimestamp->toDateString();
+        }
+
+        $shiftTime = $this->shift_start_time->format('H:i:s');
+        $todayShiftStart = $localTimestamp->copy()->startOfDay()->setTimeFromTimeString($shiftTime);
+
+        if ($localTimestamp->greaterThanOrEqualTo($todayShiftStart)) {
+            return $localTimestamp->toDateString();
+        }
+
+        $previousShiftStart = $todayShiftStart->copy()->subDay();
+        $minutesSincePreviousStart = $previousShiftStart->diffInMinutes($localTimestamp, false);
+
+        return $minutesSincePreviousStart >= 0 && $minutesSincePreviousStart <= 12 * 60
+            ? $localTimestamp->copy()->subDay()->toDateString()
+            : $localTimestamp->toDateString();
     }
 }

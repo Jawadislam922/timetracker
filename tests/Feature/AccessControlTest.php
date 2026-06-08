@@ -63,4 +63,33 @@ class AccessControlTest extends TestCase
 
         $this->assertSame('super_admin', $superAdmin->fresh()->role);
     }
+
+    public function test_super_admin_can_update_an_employees_shift_start_and_grace_period(): void
+    {
+        $superAdmin = User::factory()->create([
+            'role' => 'super_admin',
+            'permissions' => [],
+        ]);
+        $employee = User::factory()->create([
+            'role' => 'member',
+            'permissions' => [],
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->patch(route('users.update', $employee), [
+                'name' => $employee->name,
+                'email' => $employee->email,
+                'role' => 'member',
+                'permissions' => [],
+                'designation' => 'Morning Shift',
+                'shift_start_time' => '09:00',
+                'shift_grace_minutes' => 10,
+            ])
+            ->assertRedirect(route('users.index'));
+
+        $employee->refresh();
+
+        $this->assertSame('09:00', $employee->shift_start_time->format('H:i'));
+        $this->assertSame(10, $employee->shift_grace_minutes);
+    }
 }
