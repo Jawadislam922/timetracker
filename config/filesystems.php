@@ -56,6 +56,13 @@ return [
             'throw' => false,
         ],
 
+        'screenshots' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/screenshots'),
+            'throw' => false,
+            'visibility' => 'private',
+        ],
+
     ],
 
     /*

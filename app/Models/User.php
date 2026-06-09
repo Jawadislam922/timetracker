@@ -117,6 +117,10 @@ class User extends Authenticatable
             'attendance.export' => ['attendance.view'],
             'reports.export' => ['reports.view'],
             'reports.send_slack' => ['reports.view'],
+            'monitoring.manage' => ['monitoring.view'],
+            'monitoring.view_screenshots' => ['monitoring.view'],
+            'monitoring.delete_screenshots' => ['monitoring.view', 'monitoring.view_screenshots'],
+            'monitoring.settings' => ['monitoring.view'],
         ];
 
         foreach ($assigned as $permission) {

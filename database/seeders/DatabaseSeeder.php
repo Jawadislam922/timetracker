@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             UpworkProfileSeeder::class,
             ClientSeeder::class,
+            MonitoringSeeder::class,
         ]);
     }
 }

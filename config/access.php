@@ -47,5 +47,12 @@ return [
         'Work Diary' => [
             'work_hours.manage_all' => 'Edit and delete work entries belonging to other users',
         ],
+        'Monitoring' => [
+            'monitoring.view' => 'View screenshot/tracking sessions across the team',
+            'monitoring.manage' => 'Manage tracking sessions (stop, flag, abandon)',
+            'monitoring.view_screenshots' => 'View captured screenshots of other users',
+            'monitoring.delete_screenshots' => 'Delete or hide screenshots',
+            'monitoring.settings' => 'Update monitoring configuration (intervals, retention)',
+        ],
     ],
 ];
