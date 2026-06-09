@@ -1,19 +1,24 @@
-# Codex Project Handoff
+# Complete Codex Chat And Project Handoff
 
-Last updated: 2026-06-09
+Last updated: 2026-06-09 after GitHub release commit `349e67e`
 
 This is the canonical starting document for any new Codex session or account
-working on the Sparking Asia Time Tracker.
+working on the Sparking Asia Time Tracker. It is the consolidated record of
+the important requirements, decisions, implementation work, deployment
+history, cautions, and future ideas discussed throughout the Codex
+conversation. It is not a verbatim chat transcript; it is the durable,
+actionable version of that discussion.
 
 ## Instructions For A New Codex Session
 
 Use this prompt:
 
-> Read `CODEX_HANDOFF.md` completely before making changes. Then inspect the
-> current Git status and the files named in the relevant section. Preserve all
-> existing work. Do not commit, push, deploy, or change production data unless
-> I explicitly ask. Continue with the first incomplete item under "Next Steps",
-> but ask before implementing any product decision marked "Decision Needed".
+> Read `documents/CODEX_COMPLETE_CHAT_AND_PROJECT_HANDOFF.md` completely before making
+> changes. Then inspect the current Git status and the files named in the
+> relevant section. Preserve all existing work. Do not commit, push, deploy,
+> or change production data unless I explicitly ask. Continue with the first
+> incomplete item under "Next Steps", but ask before implementing any product
+> decision marked "Decision Needed".
 
 ## Non-Negotiable Working Rules
 
@@ -37,7 +42,9 @@ Use this prompt:
 - Workspace: `C:\laragon\www\timetracker`
 - Current branch at last update: `jawad`
 - Last committed revision at last update:
-  `edf4ae0 Fix attendance time and avatar display`
+  `349e67e Add attendance calendar and shift rules`
+- GitHub repository: `https://github.com/jawadislam92/timetracker`
+- Commit `349e67e` was pushed to `origin/jawad` on 2026-06-09.
 - Local URL: `http://127.0.0.1:8000`
 - Production URL: `https://timetracker.sparkingasia.com`
 - Production host: Hostinger shared hosting
@@ -45,19 +52,30 @@ Use this prompt:
 - HR is not a role at present. Access should use Super Admin plus granular
   permissions assigned to Admin or Member accounts.
 
-## Current Uncommitted Work
+## Current Git And Local Work State
 
-There is a substantial local working tree. A new session must run:
+The approved attendance release was committed and pushed. The unfinished
+screenshot-monitoring implementation was deliberately excluded because it is
+not ready for production.
+
+This `documents/` reorganization and the latest master handoff update were
+created after commit `349e67e` and are currently local documentation changes.
+Do not assume they are on GitHub until Git status and remote history confirm
+that separately.
+
+The local working tree still contains monitoring experiments, including
+desktop API controllers, tracking models and migrations, monitoring pages,
+permissions, routes, storage configuration, seeders, and tests. These files
+must not be accidentally staged, committed, deployed, deleted, or reset.
+
+A new session must run:
 
 ```powershell
 git status --short
 git diff --check
 ```
 
-Do not treat generated `public/build` filename replacements as accidental.
-They are expected after `npm.cmd run build`.
-
-The current local work includes:
+Released in commit `349e67e`:
 
 - Monthly spreadsheet-style attendance grid.
 - Manual attendance statuses stored separately from time entries.
@@ -70,15 +88,142 @@ The current local work includes:
 - Removal of the temporary HR role.
 - Updated React production build assets.
 - Attendance and Slack feature tests.
+- Attendance cell popup positioning and responsive fixes.
+- Bulk attendance calendar.
+- Overnight-shift date attribution.
+- Documentation and future roadmap.
 
-Important uncommitted/new files include:
+Important local-only monitoring paths include:
 
-- `app/Models/ManualAttendanceMark.php`
-- `app/Services/AttendanceSlackReportService.php`
-- `database/migrations/2026_06_08_000004_create_manual_attendance_marks_table.php`
-- `database/migrations/2026_06_08_000005_add_shift_timing_to_users_table.php`
-- `FEATURE_ROADMAP_ATTENDANCE_REPORTS_MONITORING.md`
-- This document
+- `app/Http/Controllers/Api/Desktop/`
+- `app/Http/Controllers/MonitoringController.php`
+- `app/Http/Requests/Desktop/`
+- `app/Jobs/GenerateScreenshotThumbnail.php`
+- `app/Models/MonitoringSetting.php`
+- `app/Models/TrackingActivitySample.php`
+- `app/Models/TrackingScreenshot.php`
+- `app/Models/TrackingSession.php`
+- `database/migrations/2026_06_09_000001_create_tracking_sessions_table.php`
+- `database/migrations/2026_06_09_000002_create_tracking_screenshots_table.php`
+- `database/migrations/2026_06_09_000003_create_tracking_activity_samples_table.php`
+- `database/migrations/2026_06_09_000004_create_monitoring_settings_table.php`
+- `database/seeders/MonitoringSeeder.php`
+- `resources/js/Pages/Monitoring/`
+- `tests/Feature/DesktopApiTest.php`
+
+Some tracked files have additional local monitoring hunks layered on top of
+the released attendance commit, including `app/Models/User.php`,
+`config/access.php`, `config/filesystems.php`, `database/seeders/DatabaseSeeder.php`,
+`routes/api.php`, and `routes/web.php`. Preserve those hunks unless Jawad
+explicitly decides to discard or redesign the monitoring experiment.
+
+## Conversation-Wide Requirements And Decisions
+
+This section records the durable product decisions made across the full
+conversation.
+
+### Product And Design
+
+- This is an internal, industry-style time-tracking and operations application,
+  not a marketing site.
+- Page layouts, typography, filters, buttons, spacing, tables, and empty states
+  should be visually consistent across Dashboard, Users, Clients, Profiles,
+  Attendance, Report, and Work Diary.
+- Dense operational layouts are preferred over oversized cards and decorative
+  landing-page patterns.
+- Searchable multi-select filters should allow individual selections to be
+  removed without clearing all filters.
+- Tables and menus must not be clipped by scroll containers or overflow the
+  viewport.
+- Mobile and tablet behavior must be checked after meaningful frontend changes.
+- Broken avatars must fall back to initials, and production avatar delivery
+  must work without exposing private application files.
+- Portfolio functionality is unnecessary and must remain removed.
+
+### Roles And Permissions
+
+- Supported roles are Super Admin, Admin, and Member.
+- HR is not a dedicated role for now.
+- Super Admin has full access.
+- Admin and Member accounts can receive granular permissions.
+- Manual attendance marking requires Super Admin or
+  `attendance.manual_mark`.
+- Members should not receive team-management access unless explicitly granted.
+- A Super Admin must not accidentally demote their own account.
+
+### Work Diary And Reports
+
+- Work Diary remains the personal employee-entry area.
+- Report is the management/team reporting area.
+- Report filters should support users, clients, work types, trackers/profiles,
+  shifts, and selected date ranges.
+- Planned report summaries include by user, client, work type, tracker/profile,
+  user by client, and user by work type.
+- User total hours should appear once per person, not repeat on every detail
+  row.
+- CSV export remains available according to permission.
+
+### Slack
+
+- Slack uses an incoming webhook stored only in `.env`.
+- Manual work-hour reports use a selected date range, selected users, and
+  configurable columns.
+- Work-hour Slack output uses a readable table-style format.
+- Per-user total hours should be shown once.
+- Users such as executives or managers who do not track time can be excluded
+  by default using `include_in_slack_reports`.
+- Automatic weekly work-hour reports run Sunday at 10:00 AM in
+  `Asia/Karachi`.
+- Attendance can also be sent to Slack with configurable attendance columns.
+- Any webhook pasted into chat is considered exposed and must be rotated.
+
+### Attendance
+
+- Attendance uses a monthly spreadsheet-style employee-by-day grid.
+- Statuses are Present, Absent, Holiday, Leave, Half day, Work from home, Late
+  joining, and Public holiday.
+- Planned individual absence is Leave.
+- Absent remains the automatic status when there is no clock-in and no approved
+  manual status.
+- Late joining counts in both Present and Late totals.
+- Half day remains manual until expected working hours are configured.
+- Each user can have a different shift start and grace period.
+- Clock-in at the grace boundary is Present; one minute later is Late.
+- On the current day, an employee is not marked Absent until their configured
+  shift start plus grace period has passed.
+- A current-day employee without a configured shift remains pending because
+  the system cannot fairly determine an absence deadline.
+- Overnight activity belongs to the date the shift started.
+- Bulk attendance calendar changes can target the company or selected users
+  across a date range.
+- Manual attendance needs a future audit history showing old value, new value,
+  actor, timestamp, and reason.
+
+### Screenshot Monitoring
+
+- Screenshot monitoring is a future project and is not part of the released
+  attendance feature.
+- Browser-only screenshot monitoring is not sufficient; a transparent desktop
+  application will eventually be required.
+- Tauri or Electron are possible implementation choices.
+- Tracking should happen only after the employee starts a session and must be
+  visibly active.
+- Do not record keystroke contents, webcam, microphone, or personal files.
+- Capture intervals, retention, storage cost, permissions, privacy policy, and
+  deletion/flagging workflow must be decided before implementation.
+- The current local monitoring experiment was intentionally excluded from
+  commit `349e67e`.
+
+### Deployment And Workflow
+
+- New feature work stays local until Jawad reviews it.
+- Do not commit, push, deploy, or alter production unless explicitly requested.
+- Never discard unrelated local changes.
+- GitHub branch `jawad` is used by Hostinger and may trigger deployment.
+- Production `.env` remains server-only.
+- Back up the database and uploaded files before migrations or deployment.
+- Production migration history may not perfectly match the schema; inspect
+  before repairing it.
 
 ## Recently Implemented Attendance Behavior
 
@@ -141,15 +286,18 @@ Completed successfully on 2026-06-09:
 
 ```text
 php artisan test
-53 tests passed, 148 assertions
+66 tests passed, 202 assertions
 
 npm.cmd run build
 Build passed
 
-vendor\bin\pint --test
-Passed
+Scoped vendor\bin\pint --test
+Passed for all attendance-release PHP files
 
 git diff --check
+Passed
+
+Staged secret scan
 Passed
 ```
 
@@ -174,6 +322,8 @@ Browser checks also confirmed:
   affected person-day preview, replacement, and removal.
 - Overnight shifts keep post-midnight actions with the date the shift started.
 - Active overnight sessions remain visible in today's entries and summary.
+- Current-day employees remain pending until their shift start plus grace has
+  passed; the grid and Slack do not count them absent early.
 
 Because later sessions may change files, these results are historical and must
 be rerun before approval or deployment.
@@ -182,33 +332,38 @@ be rerun before approval or deployment.
 
 Work through these in order unless Jawad changes the priority.
 
-### Current Release Plan
+### Current Release And Production Plan
 
-Jawad confirmed this sequence on 2026-06-09:
+Attendance release status:
 
-1. Add manual attendance audit history.
-2. Improve work-hour reports, including summaries by user, client, work type,
-   and tracker/profile.
-3. Fix report user totals so each person's total appears once rather than on
-   every detail row.
-4. Complete the visual and responsive review of the release pages.
-5. Separate or exclude unfinished screenshot-monitoring work from the
-   attendance/report release.
-6. Run the complete automated, browser, migration, security, and deployment
-   checks.
-7. Show Jawad the final local result and obtain explicit approval.
-8. Only then commit and push the approved files to GitHub.
-9. Deploy to Hostinger only after a separate explicit production approval and
-   after backups are confirmed.
+1. Attendance release testing completed.
+2. Monitoring implementation excluded from the release.
+3. Attendance release committed as `349e67e`.
+4. Branch `jawad` pushed to GitHub.
+5. Production deployment and database migration still require verification.
 
-Do not automatically commit, push, or deploy while implementing this plan.
-The GitHub branch may be connected to Hostinger auto-deployment.
+Before treating the release as live:
+
+1. Confirm Hostinger deployed commit `349e67e`.
+2. Back up the production database and `storage/app/public`.
+3. SSH to `~/domains/timetracker.sparkingasia.com/public_html`.
+4. Run `php artisan migrate --force`.
+5. Run `php artisan optimize:clear` and `php artisan optimize`.
+6. Check login, Attendance, Users, Report, Work Diary, Slack configuration,
+   avatars, permissions, and mobile layout on production.
+7. If migration fails, stop and inspect the production `migrations` table and
+   actual schema before changing anything.
+
+Do not automatically commit, push, or deploy future work. The GitHub `jawad`
+branch may be connected to Hostinger auto-deployment.
 
 Recommended starting point for the next Codex chat:
 
-> Read `CODEX_HANDOFF.md` first. Continue the Current Release Plan without
-> pushing. Start with manual attendance audit history, preserve existing user
-> changes, and verify the feature locally before moving to report summaries.
+> Read `documents/CODEX_COMPLETE_CHAT_AND_PROJECT_HANDOFF.md` first. Inspect Git status
+> and preserve the local monitoring experiment. First verify whether attendance
+> release `349e67e` is deployed and migrated in production. For new development,
+> start with manual attendance audit history, keep changes local, and verify
+> each feature before any later push.
 
 ### 1. User Acceptance Test The Current Attendance Work
 
@@ -275,7 +430,7 @@ Recommended implementation after decisions:
 
 ### Bulk Attendance Calendar
 
-Status: Implemented locally.
+Status: Implemented and included in GitHub commit `349e67e`.
 
 Add an Attendance Calendar popup for authorized users with:
 

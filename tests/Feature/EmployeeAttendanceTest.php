@@ -311,6 +311,86 @@ class EmployeeAttendanceTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_current_day_stays_pending_before_shift_and_grace_end(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-09 11:00:00', 'Asia/Karachi'));
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'Afternoon Shift User',
+            'shift_start_time' => '12:00:00',
+            'shift_grace_minutes' => 15,
+        ]);
+
+        $employeeRow = collect(
+            $this->actingAs($admin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-09');
+
+        $this->assertNull($day['status_code']);
+        $this->assertSame('Shift not started', $day['status_label']);
+        $this->assertSame('pending', $day['source']);
+        $this->assertSame(7, $employeeRow['summary']['absent']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_current_day_becomes_absent_after_shift_and_grace_end(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-09 12:16:00', 'Asia/Karachi'));
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'Missed Afternoon Shift User',
+            'shift_start_time' => '12:00:00',
+            'shift_grace_minutes' => 15,
+        ]);
+
+        $employeeRow = collect(
+            $this->actingAs($admin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-09');
+
+        $this->assertSame('A', $day['status_code']);
+        $this->assertSame(8, $employeeRow['summary']['absent']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_current_day_without_configured_shift_stays_pending(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-09 23:00:00', 'Asia/Karachi'));
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'Unconfigured Shift User',
+            'shift_start_time' => null,
+        ]);
+
+        $employeeRow = collect(
+            $this->actingAs($admin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-09');
+
+        $this->assertNull($day['status_code']);
+        $this->assertSame('pending', $day['source']);
+        $this->assertSame(7, $employeeRow['summary']['absent']);
+
+        Carbon::setTestNow();
+    }
+
     public function test_super_admin_can_send_monthly_attendance_to_slack(): void
     {
         config(['services.slack_reports.webhook_url' => 'https://hooks.slack.test/services/example']);
@@ -389,5 +469,39 @@ class EmployeeAttendanceTest extends TestCase
                 && ($row[1]['text'] ?? null) === '1'
                 && ($row[2]['text'] ?? null) === '1';
         });
+    }
+
+    public function test_attendance_slack_does_not_count_current_day_absent_before_shift_deadline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-09 11:00:00', 'Asia/Karachi'));
+        config(['services.slack_reports.webhook_url' => 'https://hooks.slack.test/services/example']);
+        Http::fake([
+            'hooks.slack.test/*' => Http::response('ok'),
+        ]);
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'Slack Afternoon Shift User',
+            'shift_start_time' => '12:00:00',
+            'shift_grace_minutes' => 15,
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('employee-attendance.slack'), [
+                'month' => '2026-06',
+                'user_ids' => [$employee->id],
+                'include_fields' => ['absent'],
+            ])
+            ->assertOk();
+
+        Http::assertSent(function ($request) {
+            $tableBlock = collect($request['blocks'])->firstWhere('type', 'table');
+            $row = $tableBlock['rows'][1] ?? [];
+
+            return ($row[0]['text'] ?? null) === 'Slack Afternoon Shift User'
+                && ($row[1]['text'] ?? null) === '7';
+        });
+
+        Carbon::setTestNow();
     }
 }

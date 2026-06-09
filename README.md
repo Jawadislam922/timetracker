@@ -6,8 +6,11 @@ client assignments, reporting, and weekly Slack summaries.
 ## Codex Handoff
 
 Before continuing development in a new Codex session or account, read
-`CODEX_HANDOFF.md`. It records the current local work, non-negotiable workflow
-rules, verification status, production cautions, and prioritized next steps.
+`documents/CODEX_COMPLETE_CHAT_AND_PROJECT_HANDOFF.md`. It consolidates the project
+conversation, current Git and production state, non-negotiable workflow rules,
+verification history, product decisions, cautions, and prioritized next steps.
+
+All supporting project documentation is organized in `documents/`.
 
 ## Features
 
@@ -87,8 +90,8 @@ SLACK_WEEKLY_REPORT_ENABLED=false
 SLACK_REPORT_TIMEZONE=Asia/Karachi
 ```
 
-The webhook must never be committed. See `SLACK_INTEGRATION.md` for the
-scheduler and report details.
+The webhook must never be committed. See
+`documents/SLACK_INTEGRATION.md` for the scheduler and report details.
 
 ## Verification
 

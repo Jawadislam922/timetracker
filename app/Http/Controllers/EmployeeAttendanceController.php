@@ -50,7 +50,8 @@ class EmployeeAttendanceController extends Controller
         $month = $validated['month'] ?? Carbon::today('Asia/Karachi')->format('Y-m');
         $startDate = Carbon::createFromFormat('Y-m-d', "{$month}-01", 'Asia/Karachi')->startOfDay();
         $endDate = $startDate->copy()->endOfMonth();
-        $today = Carbon::today('Asia/Karachi');
+        $now = Carbon::now('Asia/Karachi');
+        $today = $now->copy()->startOfDay();
 
         $days = collect(range(1, $endDate->day))->map(function (int $day) use ($startDate) {
             $date = $startDate->copy()->day($day);
@@ -89,10 +90,10 @@ class EmployeeAttendanceController extends Controller
         $employees = User::query()
             ->orderBy('name')
             ->get()
-            ->map(function (User $employee) use ($days, $entriesByUserDate, $manualMarks, $today, $summaryTemplate) {
+            ->map(function (User $employee) use ($days, $entriesByUserDate, $manualMarks, $now, $today, $summaryTemplate) {
                 $summary = $summaryTemplate;
 
-                $dayCells = $days->map(function (array $day) use ($employee, $entriesByUserDate, $manualMarks, $today, &$summary) {
+                $dayCells = $days->map(function (array $day) use ($employee, $entriesByUserDate, $manualMarks, $now, $today, &$summary) {
                     $date = Carbon::parse($day['date'], 'Asia/Karachi');
                     $key = $employee->id.'|'.$day['date'];
                     $entries = $entriesByUserDate->get($key, collect());
@@ -101,7 +102,7 @@ class EmployeeAttendanceController extends Controller
 
                     $firstClockIn = $entries->where('action_type', 'clock_in')->first();
                     $lastEntry = $entries->last();
-                    $status = $this->resolveMonthlyStatus($employee, $date, $entries, $manualMark, $today, $firstClockIn);
+                    $status = $this->resolveMonthlyStatus($employee, $date, $entries, $manualMark, $now, $today, $firstClockIn);
                     $this->addStatusToSummary($summary, $status['code'], $stats['workHours'] ?? 0);
 
                     return [
@@ -634,8 +635,15 @@ class EmployeeAttendanceController extends Controller
         return max(0, (int) floor($start->diffInMinutes($end, false)));
     }
 
-    private function resolveMonthlyStatus(User $employee, Carbon $date, $entries, ?ManualAttendanceMark $manualMark, Carbon $today, ?TimeEntry $firstClockIn): array
-    {
+    private function resolveMonthlyStatus(
+        User $employee,
+        Carbon $date,
+        $entries,
+        ?ManualAttendanceMark $manualMark,
+        Carbon $now,
+        Carbon $today,
+        ?TimeEntry $firstClockIn
+    ): array {
         if ($manualMark) {
             return [
                 'code' => $manualMark->status_code,
@@ -673,6 +681,14 @@ class EmployeeAttendanceController extends Controller
                 'code' => 'H',
                 'label' => self::ATTENDANCE_STATUSES['H'],
                 'source' => 'automatic',
+            ];
+        }
+
+        if ($date->isSameDay($today) && ! $this->isShiftAbsenceDue($employee, $date, $now)) {
+            return [
+                'code' => null,
+                'label' => 'Shift not started',
+                'source' => 'pending',
             ];
         }
 
@@ -717,6 +733,19 @@ class EmployeeAttendanceController extends Controller
         $clockInTime = Carbon::parse($firstClockIn->action_timestamp)->setTimezone('Asia/Karachi');
 
         return $clockInTime->greaterThan($allowedClockIn);
+    }
+
+    private function isShiftAbsenceDue(User $employee, Carbon $date, Carbon $now): bool
+    {
+        if (! $employee->shift_start_time) {
+            return false;
+        }
+
+        $absenceDueAt = $date->copy()
+            ->setTimeFromTimeString($employee->shift_start_time->format('H:i:s'))
+            ->addMinutes((int) ($employee->shift_grace_minutes ?? 0));
+
+        return $now->greaterThan($absenceDueAt);
     }
 
     private function canManuallyMarkAttendance(?User $user): bool

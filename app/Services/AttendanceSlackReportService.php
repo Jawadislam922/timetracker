@@ -28,7 +28,8 @@ class AttendanceSlackReportService
 
         $startDate = Carbon::createFromFormat('Y-m-d', "{$month}-01", config('services.slack_reports.timezone'))->startOfDay();
         $endDate = $startDate->copy()->endOfMonth();
-        $today = Carbon::today(config('services.slack_reports.timezone'));
+        $now = Carbon::now(config('services.slack_reports.timezone'));
+        $today = $now->copy()->startOfDay();
         $includeFields = array_values(array_intersect($includeFields, [
             'present',
             'absent',
@@ -63,14 +64,14 @@ class AttendanceSlackReportService
             ->get()
             ->keyBy(fn (ManualAttendanceMark $mark) => $mark->user_id.'|'.$mark->attendance_date->toDateString());
 
-        $rows = $users->map(function (User $user) use ($startDate, $endDate, $today, $entriesByUserDate, $manualMarks, $includeFields) {
+        $rows = $users->map(function (User $user) use ($startDate, $endDate, $now, $today, $entriesByUserDate, $manualMarks, $includeFields) {
             $summary = $this->emptySummary();
 
             for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
                 $key = $user->id.'|'.$date->toDateString();
                 $entries = $entriesByUserDate->get($key, collect());
                 $manualMark = $manualMarks->get($key);
-                $statusCode = $this->statusForDate($user, $date, $entries, $manualMark, $today);
+                $statusCode = $this->statusForDate($user, $date, $entries, $manualMark, $now, $today);
 
                 if ($statusCode) {
                     $this->addStatusToSummary($summary, $statusCode);
@@ -189,8 +190,14 @@ class AttendanceSlackReportService
         ];
     }
 
-    private function statusForDate(User $user, Carbon $date, Collection $entries, ?ManualAttendanceMark $manualMark, Carbon $today): ?string
-    {
+    private function statusForDate(
+        User $user,
+        Carbon $date,
+        Collection $entries,
+        ?ManualAttendanceMark $manualMark,
+        Carbon $now,
+        Carbon $today
+    ): ?string {
         if ($manualMark) {
             return $manualMark->status_code;
         }
@@ -205,7 +212,13 @@ class AttendanceSlackReportService
             return $this->isLateClockIn($user, $date, $firstClockIn) ? 'LI' : 'P';
         }
 
-        return $date->isSunday() ? 'H' : 'A';
+        if ($date->isSunday()) {
+            return 'H';
+        }
+
+        return $date->isSameDay($today) && ! $this->isShiftAbsenceDue($user, $date, $now)
+            ? null
+            : 'A';
     }
 
     private function isLateClockIn(User $user, Carbon $date, TimeEntry $firstClockIn): bool
@@ -220,6 +233,20 @@ class AttendanceSlackReportService
         $clockInTime = Carbon::parse($firstClockIn->action_timestamp)->setTimezone($timezone);
 
         return $clockInTime->greaterThan($allowedClockIn);
+    }
+
+    private function isShiftAbsenceDue(User $user, Carbon $date, Carbon $now): bool
+    {
+        if (! $user->shift_start_time) {
+            return false;
+        }
+
+        $absenceDueAt = $date->copy()
+            ->setTimezone(config('services.slack_reports.timezone'))
+            ->setTimeFromTimeString($user->shift_start_time->format('H:i:s'))
+            ->addMinutes((int) ($user->shift_grace_minutes ?? 0));
+
+        return $now->greaterThan($absenceDueAt);
     }
 
     private function addStatusToSummary(array &$summary, string $statusCode): void
