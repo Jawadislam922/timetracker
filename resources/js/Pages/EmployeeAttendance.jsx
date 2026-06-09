@@ -11,6 +11,7 @@ import {
     Clock,
     Coffee,
     Download,
+    History,
     List,
     PauseCircle,
     PlayCircle,
@@ -127,6 +128,9 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
     const [isSendingSlack, setIsSendingSlack] = useState(false);
     const [slackUserIds, setSlackUserIds] = useState([]);
     const [slackFields, setSlackFields] = useState(attendanceSlackFieldOptions.map((field) => field.value));
+    const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [manualHistory, setManualHistory] = useState([]);
     const [selectedDate, setSelectedDate] = useState(serverDate || new Date().toISOString().split('T')[0]);
     const [selectedMonth, setSelectedMonth] = useState((serverDate || new Date().toISOString().split('T')[0]).slice(0, 7));
     const [showCalendarDialog, setShowCalendarDialog] = useState(false);
@@ -195,6 +199,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
             });
             toast.success(statusCode ? 'Attendance status updated.' : 'Manual status cleared.');
             await fetchAttendanceData();
+            if (showHistoryDialog) await fetchManualHistory();
         } catch (error) {
             console.error('Manual attendance update failed:', error);
             showError('Unable to update attendance status.');
@@ -266,6 +271,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
             toast.success(response.data?.message || 'Attendance calendar updated.');
             setShowCalendarDialog(false);
             await fetchAttendanceData();
+            if (showHistoryDialog) await fetchManualHistory();
         } catch (error) {
             console.error('Attendance calendar update failed:', error);
             const errors = error.response?.data?.errors || {};
@@ -280,6 +286,31 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
             setIsUpdatingCalendar(false);
         }
     };
+
+    const fetchManualHistory = async () => {
+        setHistoryLoading(true);
+
+        try {
+            const response = await axios.get('/employee-attendance/manual-history', {
+                params: { month: selectedMonth },
+            });
+            setManualHistory(response.data.history || []);
+        } catch (error) {
+            console.error('Manual attendance history load failed:', error);
+            showError('Unable to load attendance history.');
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const openHistoryDialog = () => {
+        setShowHistoryDialog(true);
+        fetchManualHistory();
+    };
+
+    useEffect(() => {
+        if (showHistoryDialog) fetchManualHistory();
+    }, [selectedMonth]);
 
     const openSlackDialog = () => {
         setSlackUserIds(monthlyGridData.employees.map((employee) => String(employee.user_id)));
@@ -455,14 +486,24 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                 )}
                             </label>
                             {canManualMark && activeTab === 'monthly' && (
-                                <button
-                                    type="button"
-                                    onClick={openCalendarDialog}
-                                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    <CalendarRange className="h-4 w-4" />
-                                    Attendance calendar
-                                </button>
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={openCalendarDialog}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                        <CalendarRange className="h-4 w-4" />
+                                        Attendance calendar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openHistoryDialog}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                    >
+                                        <History className="h-4 w-4" />
+                                        Audit history
+                                    </button>
+                                </>
                             )}
                             {canSendSlack && activeTab === 'monthly' && (
                                 <button
@@ -892,6 +933,87 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                 </div>
             )}
 
+            {showHistoryDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+                        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-950">Manual attendance audit</h2>
+                                <p className="mt-1 text-sm text-slate-600">Latest manual changes for {selectedMonth}.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowHistoryDialog(false)}
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                title="Close"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto px-5 py-4">
+                            {historyLoading ? (
+                                <div className="flex items-center justify-center gap-3 py-12 text-sm font-medium text-slate-600">
+                                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                                    Loading audit history...
+                                </div>
+                            ) : manualHistory.length === 0 ? (
+                                <div className="py-12 text-center">
+                                    <History className="mx-auto h-10 w-10 text-slate-400" />
+                                    <h3 className="mt-3 font-semibold text-slate-900">No manual changes</h3>
+                                    <p className="mt-1 text-sm text-slate-500">No manual attendance edits were recorded for this month.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                                        <thead className="bg-slate-900">
+                                            <tr>
+                                                {['Date', 'Employee', 'Change', 'Changed by', 'Changed at', 'Reason'].map((heading) => (
+                                                    <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-white">
+                                                        {heading}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 bg-white">
+                                            {manualHistory.map((entry) => (
+                                                <tr key={entry.id} className="hover:bg-slate-50">
+                                                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">{entry.attendance_date}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="font-semibold text-slate-900">{entry.employee_name}</div>
+                                                        <div className="text-xs text-slate-500">{entry.employee_designation || 'Member'}</div>
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <AuditStatusChip code={entry.old_status_code} label={entry.old_status_label} />
+                                                            <span className="text-slate-400">to</span>
+                                                            <AuditStatusChip code={entry.new_status_code} label={entry.new_status_label} />
+                                                        </div>
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">{entry.changed_by}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">{entry.changed_at || '-'}</td>
+                                                    <td className="min-w-48 px-4 py-3 text-slate-700">{entry.reason || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowHistoryDialog(false)}
+                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showSlackDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
                     <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
@@ -1008,6 +1130,19 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                 </div>
             )}
         </AuthenticatedLayout>
+    );
+}
+
+function AuditStatusChip({ code, label }) {
+    const statusClass = gridStatusStyles[code] || gridStatusStyles.empty;
+
+    return (
+        <span
+            className={`inline-flex min-w-14 items-center justify-center rounded border px-2 py-1 text-xs font-bold ${statusClass}`}
+            title={label}
+        >
+            {code || 'Auto'}
+        </span>
     );
 }
 

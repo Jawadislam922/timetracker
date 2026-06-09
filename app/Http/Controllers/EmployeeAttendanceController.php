@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ManualAttendanceAudit;
 use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
 use App\Models\User;
@@ -158,26 +159,61 @@ class EmployeeAttendanceController extends Controller
         $date = Carbon::parse($validated['date'], 'Asia/Karachi')->toDateString();
         $statusCode = $validated['status_code'] ?? null;
 
-        if (! $statusCode) {
-            ManualAttendanceMark::query()
+        DB::transaction(function () use ($date, $request, $statusCode, $validated) {
+            $mark = ManualAttendanceMark::query()
                 ->where('user_id', $validated['user_id'])
                 ->whereDate('attendance_date', $date)
-                ->delete();
+                ->first();
 
-            return response()->json(['message' => 'Manual attendance mark cleared.']);
-        }
+            $oldStatusCode = $mark?->status_code;
+            $oldReason = $mark?->note;
+            $newReason = $validated['note'] ?? null;
 
-        ManualAttendanceMark::updateOrCreate(
-            [
-                'user_id' => $validated['user_id'],
-                'attendance_date' => $date,
-            ],
-            [
+            if (! $statusCode) {
+                if ($mark) {
+                    $this->recordManualAttendanceAudit(
+                        $validated['user_id'],
+                        $date,
+                        $oldStatusCode,
+                        null,
+                        $request->user()->id,
+                        $oldReason
+                    );
+
+                    $mark->delete();
+                }
+
+                return;
+            }
+
+            if (! $mark) {
+                $mark = new ManualAttendanceMark([
+                    'user_id' => $validated['user_id'],
+                    'attendance_date' => $date,
+                ]);
+            }
+
+            if ($oldStatusCode !== $statusCode || $oldReason !== $newReason) {
+                $this->recordManualAttendanceAudit(
+                    $validated['user_id'],
+                    $date,
+                    $oldStatusCode,
+                    $statusCode,
+                    $request->user()->id,
+                    $newReason
+                );
+            }
+
+            $mark->fill([
                 'marked_by_user_id' => $request->user()->id,
                 'status_code' => $statusCode,
-                'note' => $validated['note'] ?? null,
-            ]
-        );
+                'note' => $newReason,
+            ])->save();
+        });
+
+        if (! $statusCode) {
+            return response()->json(['message' => 'Manual attendance mark cleared.']);
+        }
 
         return response()->json(['message' => 'Attendance status updated.']);
     }
@@ -229,11 +265,28 @@ class EmployeeAttendanceController extends Controller
 
         $affected = DB::transaction(function () use ($validated, $userIds, $dates, $request) {
             if ($validated['operation'] === 'clear') {
-                return ManualAttendanceMark::query()
+                $marks = ManualAttendanceMark::query()
                     ->whereIn('user_id', $userIds)
                     ->whereDate('attendance_date', '>=', $dates->first())
                     ->whereDate('attendance_date', '<=', $dates->last())
+                    ->get();
+
+                foreach ($marks as $mark) {
+                    $this->recordManualAttendanceAudit(
+                        $mark->user_id,
+                        $mark->attendance_date->toDateString(),
+                        $mark->status_code,
+                        null,
+                        $request->user()->id,
+                        $mark->note
+                    );
+                }
+
+                ManualAttendanceMark::query()
+                    ->whereIn('id', $marks->pluck('id'))
                     ->delete();
+
+                return $marks->count();
             }
 
             $affected = 0;
@@ -247,11 +300,25 @@ class EmployeeAttendanceController extends Controller
                             'user_id' => $userId,
                             'attendance_date' => $date,
                         ]);
+                    $oldStatusCode = $mark->exists ? $mark->status_code : null;
+                    $oldReason = $mark->exists ? $mark->note : null;
+                    $newReason = $validated['note'] ?? null;
+
+                    if ($oldStatusCode !== $validated['status_code'] || $oldReason !== $newReason) {
+                        $this->recordManualAttendanceAudit(
+                            $userId,
+                            $date,
+                            $oldStatusCode,
+                            $validated['status_code'],
+                            $request->user()->id,
+                            $newReason
+                        );
+                    }
 
                     $mark->fill([
                         'marked_by_user_id' => $request->user()->id,
                         'status_code' => $validated['status_code'],
-                        'note' => $validated['note'] ?? null,
+                        'note' => $newReason,
                     ])->save();
                     $affected++;
                 }
@@ -265,6 +332,51 @@ class EmployeeAttendanceController extends Controller
                 ? "Removed {$affected} scheduled attendance marks."
                 : "Applied attendance to {$affected} person-days.",
             'affected' => $affected,
+        ]);
+    }
+
+    public function getManualHistory(Request $request)
+    {
+        if (! $this->canManuallyMarkAttendance($request->user())) {
+            abort(403, 'You do not have permission to view manual attendance history.');
+        }
+
+        $validated = $request->validate([
+            'month' => ['nullable', 'date_format:Y-m'],
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $month = $validated['month'] ?? Carbon::today('Asia/Karachi')->format('Y-m');
+        $startDate = Carbon::createFromFormat('Y-m-d', "{$month}-01", 'Asia/Karachi')->startOfDay();
+        $endDate = $startDate->copy()->endOfMonth();
+
+        $history = ManualAttendanceAudit::query()
+            ->with(['user:id,name,designation,avatar', 'changedBy:id,name'])
+            ->whereBetween('attendance_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when($validated['user_id'] ?? null, fn ($query, int $userId) => $query->where('user_id', $userId))
+            ->orderByDesc('changed_at')
+            ->orderByDesc('id')
+            ->limit(250)
+            ->get()
+            ->map(fn (ManualAttendanceAudit $audit) => [
+                'id' => $audit->id,
+                'attendance_date' => $audit->attendance_date->toDateString(),
+                'employee_name' => $audit->user?->name ?? 'Deleted user',
+                'employee_designation' => $audit->user?->designation ?? 'Member',
+                'old_status_code' => $audit->old_status_code,
+                'old_status_label' => $this->statusLabel($audit->old_status_code),
+                'new_status_code' => $audit->new_status_code,
+                'new_status_label' => $this->statusLabel($audit->new_status_code),
+                'changed_by' => $audit->changedBy?->name ?? 'System',
+                'changed_at' => $audit->changed_at
+                    ? $audit->changed_at->copy()->setTimezone('Asia/Karachi')->format('Y-m-d g:i A')
+                    : null,
+                'reason' => $audit->reason,
+            ]);
+
+        return response()->json([
+            'month' => $month,
+            'history' => $history,
         ]);
     }
 
@@ -754,6 +866,34 @@ class EmployeeAttendanceController extends Controller
             $user->isSuperAdmin()
             || $user->hasPermission('attendance.manual_mark')
         );
+    }
+
+    private function recordManualAttendanceAudit(
+        int $userId,
+        string $attendanceDate,
+        ?string $oldStatusCode,
+        ?string $newStatusCode,
+        ?int $changedByUserId,
+        ?string $reason
+    ): void {
+        ManualAttendanceAudit::create([
+            'user_id' => $userId,
+            'attendance_date' => $attendanceDate,
+            'old_status_code' => $oldStatusCode,
+            'new_status_code' => $newStatusCode,
+            'changed_by_user_id' => $changedByUserId,
+            'changed_at' => Carbon::now('Asia/Karachi'),
+            'reason' => $reason,
+        ]);
+    }
+
+    private function statusLabel(?string $statusCode): string
+    {
+        if (! $statusCode) {
+            return 'Auto';
+        }
+
+        return self::ATTENDANCE_STATUSES[$statusCode] ?? $statusCode;
     }
 
     private function formatDuration(int $durationMinutes)

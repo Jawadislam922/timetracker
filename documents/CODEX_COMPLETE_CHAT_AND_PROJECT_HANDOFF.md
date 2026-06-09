@@ -1,6 +1,6 @@
 # Complete Codex Chat And Project Handoff
 
-Last updated: 2026-06-09 after GitHub release commit `349e67e`
+Last updated: 2026-06-09 after local manual attendance audit-history work
 
 This is the canonical starting document for any new Codex session or account
 working on the Sparking Asia Time Tracker. It is the consolidated record of
@@ -58,10 +58,10 @@ The approved attendance release was committed and pushed. The unfinished
 screenshot-monitoring implementation was deliberately excluded because it is
 not ready for production.
 
-This `documents/` reorganization and the latest master handoff update were
-created after commit `349e67e` and are currently local documentation changes.
-Do not assume they are on GitHub until Git status and remote history confirm
-that separately.
+This `documents/` reorganization, the latest master handoff update, and the
+manual attendance audit-history implementation were created after commit
+`349e67e` and are currently local changes. Do not assume they are on GitHub
+until Git status and remote history confirm that separately.
 
 The local working tree still contains monitoring experiments, including
 desktop API controllers, tracking models and migrations, monitoring pages,
@@ -116,6 +116,21 @@ the released attendance commit, including `app/Models/User.php`,
 `config/access.php`, `config/filesystems.php`, `database/seeders/DatabaseSeeder.php`,
 `routes/api.php`, and `routes/web.php`. Preserve those hunks unless Jawad
 explicitly decides to discard or redesign the monitoring experiment.
+
+Paused/resume point on 2026-06-09:
+
+- Jawad reported that production verification for attendance release `349e67e`
+  is done.
+- Manual attendance audit history is implemented locally, verified locally,
+  and not committed or pushed.
+- `npm.cmd run build` regenerated `public/build` assets. Because the local
+  monitoring experiment exists in the workspace, generated build chunks may
+  include monitoring pages. Do not stage build assets blindly.
+- `php artisan migrate` was run locally for browser verification. It applied
+  the local monitoring migrations and the new audit-history migration to the
+  local database only.
+- Resume later today with "Improve Attendance Slack Controls" unless Jawad
+  changes priority.
 
 ## Conversation-Wide Requirements And Decisions
 
@@ -340,7 +355,9 @@ Attendance release status:
 2. Monitoring implementation excluded from the release.
 3. Attendance release committed as `349e67e`.
 4. Branch `jawad` pushed to GitHub.
-5. Production deployment and database migration still require verification.
+5. Production deployment and database migration were reported completed by
+   Jawad in chat on 2026-06-09. A new Codex session should still confirm
+   production state before making deployment assumptions.
 
 Before treating the release as live:
 
@@ -470,12 +487,12 @@ Important removal behavior:
 
 ### 3. Add Manual Attendance Audit History
 
-Status: Not implemented.
+Status: Implemented locally on 2026-06-09. Not committed or pushed.
 
-Manual marks currently identify who set the current value, but a complete
-change history is still needed.
+Manual marks identify who set the current value, and a complete change history
+is now recorded locally.
 
-Add an audit table containing:
+The audit table contains:
 
 - employee
 - attendance date
@@ -485,7 +502,35 @@ Add an audit table containing:
 - changed at
 - optional reason
 
-Add a small history view accessible only with the appropriate permission.
+Added a small history view accessible only to Super Admin or users with
+`attendance.manual_mark`.
+
+Implemented files:
+
+- `app/Models/ManualAttendanceAudit.php`
+- `database/migrations/2026_06_09_000005_create_manual_attendance_audits_table.php`
+- `app/Http/Controllers/EmployeeAttendanceController.php`
+- `routes/web.php`
+- `resources/js/Pages/EmployeeAttendance.jsx`
+- `tests/Feature/EmployeeAttendanceTest.php`
+
+Local verification completed:
+
+- `php artisan test tests\Feature\EmployeeAttendanceTest.php`
+- `php artisan test`
+- `npm.cmd run build`
+- `vendor\bin\pint --test app\Http\Controllers\EmployeeAttendanceController.php app\Models\ManualAttendanceAudit.php database\migrations\2026_06_09_000005_create_manual_attendance_audits_table.php tests\Feature\EmployeeAttendanceTest.php routes\web.php`
+- `git diff --check`
+- Browser check of the Attendance audit dialog at desktop width and 390px
+  mobile width.
+
+Local database note:
+
+- `php artisan migrate` was run locally to verify the browser UI. Because the
+  local monitoring migration files were already present, Laravel also applied
+  the local-only monitoring tables before applying the audit table.
+
+Next agenda item after this local audit feature is attendance Slack controls.
 
 ### 4. Improve Attendance Slack Controls
 

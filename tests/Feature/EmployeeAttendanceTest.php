@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ManualAttendanceAudit;
 use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
 use App\Models\User;
@@ -130,6 +131,85 @@ class EmployeeAttendanceTest extends TestCase
             ->assertOk();
     }
 
+    public function test_manual_attendance_status_changes_are_audited(): void
+    {
+        $superAdmin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create(['name' => 'Audited Attendance User']);
+
+        $this->actingAs($superAdmin)
+            ->patchJson(route('employee-attendance.manual-status'), [
+                'user_id' => $employee->id,
+                'date' => '2026-06-08',
+                'status_code' => 'L',
+                'note' => 'Approved leave',
+            ])
+            ->assertOk();
+
+        $this->actingAs($superAdmin)
+            ->patchJson(route('employee-attendance.manual-status'), [
+                'user_id' => $employee->id,
+                'date' => '2026-06-08',
+                'status_code' => 'WFH',
+                'note' => 'Remote day',
+            ])
+            ->assertOk();
+
+        $this->actingAs($superAdmin)
+            ->patchJson(route('employee-attendance.manual-status'), [
+                'user_id' => $employee->id,
+                'date' => '2026-06-08',
+                'status_code' => null,
+            ])
+            ->assertOk();
+
+        $this->assertTrue(ManualAttendanceAudit::query()
+            ->where('user_id', $employee->id)
+            ->whereDate('attendance_date', '2026-06-08')
+            ->whereNull('old_status_code')
+            ->where('new_status_code', 'L')
+            ->where('changed_by_user_id', $superAdmin->id)
+            ->where('reason', 'Approved leave')
+            ->exists());
+        $this->assertTrue(ManualAttendanceAudit::query()
+            ->where('user_id', $employee->id)
+            ->whereDate('attendance_date', '2026-06-08')
+            ->where('old_status_code', 'L')
+            ->where('new_status_code', 'WFH')
+            ->where('changed_by_user_id', $superAdmin->id)
+            ->where('reason', 'Remote day')
+            ->exists());
+        $this->assertTrue(ManualAttendanceAudit::query()
+            ->where('user_id', $employee->id)
+            ->whereDate('attendance_date', '2026-06-08')
+            ->where('old_status_code', 'WFH')
+            ->whereNull('new_status_code')
+            ->where('changed_by_user_id', $superAdmin->id)
+            ->where('reason', 'Remote day')
+            ->exists());
+
+        $history = $this->actingAs($superAdmin)
+            ->getJson(route('employee-attendance.manual-history', ['month' => '2026-06']))
+            ->assertOk()
+            ->json('history');
+
+        $this->assertCount(3, $history);
+        $this->assertSame('Audited Attendance User', $history[0]['employee_name']);
+        $this->assertSame('WFH', $history[0]['old_status_code']);
+        $this->assertNull($history[0]['new_status_code']);
+    }
+
+    public function test_member_cannot_view_manual_attendance_history(): void
+    {
+        $member = User::factory()->create([
+            'role' => 'member',
+            'permissions' => ['attendance.view'],
+        ]);
+
+        $this->actingAs($member)
+            ->getJson(route('employee-attendance.manual-history', ['month' => '2026-06']))
+            ->assertForbidden();
+    }
+
     public function test_member_cannot_manually_mark_attendance(): void
     {
         $member = User::factory()->create([
@@ -191,6 +271,14 @@ class EmployeeAttendanceTest extends TestCase
                 ->where('status_code', 'WFH')
                 ->exists()
         );
+        $this->assertSame(6, ManualAttendanceAudit::query()->count());
+        $this->assertTrue(ManualAttendanceAudit::query()
+            ->where('user_id', $selectedEmployee->id)
+            ->whereDate('attendance_date', '2026-06-10')
+            ->where('old_status_code', 'L')
+            ->where('new_status_code', 'WFH')
+            ->where('changed_by_user_id', $superAdmin->id)
+            ->exists());
     }
 
     public function test_super_admin_can_clear_a_company_calendar_range(): void
@@ -220,6 +308,14 @@ class EmployeeAttendanceTest extends TestCase
             ->assertJsonPath('affected', 2);
 
         $this->assertDatabaseCount('manual_attendance_marks', 0);
+        $this->assertDatabaseCount('manual_attendance_audits', 4);
+        $this->assertTrue(ManualAttendanceAudit::query()
+            ->where('user_id', $employeeOne->id)
+            ->whereDate('attendance_date', '2026-06-10')
+            ->where('old_status_code', 'PH')
+            ->whereNull('new_status_code')
+            ->where('changed_by_user_id', $superAdmin->id)
+            ->exists());
     }
 
     public function test_member_cannot_update_the_attendance_calendar(): void
