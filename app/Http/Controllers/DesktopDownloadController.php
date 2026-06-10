@@ -74,26 +74,42 @@ class DesktopDownloadController extends Controller
         ]);
     }
 
+    /**
+     * Directories searched for installer artifacts, in priority order.
+     *
+     * The first is an absolute path set via DESKTOP_INSTALLERS_PATH — used in
+     * production because Hostinger's git auto-deploy wipes untracked files
+     * inside the deployed tree (including storage/app), so installers must
+     * live OUTSIDE the working tree to survive a deploy. The remaining paths
+     * are local-dev fallbacks.
+     */
+    private function searchDirs(): array
+    {
+        return array_filter([
+            config('desktop.installers_path'),
+            storage_path('app/desktop-installers'),
+            base_path('desktop/dist-app'),
+        ]);
+    }
+
     private function windowsInstaller(): ?string
     {
-        $candidates = [
-            storage_path('app/desktop-installers/'.self::WINDOWS_INSTALLER),
-            base_path('desktop/dist-app/'.self::WINDOWS_INSTALLER),
-        ];
-
-        foreach ($candidates as $path) {
-            if (File::isFile($path)) {
-                return $path;
-            }
-        }
-
-        return null;
+        return $this->findInstaller([self::WINDOWS_INSTALLER]);
     }
 
     private function macInstaller(): ?string
     {
-        foreach (self::MAC_INSTALLERS as $name) {
-            foreach ([storage_path('app/desktop-installers/'.$name), base_path('desktop/dist-app/'.$name)] as $path) {
+        return $this->findInstaller(self::MAC_INSTALLERS);
+    }
+
+    /**
+     * @param  string[]  $filenames
+     */
+    private function findInstaller(array $filenames): ?string
+    {
+        foreach ($this->searchDirs() as $dir) {
+            foreach ($filenames as $name) {
+                $path = rtrim($dir, '/').'/'.$name;
                 if (File::isFile($path)) {
                     return $path;
                 }
