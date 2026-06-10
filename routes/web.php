@@ -3,6 +3,7 @@
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesktopDownloadController;
+use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EmployeeAttendanceController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProfileController;
@@ -149,6 +150,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/team/slack-digest', [TeamController::class, 'sendDigest'])
         ->middleware('permission:reports.send_slack')
         ->name('team.slack-digest');
+
+    // Developer / system panel. Authorisation is enforced inside the
+    // controller (Super Admin only); no grantable permission on purpose.
+    Route::prefix('developer')->group(function () {
+        Route::get('/', [DeveloperController::class, 'index'])->name('developer.index');
+        Route::post('/run', [DeveloperController::class, 'run'])->name('developer.run');
+        Route::get('/logs', [DeveloperController::class, 'logs'])->name('developer.logs');
+    });
 
     // Tracking / monitoring settings (scrin.io-style). Super Admin only by
     // default via the monitoring.settings permission.

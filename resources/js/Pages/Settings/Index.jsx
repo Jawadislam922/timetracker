@@ -145,12 +145,71 @@ function ScreenshotsSection({ team, users, setTeam }) {
             <IndividualSettings
                 category="screenshots"
                 users={users}
-                render={(user, override, set) => (
-                    <Toggle
-                        checked={!!override?.override_screenshots}
-                        onChange={(enabled) => set(enabled, { screenshots_per_hour: team.screenshots_per_hour, blur_screenshots: team.blur_screenshots, capture_enabled: team.capture_enabled })}
-                    />
-                )}
+                flagKey="override_screenshots"
+                defaultValues={{
+                    screenshots_per_hour: team.screenshots_per_hour,
+                    blur_screenshots: team.blur_screenshots,
+                    capture_enabled: team.capture_enabled,
+                }}
+                editor={(override, setValues) => {
+                    const off = !override.capture_enabled || override.screenshots_per_hour === 0;
+                    return (
+                        <div className="flex flex-wrap items-center gap-4 text-xs">
+                            <label className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={!off}
+                                    onChange={() => setValues({
+                                        capture_enabled: true,
+                                        screenshots_per_hour: override.screenshots_per_hour || team.screenshots_per_hour || 6,
+                                        blur_screenshots: override.blur_screenshots ?? team.blur_screenshots,
+                                    })}
+                                />
+                                Take
+                                <select
+                                    className="rounded border-slate-300 text-xs"
+                                    value={override.screenshots_per_hour || team.screenshots_per_hour || 6}
+                                    disabled={off}
+                                    onChange={(e) => setValues({
+                                        capture_enabled: true,
+                                        screenshots_per_hour: Number(e.target.value),
+                                        blur_screenshots: override.blur_screenshots ?? team.blur_screenshots,
+                                    })}
+                                >
+                                    {[1, 2, 3, 4, 6, 8, 10, 12, 15, 20, 30].map((n) => (
+                                        <option key={n} value={n}>{n}</option>
+                                    ))}
+                                </select>
+                                / hr
+                                <select
+                                    className="rounded border-slate-300 text-xs"
+                                    value={override.blur_screenshots ? 'allow' : 'disallow'}
+                                    disabled={off}
+                                    onChange={(e) => setValues({
+                                        capture_enabled: true,
+                                        screenshots_per_hour: override.screenshots_per_hour || team.screenshots_per_hour || 6,
+                                        blur_screenshots: e.target.value === 'allow',
+                                    })}
+                                >
+                                    <option value="disallow">Disallow blur</option>
+                                    <option value="allow">Allow blur</option>
+                                </select>
+                            </label>
+                            <label className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={off}
+                                    onChange={() => setValues({
+                                        capture_enabled: false,
+                                        screenshots_per_hour: 0,
+                                        blur_screenshots: override.blur_screenshots ?? team.blur_screenshots,
+                                    })}
+                                />
+                                Do not take
+                            </label>
+                        </div>
+                    );
+                }}
             />
         </SectionShell>
     );
@@ -189,11 +248,27 @@ function BooleanSection({ team, users, setTeam, title, blurb, field, category, l
             <IndividualSettings
                 category={category}
                 users={users}
-                render={(user, override, set) => (
-                    <Toggle
-                        checked={!!override?.[CATEGORY_OVERRIDE_KEY[category]]}
-                        onChange={(enabled) => set(enabled, { [field]: team[field] })}
-                    />
+                flagKey={CATEGORY_OVERRIDE_KEY[category]}
+                defaultValues={{ [field]: team[field] }}
+                editor={(override, setValues) => (
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                        <label className="flex items-center gap-1.5">
+                            <input
+                                type="radio"
+                                checked={!!override[field]}
+                                onChange={() => setValues({ [field]: true })}
+                            />
+                            {label}
+                        </label>
+                        <label className="flex items-center gap-1.5">
+                            <input
+                                type="radio"
+                                checked={!override[field]}
+                                onChange={() => setValues({ [field]: false })}
+                            />
+                            {offLabel}
+                        </label>
+                    </div>
                 )}
             />
         </SectionShell>
@@ -251,12 +326,41 @@ function WeeklyLimitSection({ team, users, setTeam }) {
             <IndividualSettings
                 category="weekly_limit"
                 users={users}
-                render={(user, override, set) => (
-                    <Toggle
-                        checked={!!override?.override_weekly_limit}
-                        onChange={(en) => set(en, { weekly_time_limit_hours: team.weekly_time_limit_hours })}
-                    />
-                )}
+                flagKey="override_weekly_limit"
+                defaultValues={{ weekly_time_limit_hours: team.weekly_time_limit_hours }}
+                editor={(override, setValues) => {
+                    const en = override.weekly_time_limit_hours !== null && override.weekly_time_limit_hours !== undefined;
+                    return (
+                        <div className="flex flex-wrap items-center gap-4 text-xs">
+                            <label className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={en}
+                                    onChange={() => setValues({ weekly_time_limit_hours: override.weekly_time_limit_hours || 40 })}
+                                />
+                                Limit to
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={168}
+                                    value={en ? override.weekly_time_limit_hours : 0}
+                                    disabled={!en}
+                                    onChange={(e) => setValues({ weekly_time_limit_hours: Number(e.target.value) })}
+                                    className="w-16 rounded border-slate-300 text-xs"
+                                />
+                                hours/week
+                            </label>
+                            <label className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={!en}
+                                    onChange={() => setValues({ weekly_time_limit_hours: null })}
+                                />
+                                Do not limit
+                            </label>
+                        </div>
+                    );
+                }}
             />
         </SectionShell>
     );
@@ -312,12 +416,42 @@ function AutoPauseSection({ team, users, setTeam }) {
             <IndividualSettings
                 category="auto_pause"
                 users={users}
-                render={(user, override, set) => (
-                    <Toggle
-                        checked={!!override?.override_auto_pause}
-                        onChange={(en) => set(en, { auto_pause_minutes: team.auto_pause_minutes })}
-                    />
-                )}
+                flagKey="override_auto_pause"
+                defaultValues={{ auto_pause_minutes: team.auto_pause_minutes }}
+                editor={(override, setValues) => {
+                    const mins = Number(override.auto_pause_minutes || 0);
+                    const en = mins > 0;
+                    return (
+                        <div className="flex flex-wrap items-center gap-4 text-xs">
+                            <label className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={en}
+                                    onChange={() => setValues({ auto_pause_minutes: mins || team.auto_pause_minutes || 5 })}
+                                />
+                                Pause after
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={120}
+                                    value={en ? mins : 5}
+                                    disabled={!en}
+                                    onChange={(e) => setValues({ auto_pause_minutes: Number(e.target.value) })}
+                                    className="w-16 rounded border-slate-300 text-xs"
+                                />
+                                min idle
+                            </label>
+                            <label className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={!en}
+                                    onChange={() => setValues({ auto_pause_minutes: 0 })}
+                                />
+                                Do not pause
+                            </label>
+                        </div>
+                    );
+                }}
             />
         </SectionShell>
     );
@@ -391,37 +525,67 @@ function DesktopAppSection({ team, users, setTeam }) {
             <IndividualSettings
                 category="desktop_app"
                 users={users}
-                render={(user, override, set) => (
-                    <Toggle
-                        checked={!!override?.override_desktop_app}
-                        onChange={(en) =>
-                            set(en, {
-                                desktop_auto_start: team.desktop_auto_start,
-                                desktop_force_quit_on_idle: team.desktop_force_quit_on_idle,
-                            })
-                        }
-                    />
+                flagKey="override_desktop_app"
+                defaultValues={{
+                    desktop_auto_start: team.desktop_auto_start,
+                    desktop_force_quit_on_idle: team.desktop_force_quit_on_idle,
+                }}
+                editor={(override, setValues) => (
+                    <div className="space-y-2 text-xs">
+                        <label className="flex items-center gap-2">
+                            <Toggle
+                                checked={!!override.desktop_auto_start}
+                                onChange={(v) => setValues({
+                                    desktop_auto_start: v,
+                                    desktop_force_quit_on_idle: !!override.desktop_force_quit_on_idle,
+                                })}
+                            />
+                            Launch on system startup
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <Toggle
+                                checked={!!override.desktop_force_quit_on_idle}
+                                onChange={(v) => setValues({
+                                    desktop_auto_start: !!override.desktop_auto_start,
+                                    desktop_force_quit_on_idle: v,
+                                })}
+                            />
+                            Force quit on prolonged idle
+                        </label>
+                    </div>
                 )}
             />
         </SectionShell>
     );
 }
 
-function IndividualSettings({ category, users, render }) {
+function IndividualSettings({ category, users, flagKey, defaultValues, editor }) {
     return (
         <div className="space-y-3 pt-6">
             <h3 className="text-base font-semibold text-slate-900">Individual settings</h3>
-            <p className="text-xs text-slate-500">If enabled, the individual setting will be used instead of the team setting</p>
+            <p className="text-xs text-slate-500">If enabled, the individual setting will be used instead of the team setting.</p>
             <div className="divide-y divide-slate-200 border-t border-slate-200">
                 {users.length === 0 && (
                     <p className="py-4 text-sm text-slate-500">No team members yet.</p>
                 )}
-                {users.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between py-3">
-                        {render(user, user.overrides, (enabled, values) => patchUser(user, category, enabled, values))}
-                        <span className="ml-3 flex-1 text-sm text-slate-700">{user.name}</span>
-                    </div>
-                ))}
+                {users.map((user) => {
+                    const enabled = !!user.overrides?.[flagKey];
+                    const setEnabled = (en) => patchUser(user, category, en, en ? defaultValues : {});
+                    const setValues = (values) => patchUser(user, category, true, values);
+                    return (
+                        <div key={user.id} className="space-y-2 py-3">
+                            <div className="flex items-center gap-3">
+                                <Toggle checked={enabled} onChange={setEnabled} />
+                                <span className="flex-1 text-sm text-slate-700">{user.name}</span>
+                            </div>
+                            {enabled && editor && (
+                                <div className="ml-12 rounded-md bg-slate-50 px-3 py-2">
+                                    {editor(user.overrides || {}, setValues)}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\UserMonitoringSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -85,6 +86,7 @@ class SettingsController extends Controller
         }
 
         $team->update($data);
+        Cache::forget('monitoring_settings.shared');
 
         return back()->with('success', 'Team settings updated.');
     }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, Plus, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Trash2, X } from 'lucide-react';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOTS_PER_HOUR = 10;
@@ -320,6 +320,21 @@ export default function TimelineIndex({
     const [historyOpen, setHistoryOpen] = useState(false);
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [showDownloadHint, setShowDownloadHint] = useState(false);
+
+    // Try to launch the desktop tracker via its custom protocol. If nothing
+    // handles it within ~1.6s (window never lost focus), the app isn't
+    // installed — offer the download page instead.
+    const openDesktopApp = () => {
+        let handled = false;
+        const onBlur = () => { handled = true; };
+        window.addEventListener('blur', onBlur);
+        window.location.href = 'timetracker://open';
+        setTimeout(() => {
+            window.removeEventListener('blur', onBlur);
+            if (!handled) setShowDownloadHint(true);
+        }, 1600);
+    };
 
     const reload = (nextDate, nextUserId) => {
         const d = nextDate ?? activeDate;
@@ -526,6 +541,16 @@ export default function TimelineIndex({
                             <History className="h-4 w-4" />
                             History of changes
                         </button>
+                        <button type="button" onClick={openDesktopApp} className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900">
+                            <MonitorPlay className="h-4 w-4" />
+                            Open desktop tracker
+                        </button>
+                        {showDownloadHint && (
+                            <span className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                                Tracker not installed?
+                                <Link href={route('desktop-downloads.index')} className="font-semibold underline">Download it here</Link>
+                            </span>
+                        )}
                         <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-400">
                             <Clock className="h-3 w-3" /> Times in your local timezone
                         </span>

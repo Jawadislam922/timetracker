@@ -8,6 +8,7 @@ use Inertia\Inertia;
 class DesktopDownloadController extends Controller
 {
     private const WINDOWS_INSTALLER = 'Timetracker Desktop Setup 0.1.0.exe';
+
     private const WINDOWS_VERSION = '0.1.0';
 
     public function index()

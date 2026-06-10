@@ -1,0 +1,254 @@
+import React, { useEffect, useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import {
+    Activity,
+    AlertTriangle,
+    CheckCircle2,
+    Database,
+    FileText,
+    Play,
+    RefreshCw,
+    Send,
+    Terminal,
+    Trash2,
+    Wrench,
+    XCircle,
+    Zap,
+} from 'lucide-react';
+
+function InfoRow({ label, value, mono = true }) {
+    return (
+        <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
+            <span className="text-slate-500">{label}</span>
+            <span className={['truncate text-right text-slate-900', mono ? 'font-mono text-xs' : ''].join(' ')} title={String(value ?? '')}>
+                {value === null || value === undefined || value === '' ? '—' : String(value)}
+            </span>
+        </div>
+    );
+}
+
+function Badge({ ok, children }) {
+    return (
+        <span
+            className={[
+                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
+            ].join(' ')}
+        >
+            {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+            {children}
+        </span>
+    );
+}
+
+function Card({ title, icon: Icon, children, accent }) {
+    return (
+        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <header className={['flex items-center gap-2 border-b border-slate-100 px-4 py-2.5', accent || 'bg-slate-50'].join(' ')}>
+                {Icon && <Icon className="h-4 w-4 text-slate-500" />}
+                <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+            </header>
+            <div className="px-4 py-3">{children}</div>
+        </section>
+    );
+}
+
+function ActionButton({ icon: Icon, label, hint, danger, busy, onClick }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={busy}
+            className={[
+                'flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition disabled:opacity-50',
+                danger
+                    ? 'border-rose-200 hover:bg-rose-50'
+                    : 'border-slate-200 hover:bg-slate-50',
+            ].join(' ')}
+        >
+            <Icon className={['mt-0.5 h-4 w-4 shrink-0', danger ? 'text-rose-500' : 'text-slate-500'].join(' ')} />
+            <span className="min-w-0">
+                <span className="block text-sm font-medium text-slate-900">{label}</span>
+                {hint && <span className="block text-xs text-slate-500">{hint}</span>}
+            </span>
+        </button>
+    );
+}
+
+export default function DeveloperIndex({ auth, system, health, schedule, lastOutput, lastAction }) {
+    const flash = usePage().props.flash || {};
+    const [busy, setBusy] = useState(false);
+    const [logLines, setLogLines] = useState([]);
+    const [logFile, setLogFile] = useState(null);
+    const [logsLoading, setLogsLoading] = useState(false);
+
+    const runAction = (action, confirmText) => {
+        if (confirmText && !confirm(confirmText)) return;
+        setBusy(true);
+        router.post(route('developer.run'), { action }, {
+            preserveScroll: true,
+            onFinish: () => setBusy(false),
+        });
+    };
+
+    const loadLogs = async () => {
+        setLogsLoading(true);
+        try {
+            const res = await fetch(route('developer.logs'), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            const json = await res.json();
+            setLogLines(json.lines || []);
+            setLogFile(json.file);
+        } catch {
+            setLogLines(['Could not load logs.']);
+        } finally {
+            setLogsLoading(false);
+        }
+    };
+
+    useEffect(() => { loadLogs(); }, []);
+
+    return (
+        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Developer</h2>}>
+            <Head title="Developer" />
+
+            <div className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+                {(flash.success || flash.error) && (
+                    <div
+                        className={[
+                            'rounded-md border px-4 py-2 text-sm',
+                            flash.error
+                                ? 'border-rose-200 bg-rose-50 text-rose-800'
+                                : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                        ].join(' ')}
+                    >
+                        {flash.error || flash.success}
+                    </div>
+                )}
+
+                {lastOutput && (
+                    <Card title={`Output — ${lastAction || 'last action'}`} icon={Terminal} accent="bg-slate-900 text-white [&_h2]:text-white [&_svg]:text-slate-300">
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 font-mono text-xs leading-relaxed text-emerald-200">
+                            {lastOutput}
+                        </pre>
+                    </Card>
+                )}
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <Card title="System" icon={Database}>
+                        <InfoRow label="Environment" value={system.app_env} />
+                        <InfoRow label="Debug" value={system.app_debug ? 'on' : 'off'} />
+                        <InfoRow label="App URL" value={system.app_url} />
+                        <InfoRow label="Timezone" value={system.app_timezone} />
+                        <InfoRow label="Server time" value={system.server_time} />
+                        <InfoRow label="PHP" value={system.php_version} />
+                        <InfoRow label="Laravel" value={system.laravel_version} />
+                        <InfoRow label="Database" value={`${system.db_connection} · ${system.db_database}`} />
+                        <InfoRow label="Cache / Session / Queue" value={`${system.cache_driver} / ${system.session_driver} / ${system.queue_driver}`} />
+                        <InfoRow label="Config cached" value={system.config_cached ? 'yes' : 'no'} />
+                        <InfoRow label="Routes cached" value={system.routes_cached ? 'yes' : 'no'} />
+                        <InfoRow label="Web build" value={system.web_build_at} />
+                        <InfoRow label="Desktop build" value={system.desktop_build_at} />
+                        <InfoRow
+                            label="Git"
+                            value={system.git?.commit ? `${system.git.branch}@${system.git.commit} · ${system.git.dirty_files} changed` : '—'}
+                        />
+                    </Card>
+
+                    <Card title="Health" icon={Activity}>
+                        <ul className="divide-y divide-slate-100">
+                            {health.map((check) => (
+                                <li key={check.name} className="flex items-center justify-between gap-3 py-2">
+                                    <span className="text-sm text-slate-700">{check.name}</span>
+                                    <span className="flex items-center gap-2">
+                                        <span className="max-w-44 truncate text-xs text-slate-500" title={check.detail}>{check.detail}</span>
+                                        <Badge ok={check.ok}>{check.ok ? 'OK' : 'FAIL'}</Badge>
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="mt-3 border-t border-slate-100 pt-3">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Scheduled jobs</p>
+                            <ul className="space-y-1.5">
+                                {schedule.map((job) => (
+                                    <li key={job.name} className="flex items-center justify-between gap-2 text-xs">
+                                        <span className="text-slate-600">{job.name}</span>
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-slate-400">{job.when}</span>
+                                            <Badge ok={job.enabled}>{job.enabled ? 'on' : 'off'}</Badge>
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </Card>
+
+                    <Card title="Actions" icon={Wrench}>
+                        <div className="space-y-2">
+                            <ActionButton
+                                icon={Zap}
+                                label="Optimize (build caches)"
+                                hint="Faster pages. Warning: breaks php artisan test until cleared."
+                                busy={busy}
+                                onClick={() => runAction('optimize')}
+                            />
+                            <ActionButton
+                                icon={RefreshCw}
+                                label="Clear caches"
+                                hint="optimize:clear — run before the test suite."
+                                busy={busy}
+                                onClick={() => runAction('optimize_clear')}
+                            />
+                            <ActionButton
+                                icon={Play}
+                                label="Run migrations (local only)"
+                                hint="php artisan migrate against the local DB."
+                                busy={busy}
+                                onClick={() => runAction('migrate', 'Run pending migrations against the local database?')}
+                            />
+                            <ActionButton
+                                icon={Send}
+                                label="Test Slack webhook"
+                                hint="Sends one test message to the configured channel."
+                                busy={busy}
+                                onClick={() => runAction('slack_test', 'Send a test message to Slack?')}
+                            />
+                            <ActionButton
+                                icon={FileText}
+                                label="Preview activity digest"
+                                hint="Builds yesterday's digest text without sending."
+                                busy={busy}
+                                onClick={() => runAction('digest_preview')}
+                            />
+                            <ActionButton
+                                icon={Trash2}
+                                label="Screenshot retention dry-run"
+                                hint="Shows what the nightly prune would delete."
+                                busy={busy}
+                                onClick={() => runAction('prune_dry_run')}
+                            />
+                        </div>
+                    </Card>
+                </div>
+
+                <Card title={`Logs ${logFile ? `— ${logFile}` : ''}`} icon={AlertTriangle}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs text-slate-500">Last 300 lines of the newest log file.</p>
+                        <button
+                            type="button"
+                            onClick={loadLogs}
+                            disabled={logsLoading}
+                            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                            <RefreshCw className={['h-3 w-3', logsLoading ? 'animate-spin' : ''].join(' ')} />
+                            Refresh
+                        </button>
+                    </div>
+                    <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-slate-200">
+                        {logLines.length ? logLines.join('\n') : (logsLoading ? 'Loading…' : 'No log entries.')}
+                    </pre>
+                </Card>
+            </div>
+        </AuthenticatedLayout>
+    );
+}

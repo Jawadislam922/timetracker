@@ -1,4 +1,99 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+// Dark searchable client combobox. Native <select> popups are OS-white and
+// unusable with hundreds of clients; this filters as you type.
+function ClientPicker({ clients, value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rootRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = clients.find((client) => String(client.id) === String(value));
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((client) => client.name.toLowerCase().includes(q));
+  }, [clients, query]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setQuery('');
+      setActiveIndex(0);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const pick = (client) => {
+    onChange(String(client.id));
+    setOpen(false);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') { setOpen(false); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, filtered.length - 1)); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filtered[activeIndex]) pick(filtered[activeIndex]);
+    }
+  };
+
+  return (
+    <div className="client-picker" ref={rootRef}>
+      <button
+        type="button"
+        className={`cp-trigger ${selected ? '' : 'placeholder'}`}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        disabled={disabled}
+      >
+        <span className="cp-trigger-label">{selected ? selected.name : 'Select client'}</span>
+        <span className="cp-caret">▾</span>
+      </button>
+      {open && (
+        <div className="cp-pop">
+          <input
+            ref={inputRef}
+            className="cp-search"
+            value={query}
+            placeholder="Search clients…"
+            onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
+            onKeyDown={onKeyDown}
+          />
+          <div className="cp-list">
+            {filtered.length === 0 && <div className="cp-empty">No clients match “{query}”.</div>}
+            {filtered.slice(0, 200).map((client, index) => (
+              <button
+                type="button"
+                key={client.id}
+                className={[
+                  'cp-item',
+                  index === activeIndex ? 'active' : '',
+                  String(client.id) === String(value) ? 'selected' : '',
+                ].join(' ').trim()}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => pick(client)}
+              >
+                <span className="cp-item-name">{client.name}</span>
+                {client.upwork_profile_name && <span className="cp-item-meta">{client.upwork_profile_name}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function fmtClock(seconds) {
   const s = Math.max(0, Math.floor(seconds || 0));
@@ -55,12 +150,68 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   const [clients, setClients] = useState([]);
   const [todaySessions, setTodaySessions] = useState([]);
   const [week, setWeek] = useState([]);
+  const [recentClients, setRecentClients] = useState([]);
   const [picker, setPicker] = useState({ client_id: '', work_type: '', task_note: '' });
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [busy, setBusy] = useState(false);
   const [ticker, setTicker] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [autoLaunch, setAutoLaunch] = useState(false);
+  const [prefs, setPrefs] = useState({});
+  const [appVersion, setAppVersion] = useState('');
+  const [timeClock, setTimeClock] = useState({ last_action: null, available: [] });
+  const [clockBusy, setClockBusy] = useState(false);
+  const autoStartedRef = useRef(false);
+
+  const refreshTimeClock = async () => {
+    if (typeof window.tt?.timeclock?.status !== 'function') return;
+    try {
+      setTimeClock(await window.tt.timeclock.status());
+    } catch {
+      // Shift bar simply stays in its last state when offline.
+    }
+  };
+
+  const clockAct = async (actionType) => {
+    if (clockBusy || typeof window.tt?.timeclock?.act !== 'function') return;
+    setClockBusy(true);
+    setError('');
+    try {
+      const next = await window.tt.timeclock.act(actionType);
+      setTimeClock(next);
+    } catch (err) {
+      setError(err?.message || 'Time clock action failed');
+    } finally {
+      setClockBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window.tt?.settings?.getPrefs === 'function') {
+      window.tt.settings.getPrefs().then((p) => setPrefs(p || {})).catch(() => {});
+    }
+    if (typeof window.tt?.appInfo?.version === 'function') {
+      window.tt.appInfo.version().then((v) => setAppVersion(v || '')).catch(() => {});
+    }
+    refreshTimeClock();
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen || typeof window.tt?.settings?.getAutoLaunch !== 'function') return;
+    window.tt.settings.getAutoLaunch().then((result) => setAutoLaunch(!!result?.enabled)).catch(() => {});
+  }, [menuOpen]);
+
+  const setPref = async (key, value) => {
+    if (typeof window.tt?.settings?.setPrefs !== 'function') return;
+    const next = await window.tt.settings.setPrefs({ [key]: value });
+    setPrefs(next || {});
+  };
+
+  // Screenshot notification: local pref overrides the admin default when set.
+  const effectiveNotifyScreenshot = prefs.notifyScreenshot === null || prefs.notifyScreenshot === undefined
+    ? !!status.settings?.notify_on_screenshot
+    : !!prefs.notifyScreenshot;
 
   const selectedClient = useMemo(
     () => clients.find((client) => String(client.id) === String(picker.client_id)),
@@ -81,22 +232,58 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     setPicker((prev) => ({ ...prev, client_id: clientId, work_type: defaultWorkType(client) }));
   };
 
-  // Clicking a Today row when idle pre-fills the picker so the user can
-  // continue the same work on the same client with one click.
-  const restartFromSession = (session) => {
-    if (status.running) return;
-    if (!session?.client_id) return;
-    const client = clients.find((item) => Number(item.id) === Number(session.client_id));
+  // One-click client switching. Works whether or not a session is running:
+  // a running session is stopped (and saved) first, then the clicked client
+  // starts immediately with its last work type and description.
+  const switchTo = async ({ client_id, work_type, task_note }) => {
+    if (busy) return;
+    const client = clients.find((item) => Number(item.id) === Number(client_id));
     if (!client) return;
+    if (status.running && Number(status.session?.client_id) === Number(client_id)) return; // already on it
+
     const options = workTypeOptions(client);
-    const wt = options.find((option) => option.value === session.work_type)?.value || defaultWorkType(client);
-    setPicker({
-      client_id: String(client.id),
-      work_type: wt,
-      task_note: session.task_note || '',
-    });
+    const wt = options.find((option) => option.value === work_type)?.value || defaultWorkType(client);
+    const note = (task_note || '').trim() || 'Continued work';
+
+    setPicker({ client_id: String(client.id), work_type: wt, task_note: note });
     setError('');
+    setBusy(true);
+
+    try {
+      if (status.running) {
+        await window.tt.tracker.stop({});
+      }
+      const next = await window.tt.tracker.start({
+        client_id: Number(client.id),
+        upwork_profile_id: client.upwork_profile_id || null,
+        work_type: wt,
+        task_note: note,
+      });
+      setStatus(next);
+      setWarning(`Now tracking ${client.name}.`);
+      try {
+        localStorage.setItem('tt.lastStart', JSON.stringify({ client_id: client.id, work_type: wt, task_note: note }));
+      } catch { /* non-essential */ }
+      await refreshToday();
+      refreshWeek();
+    } catch (err) {
+      setError(err?.message || 'Could not switch client');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const quickStart = (recent) => switchTo({
+    client_id: recent.client_id,
+    work_type: recent.last_work_type,
+    task_note: recent.last_task_note,
+  });
+
+  const restartFromSession = (session) => switchTo({
+    client_id: session.client_id,
+    work_type: session.work_type,
+    task_note: session.task_note,
+  });
 
   // Format helpers used by the rich Today rows below.
   const WORK_TYPE_LABELS = {
@@ -118,8 +305,9 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     return frozen + Math.max(0, Math.floor((Date.now() - last) / 1000));
   }, [status.session, status.paused, ticker]);
 
+  const runningClient = clients.find((client) => Number(client.id) === Number(status.session?.client_id));
   const currentTitle = status.running
-    ? sessionTitle({ ...status.session, task_note: picker.task_note || status.session?.task_note }, clients)
+    ? [runningClient?.name, status.session?.task_note].filter(Boolean).join(' — ') || 'Tracking'
     : picker.task_note || selectedClient?.name || 'What are you working on?';
   const totalTodaySeconds = useMemo(() => {
     const activeId = status.session?.id;
@@ -184,6 +372,16 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     }
   };
 
+  const refreshRecent = async () => {
+    if (typeof window.tt?.meta?.recentClients !== 'function') return;
+    try {
+      const rows = await window.tt.meta.recentClients();
+      setRecentClients(rows || []);
+    } catch {
+      // Chips simply stay hidden when offline.
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const results = await Promise.allSettled([
@@ -211,6 +409,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
         .filter(Boolean);
 
       refreshWeek();
+      refreshRecent();
 
       if (failures.length) {
         const labels = ['clients', 'tracker status', "today's sessions"];
@@ -231,10 +430,63 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
 
   useEffect(() => {
     const offChanged = window.tt.tracker.onChanged((s) => setStatus(s));
-    const offStopped = window.tt.tracker.onStopped(() => { refreshToday(); refreshWeek(); });
+    const offStopped = window.tt.tracker.onStopped(() => { refreshToday(); refreshWeek(); refreshRecent(); });
     const offWarning = window.tt.tracker.onWarning((m) => setWarning(m));
     return () => { offChanged?.(); offStopped?.(); offWarning?.(); };
   }, []);
+
+  // Auto-start tracking on launch (local preference): once clients are
+  // loaded, restore the last session's client/work-type/note and start.
+  useEffect(() => {
+    if (autoStartedRef.current || !prefs.autoStartTracking || status.running || clients.length === 0) return;
+
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('tt.lastStart') || 'null'); } catch { /* ignore */ }
+    if (!saved?.client_id) return;
+
+    const client = clients.find((item) => Number(item.id) === Number(saved.client_id));
+    if (!client) return;
+
+    autoStartedRef.current = true;
+    const workType = saved.work_type || defaultWorkType(client);
+    const note = (saved.task_note || 'Continued work').trim();
+    setPicker({ client_id: String(client.id), work_type: workType, task_note: note });
+
+    (async () => {
+      try {
+        const next = await window.tt.tracker.start({
+          client_id: Number(client.id),
+          upwork_profile_id: client.upwork_profile_id || null,
+          work_type: workType,
+          task_note: note,
+        });
+        setStatus(next);
+        setWarning('Auto-started tracking your last client (change this in Settings).');
+        refreshToday();
+      } catch {
+        // Form stays pre-filled; user can start manually.
+      }
+    })();
+  }, [prefs.autoStartTracking, clients, status.running]);
+
+  // Web -> desktop deep link (timetracker://start?client_id=X&note=...).
+  // Pre-fills the start form; never auto-starts tracking.
+  useEffect(() => {
+    if (typeof window.tt?.deeplink?.onOpen !== 'function') return undefined;
+    const off = window.tt.deeplink.onOpen((payload) => {
+      if (!payload || payload.action === 'open') return;
+      setPicker((prev) => {
+        const clientId = payload.client_id ? String(payload.client_id) : prev.client_id;
+        const client = clients.find((item) => String(item.id) === clientId);
+        return {
+          client_id: clientId,
+          work_type: client ? defaultWorkType(client) : prev.work_type,
+          task_note: payload.task_note || prev.task_note,
+        };
+      });
+    });
+    return () => off?.();
+  }, [clients]);
 
   useEffect(() => {
     if (!status.running || status.paused) return undefined;
@@ -263,6 +515,13 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
         task_note: picker.task_note.trim(),
       });
       setStatus(next);
+      try {
+        localStorage.setItem('tt.lastStart', JSON.stringify({
+          client_id: selectedClient.id,
+          work_type: effectiveWorkType,
+          task_note: picker.task_note.trim(),
+        }));
+      } catch { /* non-essential */ }
       await refreshToday();
     } catch (err) {
       setError(err?.message || 'Could not start session');
@@ -309,47 +568,120 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
         </button>
       </header>
 
-      {menuOpen && (
-        <aside className="settings-panel">
-          <div className="settings-head">
-            <strong>Settings</strong>
-            <button className="icon-button" onClick={() => setMenuOpen(false)} aria-label="Close">x</button>
+      <div className={menuOpen ? 'drawer-overlay open' : 'drawer-overlay'} onClick={() => setMenuOpen(false)} />
+      <aside className={menuOpen ? 'drawer open' : 'drawer'}>
+        <div className="drawer-head">
+          <span className="drawer-brand">
+            <span className="drawer-logo">▶</span>
+            Timetracker
+          </span>
+          <button className="icon-button" onClick={() => setMenuOpen(false)} aria-label="Close">✕</button>
+        </div>
+
+        <a className="drawer-link" href={apiBaseUrl || '#'} target="_blank" rel="noreferrer">
+          <span className="drawer-link-icon">🌐</span>
+          Visit Website
+        </a>
+
+        <div className="drawer-user">
+          <span className="drawer-user-dot" />
+          Tracking for myself — {user?.name || 'me'}
+        </div>
+
+        <div className="drawer-section-label">Preferences</div>
+
+        <button
+          type="button"
+          className="setting-toggle-row"
+          onClick={async () => {
+            if (typeof window.tt?.settings?.setAutoLaunch !== 'function') return;
+            const result = await window.tt.settings.setAutoLaunch(!autoLaunch);
+            if (result?.ok !== false) setAutoLaunch(!!result.enabled);
+          }}
+        >
+          <span className="setting-toggle-text">
+            <strong>Launch on system startup</strong>
+          </span>
+          <span className={autoLaunch ? 'switch on' : 'switch'} aria-hidden="true"><i /></span>
+        </button>
+
+        <button type="button" className="setting-toggle-row" onClick={() => setPref('autoStartTracking', !prefs.autoStartTracking)}>
+          <span className="setting-toggle-text">
+            <strong>Auto-start tracking on launch</strong>
+            <small>Resumes your last client when the app opens.</small>
+          </span>
+          <span className={prefs.autoStartTracking ? 'switch on' : 'switch'} aria-hidden="true"><i /></span>
+        </button>
+
+        <button type="button" className="setting-toggle-row" onClick={() => setPref('notifyScreenshot', !effectiveNotifyScreenshot)}>
+          <span className="setting-toggle-text">
+            <strong>Show screenshot notifications</strong>
+          </span>
+          <span className={effectiveNotifyScreenshot ? 'switch on' : 'switch'} aria-hidden="true"><i /></span>
+        </button>
+
+        <button type="button" className="setting-toggle-row" onClick={() => setPref('idleNotifications', prefs.idleNotifications === false)}>
+          <span className="setting-toggle-text">
+            <strong>Show idle time notifications</strong>
+          </span>
+          <span className={prefs.idleNotifications !== false ? 'switch on' : 'switch'} aria-hidden="true"><i /></span>
+        </button>
+
+        <button type="button" className="setting-toggle-row" onClick={() => setPref('minimizeToTray', !prefs.minimizeToTray)}>
+          <span className="setting-toggle-text">
+            <strong>Minimize to tray</strong>
+            <small>Minimize hides the window; the tray icon brings it back.</small>
+          </span>
+          <span className={prefs.minimizeToTray ? 'switch on' : 'switch'} aria-hidden="true"><i /></span>
+        </button>
+
+        <div className="drawer-section-label">Team settings</div>
+        <div className="team-summary">
+          <div>
+            <span>Screenshots</span>
+            <strong>
+              {status.settings?.capture_enabled === false || status.settings?.screenshots_per_hour === 0
+                ? 'Off'
+                : `${status.settings?.screenshots_per_hour || Math.round(3600 / (status.settings?.screenshot_interval_max_seconds || 600))}/hr`}
+            </strong>
           </div>
-          <p className="settings-note">These are managed by your administrator in the web app.</p>
-          <label className="setting-row">
-            <input type="checkbox" checked={!!status.settings?.desktop_auto_start} readOnly disabled />
-            Launch on system startup
-          </label>
-          <label className="setting-row">
-            <input type="checkbox" checked={!!status.settings?.notify_on_screenshot} readOnly disabled />
-            Notify when a screenshot is taken
-          </label>
-          <label className="setting-row">
-            <input type="checkbox" checked={Number(status.settings?.auto_pause_minutes || 0) > 0} readOnly disabled />
-            Auto-pause after {status.settings?.auto_pause_minutes || 0} min idle
-          </label>
-          <div className="settings-grid">
-            <div>
-              <span>Screenshots</span>
-              <strong>
-                {status.settings?.capture_enabled === false || status.settings?.screenshots_per_hour === 0
-                  ? 'Off'
-                  : `${status.settings?.screenshots_per_hour || Math.round(3600 / (status.settings?.screenshot_interval_max_seconds || 600))}/hr`}
-              </strong>
-            </div>
-            <div><span>Offline queue</span><strong>{pendingScreenshots + pendingSamples}</strong></div>
-            <div><span>Activity</span><strong>{activity}%</strong></div>
-            <div><span>Server</span><strong>{apiBaseUrl || 'Not set'}</strong></div>
+          <div>
+            <span>Auto-pause</span>
+            <strong>{Number(status.settings?.auto_pause_minutes || 0) > 0 ? `${status.settings.auto_pause_minutes}min` : 'Off'}</strong>
           </div>
+          <div>
+            <span>Weekly limit</span>
+            <strong>{status.settings?.weekly_time_limit_hours ? `${status.settings.weekly_time_limit_hours}h` : 'No limit'}</strong>
+          </div>
+          <div>
+            <span>Offline time</span>
+            <strong>{status.settings?.allow_offline_time ? 'Yes' : 'No'}</strong>
+          </div>
+          <div>
+            <span>Activity tracking</span>
+            <strong>{status.settings?.activity_tracking_enabled === false ? 'No' : 'Yes'}</strong>
+          </div>
+          <div>
+            <span>App tracking</span>
+            <strong>{status.settings?.app_url_tracking_enabled ? 'Yes' : 'No'}</strong>
+          </div>
+        </div>
+        <p className="settings-note">Team settings are managed by your administrator in the web app.</p>
+
+        <div className="drawer-footer">
           <button className="logout-button" onClick={handleLogout}>Log out</button>
-        </aside>
-      )}
+          <span className="drawer-version">v{appVersion || '0.1.0'} · {apiBaseUrl ? apiBaseUrl.replace(/^https?:\/\//, '') : 'no server'}</span>
+        </div>
+      </aside>
 
       <main className="tracker-main">
         <section className="hero-panel">
           <div className={['timer-orb', status.paused ? 'paused' : status.running ? 'live' : ''].join(' ').trim()}>
-            <div className="clock-icon">○</div>
-            <div className="orb-time">{fmtClock(liveSeconds)}</div>
+            <svg className="clock-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+              <path d="M12 7v5l3.2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <div className="orb-time">{fmtClock(totalTodaySeconds)}</div>
             <div className="orb-label">{status.paused ? 'paused' : status.running ? 'tracking' : 'today'}</div>
             {status.running && (
               <div className={['orb-status', status.paused ? 'paused' : 'live'].join(' ')}>
@@ -386,20 +718,25 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
           <div className="task-pill">
             {!status.running ? (
               <div className="task-fields">
-                <select value={picker.client_id} onChange={(e) => handleClientChange(e.target.value)}>
-                  <option value="">Select client</option>
-                  {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
-                </select>
+                <ClientPicker
+                  clients={clients}
+                  value={picker.client_id}
+                  onChange={handleClientChange}
+                  disabled={busy}
+                />
                 {workTypeChoices.length > 1 && (
-                  <select
-                    value={effectiveWorkType}
-                    onChange={(e) => setPicker({ ...picker, work_type: e.target.value })}
-                    title="Upwork work type for this entry"
-                  >
+                  <div className="wt-pills" title="Upwork work type for this entry">
                     {workTypeChoices.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
+                      <button
+                        type="button"
+                        key={option.value}
+                        className={effectiveWorkType === option.value ? 'wt-pill active' : 'wt-pill'}
+                        onClick={() => setPicker({ ...picker, work_type: option.value })}
+                      >
+                        {option.label}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 )}
                 <input
                   value={picker.task_note}
@@ -421,6 +758,64 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
             </button>
           </div>
         </section>
+
+        {typeof window.tt?.timeclock?.status === 'function' && (
+          <section className="shift-bar">
+            <div className="shift-status">
+              <span className="shift-status-label">Shift</span>
+              <strong className={`shift-state ${timeClock.last_action || 'none'}`}>
+                {{
+                  clock_in: 'Working',
+                  break_end: 'Working',
+                  break_start: 'On break',
+                  clock_out: 'Clocked out',
+                }[timeClock.last_action] || 'Not started'}
+              </strong>
+            </div>
+            <div className="shift-actions">
+              {[
+                { type: 'clock_in', label: 'Clock In', hint: 'Start work' },
+                { type: 'clock_out', label: 'Clock Out', hint: 'End work' },
+                { type: 'break_start', label: 'Start Break', hint: 'Pause work' },
+                { type: 'break_end', label: 'End Break', hint: 'Resume work' },
+              ].map((action) => (
+                <button
+                  type="button"
+                  key={action.type}
+                  className={`shift-btn ${action.type}`}
+                  disabled={clockBusy || !(timeClock.available || []).includes(action.type)}
+                  onClick={() => clockAct(action.type)}
+                >
+                  <strong>{action.label}</strong>
+                  <small>{action.hint}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {recentClients.length > 0 && (
+          <section className="recent-row">
+            <span className="recent-label">{status.running ? 'Switch to' : 'Quick start'}</span>
+            <div className="recent-chips">
+              {recentClients.map((recent) => {
+                const isCurrent = status.running && Number(status.session?.client_id) === Number(recent.client_id);
+                return (
+                  <button
+                    type="button"
+                    key={recent.client_id}
+                    className={isCurrent || (!status.running && String(recent.client_id) === String(picker.client_id)) ? 'recent-chip active' : 'recent-chip'}
+                    onClick={() => quickStart(recent)}
+                    disabled={busy || isCurrent}
+                    title={isCurrent ? 'Currently tracking' : (recent.last_task_note ? `Last: ${recent.last_task_note}` : 'Start this client')}
+                  >
+                    {recent.client_name}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {selectedClient && !status.running && (
           <section className="client-strip">
@@ -450,7 +845,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
                 const matchingClient = clients.find((c) => Number(c.id) === Number(session.client_id));
                 const clientName = session.client_name || matchingClient?.name;
                 const trackerName = session.upwork_profile_name || matchingClient?.upwork_profile_name;
-                const canResume = !status.running && !!session.client_id;
+                const canResume = !!session.client_id && !isActive && !busy;
                 return (
                   <button
                     type="button"
@@ -462,12 +857,12 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
                     ].join(' ').trim()}
                     onClick={() => canResume && restartFromSession(session)}
                     disabled={!canResume}
-                    title={canResume ? 'Click to load this work into the start form' : ''}
+                    title={canResume ? (status.running ? 'Switch tracking to this client' : 'Start this client again') : ''}
                   >
                     <div className="today-row-main">
-                      <strong className="today-row-title">{session.task_note || sessionTitle(session, clients)}</strong>
+                      <strong className="today-row-title">{clientName || session.task_note || sessionTitle(session, clients)}</strong>
                       <div className="today-row-meta">
-                        {clientName && <span className="chip chip-client">{clientName}</span>}
+                        {session.task_note && <span className="chip chip-note" title={session.task_note}>{session.task_note}</span>}
                         {session.work_type && <span className="chip chip-worktype">{workTypeLabel(session.work_type)}</span>}
                         {trackerName && <span className="chip chip-tracker">{trackerName}</span>}
                         {isActive && status.paused && <span className="chip chip-paused">Paused</span>}

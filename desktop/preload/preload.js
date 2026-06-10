@@ -11,6 +11,17 @@ const api = {
   },
   settings: {
     setApiBaseUrl: (url) => ipcRenderer.invoke('settings:apiBaseUrl:set', url),
+    getAutoLaunch: () => ipcRenderer.invoke('settings:autoLaunch:get'),
+    setAutoLaunch: (enabled) => ipcRenderer.invoke('settings:autoLaunch:set', enabled),
+    getPrefs: () => ipcRenderer.invoke('settings:prefs:get'),
+    setPrefs: (patch) => ipcRenderer.invoke('settings:prefs:set', patch),
+  },
+  appInfo: {
+    version: () => ipcRenderer.invoke('app:version'),
+  },
+  timeclock: {
+    status: () => ipcRenderer.invoke('timeclock:status'),
+    act: (actionType) => ipcRenderer.invoke('timeclock:act', actionType),
   },
   meta: {
     clients: () => ipcRenderer.invoke('meta:clients'),
@@ -19,6 +30,14 @@ const api = {
     settings: () => ipcRenderer.invoke('meta:settings'),
     todaySessions: () => ipcRenderer.invoke('meta:todaySessions'),
     weekSummary: () => ipcRenderer.invoke('meta:weekSummary'),
+    recentClients: () => ipcRenderer.invoke('meta:recentClients'),
+  },
+  deeplink: {
+    onOpen: (cb) => {
+      const listener = (_e, payload) => cb(payload);
+      ipcRenderer.on('deeplink', listener);
+      return () => ipcRenderer.removeListener('deeplink', listener);
+    },
   },
   tracker: {
     start: (opts) => ipcRenderer.invoke('tracker:start', opts),

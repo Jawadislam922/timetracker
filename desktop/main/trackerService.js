@@ -9,6 +9,7 @@ try { Notification = require('electron').Notification; } catch { /* tests / non-
 
 const api = require('./api');
 const queue = require('./queue');
+const store = require('./store');
 const screenshotService = require('./screenshotService');
 const activityService = require('./activityService');
 const { DEFAULTS } = require('./config');
@@ -253,7 +254,8 @@ class Tracker extends EventEmitter {
       const remaining = Math.max(1, Math.round((autoPauseSec - idle) / 60));
       const message = `You have been idle. Tracking will pause in about ${remaining} min unless you resume working.`;
       this.emit('warning', message);
-      if (Notification) {
+      const idlePref = (store.get('prefs') || {}).idleNotifications;
+      if (Notification && idlePref !== false) {
         try {
           new Notification({ title: 'Timetracker', body: message }).show();
         } catch { /* best effort */ }
@@ -292,7 +294,12 @@ class Tracker extends EventEmitter {
   }
 
   _maybeNotifyScreenshot() {
-    if (!this.settings.notify_on_screenshot || !Notification) return;
+    // Local preference wins when set; otherwise follow the admin setting.
+    const localPref = (store.get('prefs') || {}).notifyScreenshot;
+    const shouldNotify = localPref === null || localPref === undefined
+      ? this.settings.notify_on_screenshot
+      : localPref;
+    if (!shouldNotify || !Notification) return;
     try {
       new Notification({
         title: 'Timetracker',

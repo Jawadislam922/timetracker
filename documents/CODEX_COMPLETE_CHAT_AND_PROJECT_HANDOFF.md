@@ -275,6 +275,141 @@ that will make the tracker feel like a finished product.
 9. Weekly heatmap view on Timeline (7 days at a glance).
 10. Mobile visual audit of all new pages — never done at <768px.
 
+- 2026-06-11 — Local environment seeded for browser testing. The local
+  `time_tracker` database had zero users/clients (all real data lives on the
+  Hostinger staging the desktop app points at). Created a local Super Admin
+  (`jawad@timetracker.test`; password given to Jawad in chat, never stored
+  here) and ran `DemoDataSeeder` (3 demo members, 6 clients, 4 profiles,
+  36 work entries, attendance history; demo password printed by the seeder).
+- 2026-06-11 — Team default `auto_pause_minutes` bumped 1 -> 5 via migration
+  `2026_06_11_000002_relax_auto_pause_default.php` (only when still at the old
+  default) and the model default updated. Parked item #1 done.
+- 2026-06-11 — Web-to-desktop launch (`timetracker://`) IMPLEMENTED locally
+  (code complete; end-to-end verification requires the packaged installer,
+  which is blocked on Windows Developer Mode):
+  - `desktop/main/main.js`: single-instance lock, protocol registration
+    (dev-mode best effort on Windows; clean via installer), `second-instance`/
+    `open-url` handling, deep-link parsing (`timetracker://start?client_id=X`
+    -> renderer `deeplink` event; queued until renderer ready).
+  - `desktop/package.json`: electron-builder `build.protocols` entry so NSIS
+    registers the scheme permanently.
+  - Preload exposes `tt.deeplink.onOpen`; `Tracker.jsx` pre-fills client /
+    work type / note from the link. Never auto-starts tracking.
+  - Web: "Open desktop tracker" button on the Timeline footer navigates to
+    `timetracker://open` with a blur-detection fallback that offers the
+    existing `/desktop-downloads` page when the app is not installed.
+
+- 2026-06-11 — Desktop round 4: day-total orb, clock icon, switch-while-
+  running, and Clock In/Out + Breaks integration: IMPLEMENTED locally.
+  - Orb now always shows TODAY'S TOTAL tracked time (saved sessions + live),
+    so stopping a session no longer "resets" the big number; label switches
+    today/tracking/paused. Proper clock SVG replaces the old "○" glyph.
+  - Client switching works while tracking: Quick-start chips stay visible
+    during a session (label changes to "Switch to"; current client disabled)
+    and Today rows stay clickable — clicking stops the running session
+    (saved) and immediately starts the clicked client with its last work
+    type/description. Idle clicks now also start immediately instead of just
+    pre-filling.
+  - Attendance clock integrated into the desktop app: new Shift bar under
+    the hero with Clock In / Clock Out / Start Break / End Break and a
+    Working / On break / Clocked out status. Backend:
+    `app/Support/TimeClockRules.php` (single source of the transition rules,
+    now also used by the web TimeEntryController),
+    `app/Http/Controllers/Api/Desktop/TimeClockController.php`,
+    routes GET/POST `/api/desktop/time-clock`. Buttons enable/disable from
+    the server's `available` list; 422 messages surface in the app.
+  - Latent bug found and fixed in BOTH web and desktop time clock:
+    "last action" lookups ordered by `action_timestamp` only, which is
+    ambiguous for same-second actions; added `id` desc tiebreaker.
+  - Sequence feature test added (clock-in -> break -> blocked clock-out ->
+    break-end -> clock-out). 91/91 tests, renderer build clean, pint clean.
+
+- 2026-06-11 — Desktop drawer redesign + local preferences + tray (Jawad
+  feedback round 3, comparing side-by-side with scrin.io): IMPLEMENTED locally.
+  - Settings is now a full-height right-side drawer with slide-in animation
+    and dimmed overlay (matches scrin's interaction feel): brand header,
+    "Visit Website" link (opens system browser), tracking-for-myself row,
+    Preferences, read-only Team settings summary, Log out + version footer.
+  - Working local preferences (per machine, electron-store `prefs`):
+    - Launch on system startup — real `app.setLoginItemSettings` integration.
+    - Auto-start tracking on launch — restores the last client/work type/note
+      (persisted to localStorage on every start) and starts automatically.
+    - Show screenshot notifications — local override; falls back to the
+      admin's `notify_on_screenshot` when unset.
+    - Show idle time notifications — gates the pre-pause warning toast.
+    - Minimize to tray — new `desktop/main/tray.js` (runtime-drawn purple-dot
+      icon, no asset needed; Open/Quit menu; click restores). Minimizing
+      hides the window when enabled.
+  - Team settings summary mirrors scrin: screenshots/hr, auto-pause, weekly
+    limit, offline time, activity tracking, app tracking.
+  - Window minimums lowered to 400x560 and the 760px breakpoint already
+    stacks the layout, so the app now works at narrow widths.
+  - NOTE for Jawad's screenshot: the old checkbox panel he compared was the
+    pre-redesign build — the app must be restarted to load these changes.
+  - Parked: custom keyboard shortcuts (Start/Stop, Show/Hide) and
+    "screenshot primary monitor only" toggle (capture is already
+    primary-only). 90/90 tests, renderer build clean.
+
+- 2026-06-11 — Desktop start-form UX overhaul (Jawad feedback round 2):
+  IMPLEMENTED locally.
+  - Searchable dark client picker (`ClientPicker` in
+    `desktop/renderer/src/views/Tracker.jsx`): type-ahead filter, keyboard
+    navigation (arrows/enter/escape), shows the attached profile per row.
+    Replaces the native white `<select>` that was unusable with 1500+ clients.
+  - Work-type `<select>` replaced with segmented Tracker/Manual pills.
+  - Quick-start chips: new `GET /api/desktop/sessions/recent-clients`
+    endpoint (unique clients from the user's last 14 days, newest first,
+    max 6, with last work type + last note). Chips render above the start
+    form when idle; one click pre-fills client + work type + last
+    description. Parked item #3 ("start similar to") satisfied by this.
+  - Today rows now lead with the client name; description moved into the
+    chip row (italic note chip). Running pill shows "Client — note".
+  - Test added: recent-clients uniqueness/order/no-leak. 90/90 passing,
+    renderer build clean, pint clean.
+
+- 2026-06-11 — Developer page added (Jawad request: "a developer page where I
+  can change things easily"): IMPLEMENTED locally.
+  - `app/Http/Controllers/DeveloperController.php` +
+    `resources/js/Pages/Developer/Index.jsx`, routes `/developer`,
+    `/developer/run`, `/developer/logs`. Super Admin only — authorisation is
+    enforced inside the controller (no grantable permission, intentionally).
+  - Sections: System info (env, debug, URLs, PHP/Laravel versions, DB,
+    cache/session/queue drivers, config/routes cached flags, web + desktop
+    build timestamps, git branch/commit/dirty count), Health checks (DB ping,
+    cache round-trip, public + screenshots disks writable, Slack webhook
+    configured, pending migrations), Scheduled jobs status, and a Logs tail
+    (last 300 lines of the newest laravel log).
+  - Actions are a fixed whitelist (never arbitrary input): optimize,
+    optimize:clear (with the "breaks tests until cleared" warning), migrate
+    (local env only), Slack webhook test message, activity digest preview
+    (builds the text, sends nothing), screenshot retention dry-run. Output is
+    shown in a terminal-style panel on the page.
+  - Nav: "Developer" appears in the avatar dropdown (desktop) and the mobile
+    menu, only for Super Admins.
+  - 6 feature tests in `tests/Feature/DeveloperPageTest.php` (403 for member
+    and admin, page loads for super admin, unknown action rejected, digest
+    preview produces output, prune dry-run safe, logs endpoint shape).
+    89/89 tests passing; npm run build clean; pint clean.
+
+- 2026-06-11 — Upwork profile not picked up by desktop + Individual settings
+  editors missing (Jawad testing): FIXED locally.
+  - Upwork profile root cause: clients link their profile via the newer
+    `client_upwork_profile` many-to-many pivot. `clients.upwork_profile_id`
+    is NULL on production rows. The desktop `MetaController::clients` and
+    `SessionController::start` only read the legacy `belongsTo` column, so
+    the desktop's Tracker chip showed "Not attached" and auto-created
+    work_hours had no tracker name. Both endpoints now load `upworkProfiles`
+    (pivot) and fall back to its first entry when the legacy column is null.
+    Verified by 2 new tests in `tests/Feature/DesktopApiTest.php`.
+  - Settings page Individual settings: the toggles only enabled/disabled
+    inheritance — there was no per-user editor, so admins could not actually
+    change a user's value. `IndividualSettings` rewritten in
+    `resources/js/Pages/Settings/Index.jsx` to expand an editor row below
+    each user when their override is on. Screenshots, Activity Level,
+    App & URL, Weekly limit, Auto-pause, Offline time, Notify, and Desktop
+    app sections now expose per-user value controls.
+  - Verified: 83/83 tests pass (was 81), npm run build clean, pint clean.
+
 - 2026-06-11 — Pause-on-idle + rich Today rows + click-to-resume + polish
   (Jawad testing): FIXED locally.
   - `desktop/main/trackerService.js` now implements real pause/resume instead

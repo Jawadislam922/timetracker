@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Desktop\AuthController as DesktopAuthController;
 use App\Http\Controllers\Api\Desktop\MetaController as DesktopMetaController;
 use App\Http\Controllers\Api\Desktop\ScreenshotController as DesktopScreenshotController;
 use App\Http\Controllers\Api\Desktop\SessionController as DesktopSessionController;
+use App\Http\Controllers\Api\Desktop\TimeClockController as DesktopTimeClockController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -45,6 +46,10 @@ Route::prefix('desktop')->group(function () {
         Route::post('/sessions/{session}/stop', [DesktopSessionController::class, 'stop'])->name('desktop.sessions.stop');
         Route::get('/sessions/today', [DesktopSessionController::class, 'today'])->name('desktop.sessions.today');
         Route::get('/sessions/week', [DesktopSessionController::class, 'week'])->name('desktop.sessions.week');
+        Route::get('/sessions/recent-clients', [DesktopSessionController::class, 'recentClients'])->name('desktop.sessions.recent-clients');
+
+        Route::get('/time-clock', [DesktopTimeClockController::class, 'status'])->name('desktop.time-clock.status');
+        Route::post('/time-clock', [DesktopTimeClockController::class, 'act'])->name('desktop.time-clock.act');
 
         Route::post('/screenshots', [DesktopScreenshotController::class, 'store'])->name('desktop.screenshots.store');
         Route::post('/activity/batch', [DesktopActivityController::class, 'batch'])->name('desktop.activity.batch');

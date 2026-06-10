@@ -58,6 +58,12 @@
       "node_modules/better-sqlite3/**/*",
       "node_modules/screenshot-desktop/**/*"
     ],
+    "protocols": [
+      {
+        "name": "Timetracker",
+        "schemes": ["timetracker"]
+      }
+    ],
     "win": {
       "signAndEditExecutable": false,
       "target": [

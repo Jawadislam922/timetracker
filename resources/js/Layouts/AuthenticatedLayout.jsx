@@ -16,6 +16,7 @@ import {
     Settings as SettingsIcon,
     UserCircle,
     Users,
+    Wrench,
     X,
 } from 'lucide-react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
@@ -179,6 +180,14 @@ export default function Authenticated({ user, header, children }) {
                                             Profile
                                         </span>
                                     </Dropdown.Link>
+                                    {user?.is_super_admin && (
+                                        <Dropdown.Link href={route('developer.index')}>
+                                            <span className="flex items-center gap-2">
+                                                <Wrench className="h-4 w-4" />
+                                                Developer
+                                            </span>
+                                        </Dropdown.Link>
+                                    )}
                                     <Dropdown.Link href={route('logout')} method="post" as="button">
                                         <span className="flex items-center gap-2">
                                             <LogOut className="h-4 w-4" />
@@ -235,6 +244,15 @@ export default function Authenticated({ user, header, children }) {
                                     <UserCircle className="h-4 w-4" />
                                     Profile Settings
                                 </Link>
+                                {user?.is_super_admin && (
+                                    <Link
+                                        href={route('developer.index')}
+                                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                    >
+                                        <Wrench className="h-4 w-4" />
+                                        Developer
+                                    </Link>
+                                )}
                                 <Link
                                     href={route('logout')}
                                     method="post"

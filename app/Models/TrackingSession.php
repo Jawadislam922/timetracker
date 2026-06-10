@@ -37,7 +37,9 @@ class TrackingSession extends Model
     ];
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_STOPPED = 'stopped';
+
     public const STATUS_ABANDONED = 'abandoned';
 
     public function user()

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use App\Models\User;
+use App\Support\TimeClockRules;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,6 +53,7 @@ class TimeEntryController extends Controller
         $lastAction = TimeEntry::forUser($user->id)
             ->forDate($attendanceDate)
             ->orderBy('action_timestamp', 'desc')
+            ->orderBy('id', 'desc')
             ->value('action_type');
 
         if (! $this->isActionAllowed($lastAction, $actionType)) {
@@ -85,30 +87,12 @@ class TimeEntryController extends Controller
 
     private function isActionAllowed(?string $lastAction, string $nextAction): bool
     {
-        if ($lastAction === null) {
-            return $nextAction === 'clock_in';
-        }
-
-        return match ($lastAction) {
-            'clock_in' => in_array($nextAction, ['clock_out', 'break_start'], true),
-            'break_start' => $nextAction === 'break_end',
-            'break_end' => in_array($nextAction, ['clock_out', 'break_start'], true),
-            'clock_out' => $nextAction === 'clock_in',
-            default => false,
-        };
+        return TimeClockRules::isAllowed($lastAction, $nextAction);
     }
 
     private function blockedActionMessage(?string $lastAction, string $nextAction): string
     {
-        if ($lastAction === null) {
-            return 'Please clock in before recording another action.';
-        }
-
-        if ($lastAction === 'break_start' && $nextAction === 'clock_out') {
-            return 'Please end your break before clocking out.';
-        }
-
-        return 'This time action is not available from your current status.';
+        return TimeClockRules::blockedMessage($lastAction, $nextAction);
     }
 
     public function export(Request $request)

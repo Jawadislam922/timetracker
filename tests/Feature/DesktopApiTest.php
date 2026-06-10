@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\GenerateScreenshotThumbnail;
 use App\Models\Client;
+use App\Models\TimeEntry;
 use App\Models\TrackingActivitySample;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
@@ -77,6 +78,50 @@ class DesktopApiTest extends TestCase
 
         $this->assertSame($first->json('id'), $second->json('id'));
         $this->assertSame(1, TrackingSession::count());
+    }
+
+    public function test_clients_endpoint_returns_profile_via_pivot_when_legacy_column_is_null(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $profile = UpworkProfile::create(['name' => 'Pivot Profile']);
+        $client = Client::create([
+            'name' => 'Pivot Client',
+            'work_type' => 'fixed',
+            'upwork_profile_id' => null, // legacy column unset
+        ]);
+        $client->upworkProfiles()->attach($profile->id);
+
+        $response = $this->getJson('/api/desktop/clients')->assertOk();
+        $row = collect($response->json('clients'))->firstWhere('id', $client->id);
+
+        $this->assertSame($profile->id, $row['upwork_profile_id']);
+        $this->assertSame('Pivot Profile', $row['upwork_profile_name']);
+    }
+
+    public function test_session_start_derives_profile_from_pivot_when_legacy_column_is_null(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $profile = UpworkProfile::create(['name' => 'Pivot Tracker']);
+        $client = Client::create([
+            'name' => 'Pivot Client For Session',
+            'work_type' => 'fixed',
+            'upwork_profile_id' => null,
+        ]);
+        $client->upworkProfiles()->attach($profile->id);
+
+        $response = $this->postJson('/api/desktop/sessions/start', [
+            'client_uuid' => 'uuid-pivot-derived',
+            'started_at' => now()->toIso8601String(),
+            'client_id' => $client->id,
+            'task_note' => 'Pivot session',
+        ])->assertStatus(201);
+
+        $session = TrackingSession::find($response->json('id'));
+        $this->assertSame($profile->id, $session->upwork_profile_id);
     }
 
     public function test_session_start_uses_user_work_type_and_derives_profile_from_client(): void
@@ -256,6 +301,82 @@ class DesktopApiTest extends TestCase
         $this->assertTrue($days[6]['is_today']);
         $this->assertSame(3600, $days[6]['total_seconds']);
         $this->assertSame(1800, $days[4]['total_seconds']);
+    }
+
+    public function test_recent_clients_returns_unique_clients_newest_first(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $clientA = Client::create(['name' => 'Client A', 'work_type' => 'tracker_manual']);
+        $clientB = Client::create(['name' => 'Client B', 'work_type' => 'fixed']);
+
+        // Two sessions for A (older + newest) and one for B in between.
+        TrackingSession::create([
+            'user_id' => $user->id, 'client_uuid' => 'uuid-rc-1', 'client_id' => $clientA->id,
+            'work_type' => 'tracker', 'task_note' => 'old A note',
+            'started_at' => now()->subDays(3), 'status' => 'stopped', 'source' => 'desktop',
+        ]);
+        TrackingSession::create([
+            'user_id' => $user->id, 'client_uuid' => 'uuid-rc-2', 'client_id' => $clientB->id,
+            'work_type' => 'fixed', 'task_note' => 'B note',
+            'started_at' => now()->subDays(2), 'status' => 'stopped', 'source' => 'desktop',
+        ]);
+        TrackingSession::create([
+            'user_id' => $user->id, 'client_uuid' => 'uuid-rc-3', 'client_id' => $clientA->id,
+            'work_type' => 'manual', 'task_note' => 'newest A note',
+            'started_at' => now()->subDay(), 'status' => 'stopped', 'source' => 'desktop',
+        ]);
+        // Other user's session must not leak.
+        TrackingSession::create([
+            'user_id' => User::factory()->create()->id, 'client_uuid' => 'uuid-rc-4', 'client_id' => $clientB->id,
+            'started_at' => now(), 'status' => 'stopped', 'source' => 'desktop',
+        ]);
+
+        $rows = $this->getJson('/api/desktop/sessions/recent-clients')
+            ->assertOk()
+            ->json('clients');
+
+        $this->assertCount(2, $rows);
+        $this->assertSame($clientA->id, $rows[0]['client_id']);
+        $this->assertSame('manual', $rows[0]['last_work_type']);
+        $this->assertSame('newest A note', $rows[0]['last_task_note']);
+        $this->assertSame($clientB->id, $rows[1]['client_id']);
+    }
+
+    public function test_time_clock_enforces_action_sequence(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        // Fresh day: only clock_in is available.
+        $this->getJson('/api/desktop/time-clock')
+            ->assertOk()
+            ->assertJsonPath('last_action', null)
+            ->assertJsonPath('available', ['clock_in']);
+
+        // Break before clocking in is rejected with the human message.
+        $this->postJson('/api/desktop/time-clock', ['action_type' => 'break_start'])
+            ->assertStatus(422);
+
+        $this->postJson('/api/desktop/time-clock', ['action_type' => 'clock_in'])
+            ->assertStatus(201)
+            ->assertJsonPath('last_action', 'clock_in');
+
+        $this->postJson('/api/desktop/time-clock', ['action_type' => 'break_start'])
+            ->assertStatus(201);
+
+        // Cannot clock out while on break.
+        $this->postJson('/api/desktop/time-clock', ['action_type' => 'clock_out'])
+            ->assertStatus(422);
+
+        $this->postJson('/api/desktop/time-clock', ['action_type' => 'break_end'])
+            ->assertStatus(201);
+        $this->postJson('/api/desktop/time-clock', ['action_type' => 'clock_out'])
+            ->assertStatus(201)
+            ->assertJsonPath('available', ['clock_in']);
+
+        $this->assertSame(4, TimeEntry::where('user_id', $user->id)->count());
     }
 
     public function test_screenshot_upload_persists_file_and_dispatches_thumbnail_job(): void

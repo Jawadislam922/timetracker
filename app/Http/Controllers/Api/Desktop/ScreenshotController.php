@@ -9,7 +9,6 @@ use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Storage;
 
 class ScreenshotController extends Controller
 {

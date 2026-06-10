@@ -99,6 +99,27 @@ async function weekSummary() {
   return res.data.days;
 }
 
+async function recentClients() {
+  const res = await client().get('/sessions/recent-clients');
+  return res.data.clients;
+}
+
+async function timeClockStatus() {
+  const res = await client().get('/time-clock');
+  return res.data;
+}
+
+async function timeClockAct(actionType) {
+  try {
+    const res = await client().post('/time-clock', { action_type: actionType });
+    return res.data;
+  } catch (err) {
+    // Surface the server's human message through the IPC boundary (which
+    // only carries Error.message).
+    throw new Error(err.response?.data?.message || err.message);
+  }
+}
+
 async function uploadScreenshot(localPath, payload) {
   const form = new FormData();
   form.append('tracking_session_id', String(payload.tracking_session_id));
@@ -148,6 +169,9 @@ module.exports = {
   stopSession,
   todaySessions,
   weekSummary,
+  recentClients,
+  timeClockStatus,
+  timeClockAct,
   uploadScreenshot,
   sendActivityBatch,
   isOnline,

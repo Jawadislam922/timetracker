@@ -87,7 +87,7 @@ class MonitoringSetting extends Model
                 'activity_tracking_enabled' => true,
                 'app_url_tracking_enabled' => false,
                 'weekly_time_limit_hours' => null,
-                'auto_pause_minutes' => 1,
+                'auto_pause_minutes' => 5,
                 'allow_offline_time' => false,
                 'notify_on_screenshot' => false,
                 'week_starts_on' => 'monday',

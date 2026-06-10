@@ -24,8 +24,13 @@ class SessionController extends Controller
         $user = $request->user();
         $data = $request->validated();
         $client = isset($data['client_id'])
-            ? Client::query()->find($data['client_id'])
+            ? Client::query()->with('upworkProfiles:id')->find($data['client_id'])
             : null;
+
+        // The client may have its profile linked via the legacy column OR the
+        // newer client_upwork_profile pivot. Fall through both.
+        $derivedProfileId = $client?->upwork_profile_id
+            ?? $client?->upworkProfiles->first()?->id;
 
         $session = TrackingSession::firstOrCreate(
             [
@@ -34,7 +39,7 @@ class SessionController extends Controller
             ],
             [
                 'client_id' => $data['client_id'] ?? null,
-                'upwork_profile_id' => $client?->upwork_profile_id ?? ($data['upwork_profile_id'] ?? null),
+                'upwork_profile_id' => $derivedProfileId ?? ($data['upwork_profile_id'] ?? null),
                 // Prefer the per-entry work type the user picked in the desktop
                 // app (tracker/manual/fixed/...). Fall back to deriving from the
                 // client, and never store the client-level "tracker_manual"
@@ -169,6 +174,36 @@ class SessionController extends Controller
         }
 
         return response()->json(['days' => $days]);
+    }
+
+    /**
+     * The user's most recent distinct clients (last 14 days), newest first.
+     * Powers the desktop quick-start chips so switching between regular
+     * clients is one click.
+     */
+    public function recentClients(Request $request): JsonResponse
+    {
+        $sessions = TrackingSession::forUser($request->user()->id)
+            ->with('client:id,name')
+            ->whereNotNull('client_id')
+            ->where('started_at', '>=', now()->subDays(14))
+            ->orderByDesc('started_at')
+            ->get(['id', 'client_id', 'work_type', 'task_note', 'started_at']);
+
+        $clients = $sessions
+            ->unique('client_id')
+            ->take(6)
+            ->filter(fn (TrackingSession $session) => $session->client !== null)
+            ->map(fn (TrackingSession $session) => [
+                'client_id' => $session->client_id,
+                'client_name' => $session->client->name,
+                'last_work_type' => $session->work_type,
+                'last_task_note' => $session->task_note,
+                'last_started_at' => $session->started_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json(['clients' => $clients]);
     }
 
     public function today(Request $request): JsonResponse

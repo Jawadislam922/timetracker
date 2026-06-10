@@ -6,6 +6,7 @@ use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -64,16 +65,25 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
+        // Only fetch team settings for authenticated pages; guests don't render
+        // anything that needs them, so this skips a DB hit on /login and other
+        // public routes. Cached for 60s so repeated authenticated requests
+        // don't re-query the monitoring_settings table.
         $teamSettings = null;
-        try {
-            $row = MonitoringSetting::current();
-            $teamSettings = [
-                'allow_offline_time' => (bool) $row->allow_offline_time,
-                'currency_symbol' => $row->currency_symbol,
-                'week_starts_on' => $row->week_starts_on,
-            ];
-        } catch (\Throwable $e) {
-            $teamSettings = null;
+        if ($user) {
+            try {
+                $teamSettings = Cache::remember('monitoring_settings.shared', 60, function () {
+                    $row = MonitoringSetting::current();
+
+                    return [
+                        'allow_offline_time' => (bool) $row->allow_offline_time,
+                        'currency_symbol' => $row->currency_symbol,
+                        'week_starts_on' => $row->week_starts_on,
+                    ];
+                });
+            } catch (\Throwable $e) {
+                $teamSettings = null;
+            }
         }
 
         $canCreateManualWorkHour = false;
