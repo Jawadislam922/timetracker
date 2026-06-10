@@ -178,6 +178,54 @@ Recovery (completed the same evening):
   uploads-backup-2026-06-10-1845.tar.gz, plus two .env backups in the
   public_html folder.
 
+## macOS Desktop Build (prepared 2026-06-11; to be run on Jawad's spare Mac)
+
+Everything is pre-wired from the Windows side. A Claude Code session running
+ON THE MAC should follow these steps exactly.
+
+Prompt for that session:
+
+> Read documents/CODEX_COMPLETE_CHAT_AND_PROJECT_HANDOFF.md section "macOS
+> Desktop Build". Build, test, and upload the macOS desktop app per those
+> steps. Do not change product code unless a build error requires it.
+
+Steps:
+
+1. Prerequisites on the Mac: Xcode Command Line Tools (`xcode-select
+   --install`), Node 20+, git.
+2. `git clone https://github.com/jawadislam92/timetracker.git && cd
+   timetracker && git checkout jawad` (or pull if already cloned).
+3. `cd desktop && npm ci`
+4. `npm run rebuild` (compiles better-sqlite3 + uiohook-napi for mac).
+5. `npm run dev` first — log in against
+   `https://timetracker.sparkingasia.com`, start a session, and approve the
+   two macOS permission prompts (System Settings -> Privacy & Security):
+   - Screen Recording (screenshots + window titles)
+   - Accessibility (keyboard/mouse activity counts)
+   Verify: timer runs, screenshot appears in web Timeline, activity % > 0,
+   pause-on-idle works, tray + drawer render. On macOS `active-win` returns
+   browser URLs natively, so url_domain SHOULD populate — verify in the
+   Timeline Apps & URLs tab and note the result in this doc.
+6. `npm run dist:mac` — produces `desktop/dist-app/Timetracker
+   Desktop-0.1.0-arm64.dmg` (unsigned: `mac.identity` is null on purpose).
+7. Install from the DMG; first launch needs right-click -> Open (unsigned
+   Gatekeeper flow). Re-verify tracking works from the installed app.
+8. Upload to the server (port 65002):
+   `scp -P 65002 "dist-app/Timetracker Desktop-0.1.0-arm64.dmg" \
+   u406855808@31.170.164.232:domains/timetracker.sparkingasia.com/public_html/storage/app/desktop-installers/`
+   (password auth; Jawad has it. Or use hPanel File Manager.)
+   The web /desktop-downloads page detects the file automatically — the
+   accepted filenames are listed in DesktopDownloadController::MAC_INSTALLERS.
+9. Verify the macOS card on https://timetracker.sparkingasia.com/desktop-downloads
+   shows the download and the sha256.
+
+Signing/notarization (later, when product-ready): enroll in the Apple
+Developer Program ($99/yr), set `mac.identity` to the Developer ID cert name,
+`hardenedRuntime: true` plus an entitlements plist (allow-jit,
+allow-unsigned-executable-memory, disable-library-validation for the native
+modules), and add notarize credentials. Until then the right-click->Open
+flow is the documented install path for the team.
+
 ## Scrin.io Monitoring Suite (Claude Session, 2026-06-10, Local Only)
 
 A separate Claude Code session built a large scrin.io-parity monitoring suite

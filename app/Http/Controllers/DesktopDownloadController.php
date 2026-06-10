@@ -11,9 +11,22 @@ class DesktopDownloadController extends Controller
 
     private const WINDOWS_VERSION = '0.1.0';
 
+    private const MAC_VERSION = '0.1.0';
+
+    /**
+     * Accepted macOS artifact names, preferred first. The Mac build produces
+     * an arm64 dmg on Apple Silicon; Intel/universal names are accepted too.
+     */
+    private const MAC_INSTALLERS = [
+        'Timetracker Desktop-0.1.0-universal.dmg',
+        'Timetracker Desktop-0.1.0-arm64.dmg',
+        'Timetracker Desktop-0.1.0.dmg',
+    ];
+
     public function index()
     {
         $windows = $this->windowsInstaller();
+        $mac = $this->macInstaller();
 
         return Inertia::render('DesktopDownloads', [
             'downloads' => [
@@ -26,12 +39,12 @@ class DesktopDownloadController extends Controller
                     'url' => $windows ? route('desktop-downloads.windows') : null,
                 ],
                 'mac' => [
-                    'available' => false,
-                    'version' => null,
-                    'filename' => null,
-                    'size' => null,
-                    'sha256' => null,
-                    'url' => null,
+                    'available' => $mac !== null,
+                    'version' => $mac ? self::MAC_VERSION : null,
+                    'filename' => $mac ? basename($mac) : null,
+                    'size' => $mac ? File::size($mac) : null,
+                    'sha256' => $mac ? hash_file('sha256', $mac) : null,
+                    'url' => $mac ? route('desktop-downloads.mac') : null,
                 ],
             ],
         ]);
@@ -49,6 +62,18 @@ class DesktopDownloadController extends Controller
         ]);
     }
 
+    public function mac()
+    {
+        $path = $this->macInstaller();
+
+        abort_unless($path, 404);
+
+        return response()->download($path, basename($path), [
+            'Content-Type' => 'application/x-apple-diskimage',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     private function windowsInstaller(): ?string
     {
         $candidates = [
@@ -59,6 +84,19 @@ class DesktopDownloadController extends Controller
         foreach ($candidates as $path) {
             if (File::isFile($path)) {
                 return $path;
+            }
+        }
+
+        return null;
+    }
+
+    private function macInstaller(): ?string
+    {
+        foreach (self::MAC_INSTALLERS as $name) {
+            foreach ([storage_path('app/desktop-installers/'.$name), base_path('desktop/dist-app/'.$name)] as $path) {
+                if (File::isFile($path)) {
+                    return $path;
+                }
             }
         }
 
