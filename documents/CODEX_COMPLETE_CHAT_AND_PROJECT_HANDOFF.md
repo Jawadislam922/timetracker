@@ -151,6 +151,24 @@ approval and deployed:
   (login, Settings, Timeline, Team, Developer, download button) on
   production.
 
+## Installer downloads made deploy-proof (2026-06-11, commit 0cee833)
+
+Both installers kept disappearing from /desktop-downloads because Hostinger's
+git auto-deploy wipes untracked files inside the deployed public_html tree
+(storage/app/desktop-installers included) on every push — but it preserves
+`.env`. Fix:
+
+- Installers now live in `~/desktop-installers/` on the server (home dir,
+  OUTSIDE every public_html tree, so deploys never touch them).
+- `DESKTOP_INSTALLERS_PATH=/home/u406855808/desktop-installers` set in the
+  production `.env`; `config/desktop.php` exposes it; DesktopDownloadController
+  checks it first, then the old storage/base paths as dev fallbacks.
+- Windows exe re-uploaded there (80MB, resolves correctly — verified).
+- macOS DMG still needs ONE upload from the Mac to `~/desktop-installers/`
+  (it was wiped; not rebuildable on Windows). After that it persists forever.
+- Any future installer upload goes to `~/desktop-installers/`, never
+  storage/app.
+
 ## Production Incident + Recovery (2026-06-10, same evening)
 
 Shortly after the deployment above, the lightseagreen temporary-domain
@@ -219,10 +237,16 @@ Steps:
    Desktop-0.1.0-arm64.dmg` (unsigned: `mac.identity` is null on purpose).
 7. Install from the DMG; first launch needs right-click -> Open (unsigned
    Gatekeeper flow). Re-verify tracking works from the installed app.
-8. Upload to the server (port 65002):
+8. Upload to the server (port 65002) — UPLOAD TO THE STABLE PATH, NOT
+   storage/app. Hostinger's git auto-deploy wipes untracked files inside
+   public_html on every push, so installers there vanish. The deploy-proof
+   location is `~/desktop-installers/` (home dir, outside public_html), and
+   `DESKTOP_INSTALLERS_PATH=/home/u406855808/desktop-installers` is set in the
+   production `.env`. The controller checks that path first.
    `scp -P 65002 "dist-app/Timetracker Desktop-0.1.0-arm64.dmg" \
-   u406855808@31.170.164.232:domains/timetracker.sparkingasia.com/public_html/storage/app/desktop-installers/`
-   (password auth; Jawad has it. Or use hPanel File Manager.)
+   u406855808@31.170.164.232:desktop-installers/`
+   (password auth; Jawad has it. Or use hPanel File Manager -> upload into the
+   `desktop-installers` folder in the account home.)
    The web /desktop-downloads page detects the file automatically — the
    accepted filenames are listed in DesktopDownloadController::MAC_INSTALLERS.
 9. Verify the macOS card on https://timetracker.sparkingasia.com/desktop-downloads
