@@ -359,8 +359,10 @@ class Tracker extends EventEmitter {
     // Auto-pause: freeze the timer when idle exceeds the configured threshold.
     // The session stays open; we resume automatically when the user is active
     // again. (Different from stop, which ends the session entirely.)
+    // `snap.idle_seconds` is clamped to the sample interval, so it can never
+    // reach a multi-minute threshold; use the raw system idle clock here.
     const autoPauseMin = Number(this.settings.auto_pause_minutes || 0);
-    if (autoPauseMin > 0 && snap.idle_seconds >= autoPauseMin * 60) {
+    if (autoPauseMin > 0 && activityService.getSystemIdleSeconds() >= autoPauseMin * 60) {
       this._pauseSession(`Auto-paused after ${autoPauseMin} min of inactivity. Tracking resumes when you're back.`);
       return;
     }
