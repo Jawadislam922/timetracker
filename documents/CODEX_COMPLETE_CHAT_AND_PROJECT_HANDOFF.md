@@ -164,10 +164,16 @@ git auto-deploy wipes untracked files inside the deployed public_html tree
   production `.env`; `config/desktop.php` exposes it; DesktopDownloadController
   checks it first, then the old storage/base paths as dev fallbacks.
 - Windows exe re-uploaded there (80MB, resolves correctly — verified).
-- macOS DMG still needs ONE upload from the Mac to `~/desktop-installers/`
-  (it was wiped; not rebuildable on Windows). After that it persists forever.
 - Any future installer upload goes to `~/desktop-installers/`, never
   storage/app.
+
+Both installers now live and deploy-proof (2026-06-11):
+- Windows: `Timetracker Desktop Setup 0.1.0.exe` (80MB, sha256 baac6be3…).
+- macOS: `Timetracker Desktop-0.1.0-arm64.dmg` (112MB, sha256 99f153ed…) —
+  the signed DMG from the Mac session, also published as a GitHub release
+  `desktop-v0.1.0-mac`. Downloaded from that release on the Windows PC
+  (checksum verified) and uploaded to `~/desktop-installers/`; the controller
+  prefers the .dmg over any .zip. /desktop-downloads serves both.
 
 ## Production Incident + Recovery (2026-06-10, same evening)
 
