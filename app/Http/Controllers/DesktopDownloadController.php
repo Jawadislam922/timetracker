@@ -14,13 +14,17 @@ class DesktopDownloadController extends Controller
     private const MAC_VERSION = '0.1.0';
 
     /**
-     * Accepted macOS artifact names, preferred first. The Mac build produces
-     * an arm64 dmg on Apple Silicon; Intel/universal names are accepted too.
+     * Accepted macOS artifact names, preferred first. A DMG is preferred, but
+     * a zipped .app bundle is a perfectly valid distribution too (download,
+     * unzip, drag to Applications).
      */
     private const MAC_INSTALLERS = [
         'Timetracker Desktop-0.1.0-universal.dmg',
         'Timetracker Desktop-0.1.0-arm64.dmg',
         'Timetracker Desktop-0.1.0.dmg',
+        'Timetracker Desktop-0.1.0-arm64-mac.zip',
+        'Timetracker Desktop-0.1.0-mac.zip',
+        'Timetracker Desktop.app.zip',
     ];
 
     public function index()
@@ -68,8 +72,12 @@ class DesktopDownloadController extends Controller
 
         abort_unless($path, 404);
 
+        $contentType = str_ends_with(strtolower($path), '.zip')
+            ? 'application/zip'
+            : 'application/x-apple-diskimage';
+
         return response()->download($path, basename($path), [
-            'Content-Type' => 'application/x-apple-diskimage',
+            'Content-Type' => $contentType,
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
