@@ -190,7 +190,10 @@ input, textarea, select { user-select: text; }
 .week-labels {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  max-width: 280px;
+  /* Mirror .week-chart's geometry (310px box, 38px axis gutter) so each
+     label sits exactly over its bar column. */
+  max-width: 310px;
+  padding-right: 38px;
   margin-left: auto;
   color: var(--muted);
   font-size: 12px;
