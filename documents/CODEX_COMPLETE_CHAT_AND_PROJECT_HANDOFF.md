@@ -339,7 +339,12 @@ Existing behavior, not a Mac issue — worth a look someday.
    macOS half is RESOLVED (works via Automation permission; document THREE
    mac permissions in any user-facing install guide: Screen Recording,
    Accessibility, Automation per browser).
-2. "Next Actions" item 2 (live settings refresh while running) — still open.
+2. "Next Actions" item 2 (live settings refresh while running) — ALREADY
+   DONE in commit 0ffdab0 (Windows session): trackerService
+   `_refreshAndApplySettings` re-fetches per-user settings every 120s while a
+   session runs and re-applies screenshot cadence / activity sampling /
+   auto-pause; ipc.js idle-refreshes every 120s when not running. Verified
+   2026-06-11. No further work needed.
 3. Jawad's running bug list (item 3) — ask him for the next issue; the
    auto-pause and week-chart bugs from his list are fixed (commits above).
 4. macOS rough edges for later: ad-hoc signing re-prompts permissions once
