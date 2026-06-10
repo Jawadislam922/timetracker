@@ -118,6 +118,66 @@ the released attendance commit, including `app/Models/User.php`,
 `routes/api.php`, and `routes/web.php`. Preserve those hunks unless Jawad
 explicitly decides to discard or redesign the monitoring experiment.
 
+## Production Deployment 2026-06-10/11 (Claude Session)
+
+Commit `0ffdab0` (desktop shift clock, drawer, client switching, developer
+panel — full suite) was pushed to `origin/jawad` with Jawad's explicit
+approval and deployed:
+
+- Hostinger auto-deploy pulled `0ffdab0` into BOTH site folders.
+- Discovery: there are TWO deployment folders. The REAL production (working
+  DB, 54 users) is `~/domains/lightseagreen-scorpion-756540.hostingersite.com/
+  public_html`. `~/domains/timetracker.sparkingasia.com/public_html` is the
+  custom-domain folder and had a broken `.env` (wrong DB credentials) — its
+  DB-backed pages were failing while /login still rendered 200.
+- Deployed on lightseagreen: DB backup (`~/db-backup-2026-06-10-1845.sql`,
+  4.2MB) + uploads tar, `composer install --no-dev`, `php artisan migrate
+  --force` (only `2026_06_11_000002_relax_auto_pause_default` was pending —
+  everything else was already applied), `optimize`. Verified users=54,
+  auto-pause=5.
+- Repaired sparkingasia folder: backed up its `.env`, synced `APP_KEY` +
+  `DB_*` from the working env server-side (secrets never displayed),
+  composer install, optimize. Verified DB-OK users=54. Both domains now
+  serve the same app + database.
+- Installer `Timetracker Desktop Setup 0.1.0.exe` (80MB) built locally
+  (Windows Developer Mode enabled fixed the NSIS symlink failure) and
+  uploaded to `storage/app/desktop-installers/` in BOTH folders; the
+  authenticated download page at `/desktop-downloads` serves it.
+- SSH key auth for deploys was set up from Jawad's PC
+  (`~/.ssh/id_ed25519`, key comment `claude-deploy@jawad-pc`, port 65002,
+  host 31.170.164.232).
+- Post-deploy checks: /login 200 on both domains; desktop API routes
+  redirect unauthenticated as expected. Jawad still to do a browser pass
+  (login, Settings, Timeline, Team, Developer, download button) on
+  production.
+
+## Production Incident + Recovery (2026-06-10, same evening)
+
+Shortly after the deployment above, the lightseagreen temporary-domain
+website was deleted in hPanel. Hostinger dropped its MySQL database/user
+(`u406855808_timetracker`) with it — which BOTH folders used — taking the
+whole app down (500 after login, web and CLI).
+
+Recovery (completed the same evening):
+
+- The pre-deploy backup `~/db-backup-2026-06-10-1845.sql` (4.2MB, taken ~20
+  minutes before the deletion) contained everything. No data lost.
+- Jawad created a fresh DB in hPanel: database `u406855808_timetracker`,
+  user `u406855808_trackerspark` (password set 2026-06-10, lives only in the
+  server `.env`; it was pasted in chat during recovery, so treat it as
+  exposed and rotate when convenient).
+- `.env` updated server-side, dump imported, caches rebuilt, lsphp workers
+  killed. Verified: users=54, web login probe returns proper 422 for wrong
+  credentials, /login 200.
+- `timetracker.sparkingasia.com` is now the ONLY deployment (the dual-folder
+  setup is gone — accidental but welcome consolidation).
+- FOLLOW-UP for all desktop users: the app's server URL must be changed from
+  the dead `lightseagreen-scorpion-756540.hostingersite.com` to
+  `https://timetracker.sparkingasia.com` on the desktop login screen.
+- Backups parked in `~` on the server: db-backup-2026-06-10-1845.sql,
+  uploads-backup-2026-06-10-1845.tar.gz, plus two .env backups in the
+  public_html folder.
+
 ## Scrin.io Monitoring Suite (Claude Session, 2026-06-10, Local Only)
 
 A separate Claude Code session built a large scrin.io-parity monitoring suite

@@ -25,11 +25,16 @@ class ActivityDigestService
      */
     public function buildPayload(CarbonInterface $start, CarbonInterface $end): array
     {
+        // Align bounds with the storage timezone (app.timezone).
+        $storageTz = config('app.timezone', 'Asia/Karachi');
+        $rangeStart = $start->copy()->setTimezone($storageTz);
+        $rangeEnd = $end->copy()->setTimezone($storageTz);
+
         $sessions = TrackingSession::with('client:id,name')
-            ->whereBetween('started_at', [$start, $end])
+            ->whereBetween('started_at', [$rangeStart, $rangeEnd])
             ->get(['id', 'user_id', 'client_id', 'started_at', 'total_seconds', 'activity_percent']);
 
-        $samples = TrackingActivitySample::whereBetween('captured_at', [$start, $end])
+        $samples = TrackingActivitySample::whereBetween('captured_at', [$rangeStart, $rangeEnd])
             ->get(['id', 'user_id', 'tracking_session_id', 'captured_at', 'keyboard_count', 'mouse_count', 'idle_seconds', 'active_app']);
 
         $userIds = $sessions->pluck('user_id')->merge($samples->pluck('user_id'))->unique();

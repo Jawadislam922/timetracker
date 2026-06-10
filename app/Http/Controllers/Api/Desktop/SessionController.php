@@ -10,6 +10,7 @@ use App\Models\Client;
 use App\Models\TrackingSession;
 use App\Models\UpworkProfile;
 use App\Models\WorkHour;
+use App\Support\BusinessTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -153,14 +154,17 @@ class SessionController extends Controller
      */
     public function week(Request $request): JsonResponse
     {
-        $end = now()->endOfDay();
-        $start = now()->subDays(6)->startOfDay();
+        // Bucket by the business timezone, not server UTC, so late-evening
+        // sessions land on the user's calendar day.
+        $today = BusinessTime::today();
+        $end = $today->copy()->endOfDay();
+        $start = $today->copy()->subDays(6)->startOfDay();
 
         $perDay = TrackingSession::forUser($request->user()->id)
-            ->whereBetween('started_at', [$start, $end])
-            ->selectRaw('DATE(started_at) as d, SUM(total_seconds) as secs')
-            ->groupBy('d')
-            ->pluck('secs', 'd');
+            ->whereBetween('started_at', BusinessTime::utcRange($start, $end))
+            ->get(['started_at', 'total_seconds'])
+            ->groupBy(fn (TrackingSession $s) => BusinessTime::dateKey($s->started_at))
+            ->map(fn ($group) => (int) $group->sum('total_seconds'));
 
         $days = [];
         for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addDay()) {
@@ -169,7 +173,7 @@ class SessionController extends Controller
                 'date' => $iso,
                 'weekday' => $cursor->format('D'),
                 'total_seconds' => (int) ($perDay[$iso] ?? 0),
-                'is_today' => $cursor->isToday(),
+                'is_today' => $cursor->isSameDay($today),
             ];
         }
 
@@ -208,9 +212,11 @@ class SessionController extends Controller
 
     public function today(Request $request): JsonResponse
     {
+        $today = BusinessTime::today();
+
         $sessions = TrackingSession::forUser($request->user()->id)
             ->with(['client:id,name', 'upworkProfile:id,name'])
-            ->whereDate('started_at', now()->toDateString())
+            ->whereBetween('started_at', BusinessTime::utcRange($today->copy()->startOfDay(), $today->copy()->endOfDay()))
             ->orderBy('started_at', 'desc')
             ->get(['id', 'client_uuid', 'client_id', 'upwork_profile_id', 'work_type', 'task_note', 'started_at', 'stopped_at', 'total_seconds', 'status'])
             ->map(fn (TrackingSession $session) => [

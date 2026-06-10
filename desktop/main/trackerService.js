@@ -241,9 +241,13 @@ class Tracker extends EventEmitter {
 
     const idle = activityService.getSystemIdleSeconds();
 
-    // Reset the warning once the user is active again.
+    // User is active again: reset, and clear the on-screen warning if we
+    // showed one (empty string tells the renderer to hide the banner).
     if (idle < 30) {
-      this._idleWarned = false;
+      if (this._idleWarned) {
+        this._idleWarned = false;
+        this.emit('warning', '');
+      }
       return;
     }
 

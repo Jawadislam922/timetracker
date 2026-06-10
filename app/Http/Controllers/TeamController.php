@@ -7,6 +7,7 @@ use App\Models\TrackingActivitySample;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\ActivityDigestService;
+use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,8 +23,7 @@ class TeamController extends Controller
         abort_unless($authUser->hasPermission('timeline.view_others'), 403);
 
         $date = $this->resolveDate($request);
-        $dayStart = $date->copy()->startOfDay();
-        $dayEnd = $date->copy()->endOfDay();
+        [$dayStart, $dayEnd] = BusinessTime::utcRange($date->copy()->startOfDay(), $date->copy()->endOfDay());
 
         $users = User::orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
 
@@ -136,7 +136,7 @@ class TeamController extends Controller
         $sampleInterval = MonitoringSetting::current()->activity_sample_interval_seconds ?: 60;
 
         $samplesQuery = TrackingActivitySample::query()
-            ->whereBetween('captured_at', [$start, $end]);
+            ->whereBetween('captured_at', BusinessTime::utcRange($start, $end));
 
         if ($userId > 0) {
             $samplesQuery->where('user_id', $userId);
@@ -187,21 +187,25 @@ class TeamController extends Controller
     /** @return array{0: Carbon, 1: Carbon} */
     private function resolveRange(Request $request, string $range): array
     {
+        $tz = BusinessTime::tz();
+
         if ($request->filled('start') && $request->filled('end')) {
             try {
                 return [
-                    Carbon::parse($request->input('start'))->startOfDay(),
-                    Carbon::parse($request->input('end'))->endOfDay(),
+                    Carbon::parse($request->input('start'), $tz)->startOfDay(),
+                    Carbon::parse($request->input('end'), $tz)->endOfDay(),
                 ];
             } catch (\Throwable $e) {
                 // fall through to named ranges
             }
         }
 
+        $today = BusinessTime::today();
+
         return match ($range) {
-            'today' => [Carbon::today(), Carbon::today()->endOfDay()],
-            '30d' => [Carbon::today()->subDays(29), Carbon::today()->endOfDay()],
-            default => [Carbon::today()->subDays(6), Carbon::today()->endOfDay()],
+            'today' => [$today->copy(), $today->copy()->endOfDay()],
+            '30d' => [$today->copy()->subDays(29), $today->copy()->endOfDay()],
+            default => [$today->copy()->subDays(6), $today->copy()->endOfDay()],
         };
     }
 
@@ -228,12 +232,6 @@ class TeamController extends Controller
 
     private function resolveDate(Request $request): Carbon
     {
-        $raw = $request->input('date');
-
-        try {
-            return $raw ? Carbon::parse($raw)->startOfDay() : Carbon::today();
-        } catch (\Throwable $e) {
-            return Carbon::today();
-        }
+        return BusinessTime::parseDate($request->input('date'));
     }
 }

@@ -8,6 +8,7 @@ use App\Models\TrackingAuditLog;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\User;
+use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,11 +70,13 @@ class TimelineController extends Controller
         $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);
         $date = $this->resolveDate($request);
 
+        [$utcStart, $utcEnd] = BusinessTime::utcRange($date->copy()->startOfDay(), $date->copy()->endOfDay());
+
         $logs = TrackingAuditLog::with(['actor:id,name'])
             ->where('subject_user_id', $targetUser->id)
-            ->where(function ($q) use ($date) {
+            ->where(function ($q) use ($date, $utcStart, $utcEnd) {
                 $q->whereDate('event_date', $date->toDateString())
-                    ->orWhereDate('created_at', $date->toDateString());
+                    ->orWhereBetween('created_at', [$utcStart, $utcEnd]);
             })
             ->orderByDesc('created_at')
             ->limit(200)
@@ -112,6 +115,8 @@ class TimelineController extends Controller
         $canViewScreenshots = $authUser->id === $targetUser->id
             || $authUser->hasPermission('monitoring.view_screenshots');
 
+        // $date arrives in the business timezone; queries need UTC bounds
+        // because rows are stored in UTC.
         $dayStart = $date->copy()->startOfDay();
         $dayEnd = $date->copy()->endOfDay();
         $weekStartsOn = MonitoringSetting::current()->week_starts_on;
@@ -124,7 +129,7 @@ class TimelineController extends Controller
 
         $sessions = TrackingSession::with(['client:id,name', 'upworkProfile:id,name'])
             ->where('user_id', $targetUser->id)
-            ->whereBetween('started_at', [$dayStart, $dayEnd])
+            ->whereBetween('started_at', BusinessTime::utcRange($dayStart, $dayEnd))
             ->orderBy('started_at')
             ->get();
 
@@ -183,7 +188,7 @@ class TimelineController extends Controller
         })->values();
 
         $totalsScope = fn (Carbon $from, Carbon $to) => (int) TrackingSession::where('user_id', $targetUser->id)
-            ->whereBetween('started_at', [$from, $to])
+            ->whereBetween('started_at', BusinessTime::utcRange($from, $to))
             ->sum('total_seconds');
 
         $clientBreakdown = $sessions
@@ -250,8 +255,10 @@ class TimelineController extends Controller
         $totalSlots = 24 * $slotsPerHour;
         $bands = array_fill(0, $totalSlots, ['active' => 0, 'idle' => 0]);
 
+        $tz = BusinessTime::tz();
+
         foreach ($samples as $sample) {
-            $captured = $sample->captured_at;
+            $captured = $sample->captured_at?->copy()->setTimezone($tz);
             if (! $captured) {
                 continue;
             }
@@ -288,12 +295,16 @@ class TimelineController extends Controller
         $start = $date->copy()->startOfMonth();
         $end = $date->copy()->endOfMonth();
 
+        // Bucket in PHP by business-tz date: SQL DATE() would group by the
+        // stored UTC date and shift late-evening sessions onto the wrong day.
         $perDay = TrackingSession::query()
-            ->selectRaw('DATE(started_at) as d, SUM(total_seconds) as secs')
             ->where('user_id', $userId)
-            ->whereBetween('started_at', [$start, $end])
-            ->groupBy('d')
-            ->pluck('secs', 'd');
+            ->whereBetween('started_at', BusinessTime::utcRange($start, $end))
+            ->get(['started_at', 'total_seconds'])
+            ->groupBy(fn (TrackingSession $s) => BusinessTime::dateKey($s->started_at))
+            ->map(fn ($group) => (int) $group->sum('total_seconds'));
+
+        $today = BusinessTime::today();
 
         $out = [];
         for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addDay()) {
@@ -303,7 +314,7 @@ class TimelineController extends Controller
                 'day' => (int) $cursor->day,
                 'weekday' => $cursor->translatedFormat('D'),
                 'total_seconds' => (int) ($perDay[$iso] ?? 0),
-                'is_today' => $cursor->isToday(),
+                'is_today' => $cursor->isSameDay($today),
                 'is_selected' => $cursor->isSameDay($date),
             ];
         }
@@ -324,12 +335,6 @@ class TimelineController extends Controller
 
     private function resolveDate(Request $request): Carbon
     {
-        $raw = $request->input('date');
-
-        try {
-            return $raw ? Carbon::parse($raw)->startOfDay() : Carbon::today();
-        } catch (\Throwable $e) {
-            return Carbon::today();
-        }
+        return BusinessTime::parseDate($request->input('date'));
     }
 }

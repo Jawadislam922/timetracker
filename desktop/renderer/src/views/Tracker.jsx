@@ -494,6 +494,15 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     return () => clearInterval(t);
   }, [status.running, status.paused]);
 
+  // Warnings behave like toasts: auto-dismiss after 10s. The main process
+  // also sends an empty warning to clear the idle banner the moment
+  // activity resumes.
+  useEffect(() => {
+    if (!warning) return undefined;
+    const t = setTimeout(() => setWarning(''), 10_000);
+    return () => clearTimeout(t);
+  }, [warning]);
+
   const handleStart = async () => {
     setError('');
     setWarning('');
