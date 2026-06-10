@@ -44,6 +44,7 @@ Route::prefix('desktop')->group(function () {
         Route::patch('/sessions/{session}/heartbeat', [DesktopSessionController::class, 'heartbeat'])->name('desktop.sessions.heartbeat');
         Route::post('/sessions/{session}/stop', [DesktopSessionController::class, 'stop'])->name('desktop.sessions.stop');
         Route::get('/sessions/today', [DesktopSessionController::class, 'today'])->name('desktop.sessions.today');
+        Route::get('/sessions/week', [DesktopSessionController::class, 'week'])->name('desktop.sessions.week');
 
         Route::post('/screenshots', [DesktopScreenshotController::class, 'store'])->name('desktop.screenshots.store');
         Route::post('/activity/batch', [DesktopActivityController::class, 'batch'])->name('desktop.activity.batch');

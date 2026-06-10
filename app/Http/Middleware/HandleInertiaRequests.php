@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -63,11 +64,39 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
+        $teamSettings = null;
+        try {
+            $row = MonitoringSetting::current();
+            $teamSettings = [
+                'allow_offline_time' => (bool) $row->allow_offline_time,
+                'currency_symbol' => $row->currency_symbol,
+                'week_starts_on' => $row->week_starts_on,
+            ];
+        } catch (\Throwable $e) {
+            $teamSettings = null;
+        }
+
+        $canCreateManualWorkHour = false;
+        if ($user) {
+            $canCreateManualWorkHour = $user->isSuperAdmin()
+                || $user->hasPermission('work_hours.manage_all')
+                || ($teamSettings['allow_offline_time'] ?? false);
+        }
+
+        if ($authUser) {
+            $authUser['can_create_manual_work_hour'] = $canCreateManualWorkHour;
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $authUser,
                 'lastActionToday' => $lastActionToday,
+            ],
+            'teamSettings' => $teamSettings,
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
             ],
         ];
     }

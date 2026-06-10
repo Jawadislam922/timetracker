@@ -82,6 +82,7 @@ class AccessControlTest extends TestCase
                 'role' => 'member',
                 'permissions' => [],
                 'designation' => 'Morning Shift',
+                'joining_date' => '2026-06-06',
                 'shift_start_time' => '09:00',
                 'shift_grace_minutes' => 10,
             ])
@@ -91,5 +92,6 @@ class AccessControlTest extends TestCase
 
         $this->assertSame('09:00', $employee->shift_start_time->format('H:i'));
         $this->assertSame(10, $employee->shift_grace_minutes);
+        $this->assertSame('2026-06-06', $employee->joining_date->format('Y-m-d'));
     }
 }

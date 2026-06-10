@@ -17,6 +17,8 @@ const api = {
     workTypes: () => ipcRenderer.invoke('meta:workTypes'),
     upworkProfiles: () => ipcRenderer.invoke('meta:upworkProfiles'),
     settings: () => ipcRenderer.invoke('meta:settings'),
+    todaySessions: () => ipcRenderer.invoke('meta:todaySessions'),
+    weekSummary: () => ipcRenderer.invoke('meta:weekSummary'),
   },
   tracker: {
     start: (opts) => ipcRenderer.invoke('tracker:start', opts),

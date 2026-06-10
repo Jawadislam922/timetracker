@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TrackingAuditLog;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\User;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -116,5 +118,83 @@ class MonitoringController extends Controller
         }
 
         abort_unless($user->hasPermission('monitoring.view_screenshots'), 403);
+    }
+
+    public function flagScreenshot(Request $request, TrackingScreenshot $screenshot): RedirectResponse
+    {
+        $actor = $request->user();
+        $this->authorizeScreenshotManagement($actor, $screenshot);
+
+        $data = $request->validate([
+            'is_flagged' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $previous = (bool) $screenshot->is_flagged;
+        $next = (bool) $data['is_flagged'];
+
+        if ($previous === $next) {
+            return back()->with('success', 'No change.');
+        }
+
+        $screenshot->update([
+            'is_flagged' => $next,
+            'flag_reason' => $next ? ($data['reason'] ?? null) : null,
+        ]);
+
+        TrackingAuditLog::record([
+            'tracking_session_id' => $screenshot->tracking_session_id,
+            'tracking_screenshot_id' => $screenshot->id,
+            'subject_user_id' => $screenshot->user_id,
+            'actor_user_id' => $actor->id,
+            'action' => $next ? 'screenshot.flag' : 'screenshot.unflag',
+            'event_date' => optional($screenshot->captured_at)->toDateString(),
+            'old_value' => ['is_flagged' => $previous],
+            'new_value' => ['is_flagged' => $next, 'reason' => $data['reason'] ?? null],
+            'reason' => $data['reason'] ?? null,
+        ]);
+
+        return back()->with('success', $next ? 'Screenshot flagged.' : 'Screenshot un-flagged.');
+    }
+
+    public function deleteScreenshot(Request $request, TrackingScreenshot $screenshot): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_unless($actor->hasPermission('monitoring.delete_screenshots'), 403);
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        TrackingAuditLog::record([
+            'tracking_session_id' => $screenshot->tracking_session_id,
+            'tracking_screenshot_id' => $screenshot->id,
+            'subject_user_id' => $screenshot->user_id,
+            'actor_user_id' => $actor->id,
+            'action' => 'screenshot.delete',
+            'event_date' => optional($screenshot->captured_at)->toDateString(),
+            'old_value' => [
+                'image_path' => $screenshot->image_path,
+                'captured_at' => optional($screenshot->captured_at)->toIso8601String(),
+            ],
+            'new_value' => null,
+            'reason' => $data['reason'] ?? null,
+        ]);
+
+        // Soft delete the row but keep the actual image file (so the audit
+        // record remains meaningful and the action can be reversed by a DBA
+        // if needed). Hard-deleting files should be a separate retention job.
+        $screenshot->delete();
+
+        return back()->with('success', 'Screenshot deleted.');
+    }
+
+    private function authorizeScreenshotManagement(User $actor, TrackingScreenshot $screenshot): void
+    {
+        if ($actor->id === $screenshot->user_id) {
+            return;
+        }
+
+        abort_unless($actor->hasPermission('monitoring.manage'), 403);
     }
 }

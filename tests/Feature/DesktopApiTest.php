@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\TrackingActivitySample;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
+use App\Models\UpworkProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -78,6 +79,89 @@ class DesktopApiTest extends TestCase
         $this->assertSame(1, TrackingSession::count());
     }
 
+    public function test_session_start_uses_user_work_type_and_derives_profile_from_client(): void
+    {
+        $user = User::factory()->create();
+        $profile = UpworkProfile::create(['name' => 'Main Tracker']);
+        $client = Client::create([
+            'name' => 'Attached Client',
+            'work_type' => 'tracker_manual',
+            'upwork_profile_id' => $profile->id,
+        ]);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $response = $this->postJson('/api/desktop/sessions/start', [
+            'client_uuid' => 'uuid-client-derived',
+            'started_at' => now()->toIso8601String(),
+            'client_id' => $client->id,
+            'work_type' => 'manual',
+            'upwork_profile_id' => null,
+            'task_note' => 'Client derived setup',
+        ])->assertStatus(201);
+
+        $session = TrackingSession::find($response->json('id'));
+
+        $this->assertSame($client->id, $session->client_id);
+        // The user's explicit per-entry choice wins over the client engagement type.
+        $this->assertSame('manual', $session->work_type);
+        // The profile is still derived from the client.
+        $this->assertSame($profile->id, $session->upwork_profile_id);
+    }
+
+    public function test_session_start_normalises_tracker_manual_to_tracker(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::create([
+            'name' => 'Tracker/Manual Client',
+            'work_type' => 'tracker_manual',
+        ]);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        // No explicit work_type: derive from client and normalise.
+        $response = $this->postJson('/api/desktop/sessions/start', [
+            'client_uuid' => 'uuid-normalise',
+            'started_at' => now()->toIso8601String(),
+            'client_id' => $client->id,
+            'task_note' => 'Derived from client',
+        ])->assertStatus(201);
+
+        $session = TrackingSession::find($response->json('id'));
+        $this->assertSame('tracker', $session->work_type);
+    }
+
+    public function test_stopped_session_creates_work_hour_with_normalised_work_type(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::create([
+            'name' => 'WH Client',
+            'work_type' => 'tracker_manual',
+        ]);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $start = $this->postJson('/api/desktop/sessions/start', [
+            'client_uuid' => 'uuid-wh-normalise',
+            'started_at' => now()->subHour()->toIso8601String(),
+            'client_id' => $client->id,
+            'task_note' => 'Real work',
+        ])->assertStatus(201);
+
+        $sessionId = $start->json('id');
+
+        $this->postJson("/api/desktop/sessions/{$sessionId}/stop", [
+            'stopped_at' => now()->toIso8601String(),
+            'total_seconds' => 3600,
+            'activity_percent' => 50,
+            'task_note' => 'Real work',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('work_hours', [
+            'tracking_session_id' => $sessionId,
+            'work_type' => 'tracker',
+            'source' => 'tracker',
+        ]);
+        $this->assertDatabaseMissing('work_hours', ['work_type' => 'tracker_manual']);
+    }
+
     public function test_heartbeat_and_stop_update_session(): void
     {
         $user = User::factory()->create();
@@ -107,6 +191,71 @@ class DesktopApiTest extends TestCase
         $this->assertSame(1800, $session->total_seconds);
         $this->assertSame(55, $session->activity_percent);
         $this->assertSame('Wrapped up', $session->task_note);
+    }
+
+    public function test_today_sessions_include_client_name(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::create(['name' => 'Today Client', 'work_type' => 'outside_of_upwork']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        TrackingSession::create([
+            'user_id' => $user->id,
+            'client_uuid' => 'uuid-today-client',
+            'client_id' => $client->id,
+            'started_at' => now(),
+            'total_seconds' => 120,
+            'status' => 'active',
+            'source' => 'desktop',
+            'task_note' => 'Today task',
+        ]);
+
+        $this->getJson('/api/desktop/sessions/today')
+            ->assertOk()
+            ->assertJsonPath('sessions.0.client_name', 'Today Client')
+            ->assertJsonPath('sessions.0.task_note', 'Today task');
+    }
+
+    public function test_week_summary_returns_trailing_seven_days_with_totals(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        TrackingSession::create([
+            'user_id' => $user->id,
+            'client_uuid' => 'uuid-week-today',
+            'started_at' => now(),
+            'total_seconds' => 3600,
+            'status' => 'stopped',
+            'source' => 'desktop',
+        ]);
+        TrackingSession::create([
+            'user_id' => $user->id,
+            'client_uuid' => 'uuid-week-past',
+            'started_at' => now()->subDays(2),
+            'total_seconds' => 1800,
+            'status' => 'stopped',
+            'source' => 'desktop',
+        ]);
+        // Another user's time must not leak into this user's chart.
+        TrackingSession::create([
+            'user_id' => User::factory()->create()->id,
+            'client_uuid' => 'uuid-week-other',
+            'started_at' => now(),
+            'total_seconds' => 7200,
+            'status' => 'stopped',
+            'source' => 'desktop',
+        ]);
+
+        $response = $this->getJson('/api/desktop/sessions/week')->assertOk();
+
+        $days = $response->json('days');
+        $this->assertCount(7, $days);
+        $this->assertSame(now()->subDays(6)->toDateString(), $days[0]['date']);
+        $this->assertSame(now()->toDateString(), $days[6]['date']);
+        $this->assertTrue($days[6]['is_today']);
+        $this->assertSame(3600, $days[6]['total_seconds']);
+        $this->assertSame(1800, $days[4]['total_seconds']);
     }
 
     public function test_screenshot_upload_persists_file_and_dispatches_thumbnail_job(): void
@@ -208,7 +357,16 @@ class DesktopApiTest extends TestCase
 
         Sanctum::actingAs($user, ['desktop-tracker']);
 
-        $this->getJson('/api/desktop/clients')->assertOk()->assertJsonStructure(['clients']);
+        $this->getJson('/api/desktop/clients')
+            ->assertOk()
+            ->assertJsonStructure(['clients' => [[
+                'id',
+                'name',
+                'work_type',
+                'work_type_label',
+                'upwork_profile_id',
+                'upwork_profile_name',
+            ]]]);
         $this->getJson('/api/desktop/work-types')->assertOk()->assertJsonStructure(['work_types']);
         $this->getJson('/api/desktop/settings')
             ->assertOk()

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\MonitoringSetting;
 use App\Models\UpworkProfile;
 use App\Models\User;
 use App\Models\WorkHour;
@@ -28,6 +29,24 @@ class WorkHourController extends Controller
 
         if (! $user->hasPermission('work_hours.manage_all') && $workHour->user_id !== $user->id) {
             abort(403, 'You can only manage your own work hour entries.');
+        }
+    }
+
+    /**
+     * Manual work-hour entry is always available to Admin/Super Admin (anyone
+     * who can manage all entries). For regular Members it depends on the team
+     * `allow_offline_time` setting from the new Settings page.
+     */
+    private function ensureCanCreateManual(): void
+    {
+        $user = auth()->user();
+
+        if ($user->isSuperAdmin() || $user->hasPermission('work_hours.manage_all')) {
+            return;
+        }
+
+        if (! MonitoringSetting::current()->allow_offline_time) {
+            abort(403, 'Manual work-hour entry is disabled by your administrator.');
         }
     }
 
@@ -86,6 +105,22 @@ class WorkHourController extends Controller
     private function firstLegacyValue(array $values): string
     {
         return $values[0] ?? 'all';
+    }
+
+    private function redirectToReturnPath(Request $request, string $fallbackRoute, array $flash = [])
+    {
+        $returnTo = $request->input('return_to');
+        $redirect = is_string($returnTo)
+            && str_starts_with($returnTo, '/')
+            && ! str_starts_with($returnTo, '//')
+                ? redirect($returnTo)
+                : redirect()->route($fallbackRoute);
+
+        foreach ($flash as $key => $value) {
+            $redirect->with($key, $value);
+        }
+
+        return $redirect;
     }
 
     public function index(Request $request)
@@ -173,6 +208,8 @@ class WorkHourController extends Controller
 
     public function create()
     {
+        $this->ensureCanCreateManual();
+
         $clients = Client::with(['upworkProfile', 'upworkProfiles'])
             ->select('id', 'name', 'work_type', 'upwork_profile_id')
             ->orderBy('name')
@@ -191,6 +228,8 @@ class WorkHourController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureCanCreateManual();
+
         $validated = $request->validate([
             'date' => 'required|date',
             'hours' => 'required|integer|min:0|max:24',
@@ -207,6 +246,7 @@ class WorkHourController extends Controller
 
         $validated['user_id'] = $request->user()->id;
         $validated['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
+        $validated['source'] = 'manual';
         unset($validated['minutes']);
         WorkHour::create($validated);
 
@@ -263,13 +303,15 @@ class WorkHourController extends Controller
             ->with('success', 'Work hour entry updated successfully.');
     }
 
-    public function destroy(WorkHour $workHour)
+    public function destroy(Request $request, WorkHour $workHour)
     {
         $this->authorizeWorkHourAccess($workHour);
 
         $workHour->delete();
 
-        return redirect()->route('work-hours.index')->with('success', 'Work hour entry deleted.');
+        return $this->redirectToReturnPath($request, 'work-hours.index', [
+            'success' => 'Work hour entry deleted.',
+        ]);
     }
 
     public function bulkDelete(Request $request)
@@ -397,7 +439,7 @@ class WorkHourController extends Controller
         $selectedClients = $this->filterValues($request, 'clients', 'client');
         $perPage = $request->input('perPage', 15);
 
-        // Fetch all available filter options - shifts are stored as designations
+        // Fetch all available designation filter options.
         $availableDesignations = User::whereNotNull('designation')
             ->distinct()
             ->pluck('designation')

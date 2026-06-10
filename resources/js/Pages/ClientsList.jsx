@@ -32,10 +32,24 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
     const [selectAll, setSelectAll] = useState(false);
     const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
+    const currentListUrl = () => (
+        typeof window === 'undefined'
+            ? route('clients.index')
+            : `${window.location.pathname}${window.location.search}`
+    );
+
+    const editClientHref = (clientId) => {
+        const returnTo = currentListUrl();
+        return `${route('clients.edit', clientId)}?return_to=${encodeURIComponent(returnTo)}`;
+    };
+
     const confirmDelete = (id) => setDeleteId(id);
     const handleDelete = () => {
         if (!deleteId) return;
         router.delete(route('clients.destroy', deleteId), {
+            data: { return_to: currentListUrl() },
+            preserveState: true,
+            preserveScroll: true,
             onSuccess: () => {
                 setToast('Client deleted.');
                 setToastType('success');
@@ -196,7 +210,9 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
         const clientIds = Array.from(selectedClients);
         
         router.delete(route('clients.bulk-destroy'), {
-            data: { client_ids: clientIds },
+            data: { client_ids: clientIds, return_to: currentListUrl() },
+            preserveState: true,
+            preserveScroll: true,
             onSuccess: () => {
                 setToast(`${clientIds.length} client(s) deleted successfully.`);
                 setToastType('success');
@@ -424,7 +440,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                 </td>
                                                 {canManage && <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-inherit border-l border-slate-200">
                                                     <div className="flex space-x-2">
-                                                        <Link href={route('clients.edit', client.id)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
+                                                        <Link href={editClientHref(client.id)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                             Edit
                                                         </Link>
                                                         <button onClick={() => confirmDelete(client.id)} className="inline-flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">

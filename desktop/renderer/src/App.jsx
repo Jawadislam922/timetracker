@@ -21,7 +21,7 @@ export default function App() {
     return (
       <div className="app">
         <main className="app-main" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="subtle">Loading…</div>
+          <div className="subtle">Loading...</div>
         </main>
       </div>
     );

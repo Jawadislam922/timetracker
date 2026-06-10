@@ -336,7 +336,7 @@ class EmployeeAttendanceTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_monthly_grid_marks_late_when_first_clock_in_exceeds_shift_grace(): void
+    public function test_monthly_grid_marks_late_coming_when_first_clock_in_exceeds_shift_grace(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-08 10:00:00', 'Asia/Karachi'));
 
@@ -364,9 +364,10 @@ class EmployeeAttendanceTest extends TestCase
 
         $day = collect($employeeRow['days'])->firstWhere('date', '2026-06-08');
 
-        $this->assertSame('LI', $day['status_code']);
+        $this->assertSame('LC', $day['status_code']);
         $this->assertSame('automatic', $day['source']);
-        $this->assertSame(1, $employeeRow['summary']['late_joining']);
+        $this->assertSame(1, $employeeRow['summary']['late_coming']);
+        $this->assertSame(0, $employeeRow['summary']['late_joining']);
         $this->assertSame(1, $employeeRow['summary']['present']);
 
         Carbon::setTestNow();
@@ -402,7 +403,44 @@ class EmployeeAttendanceTest extends TestCase
 
         $this->assertSame('P', $day['status_code']);
         $this->assertSame(1, $employeeRow['summary']['present']);
+        $this->assertSame(0, $employeeRow['summary']['late_coming']);
         $this->assertSame(0, $employeeRow['summary']['late_joining']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_monthly_grid_marks_dates_before_joining_date_as_late_joining(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-08 10:00:00', 'Asia/Karachi'));
+
+        $admin = User::factory()->create(['role' => 'super_admin']);
+        $employee = User::factory()->create([
+            'name' => 'New Joiner User',
+            'joining_date' => '2026-06-06',
+            'shift_start_time' => '08:00:00',
+            'shift_grace_minutes' => 10,
+        ]);
+
+        TimeEntry::create([
+            'user_id' => $employee->id,
+            'action_type' => 'clock_in',
+            'action_timestamp' => Carbon::parse('2026-06-06 08:00:00', 'Asia/Karachi'),
+            'action_date' => '2026-06-06',
+            'action_time' => '08:00:00',
+        ]);
+
+        $employeeRow = collect(
+            $this->actingAs($admin)
+                ->getJson(route('employee-attendance.monthly', ['month' => '2026-06']))
+                ->assertOk()
+                ->json('employees')
+        )->firstWhere('user_id', $employee->id);
+
+        $this->assertSame('LI', collect($employeeRow['days'])->firstWhere('date', '2026-06-01')['status_code']);
+        $this->assertSame('LI', collect($employeeRow['days'])->firstWhere('date', '2026-06-05')['status_code']);
+        $this->assertSame('P', collect($employeeRow['days'])->firstWhere('date', '2026-06-06')['status_code']);
+        $this->assertSame(5, $employeeRow['summary']['late_joining']);
+        $this->assertSame(1, $employeeRow['summary']['present']);
 
         Carbon::setTestNow();
     }
@@ -526,7 +564,7 @@ class EmployeeAttendanceTest extends TestCase
             && $request['text'] === 'Attendance Report | June 2026 | 1 users');
     }
 
-    public function test_attendance_slack_report_counts_late_joining_from_shift_grace(): void
+    public function test_attendance_slack_report_counts_late_coming_from_shift_grace(): void
     {
         config(['services.slack_reports.webhook_url' => 'https://hooks.slack.test/services/example']);
         Http::fake([
@@ -552,7 +590,7 @@ class EmployeeAttendanceTest extends TestCase
             ->postJson(route('employee-attendance.slack'), [
                 'month' => '2026-06',
                 'user_ids' => [$employee->id],
-                'include_fields' => ['present', 'late_joining'],
+                'include_fields' => ['present', 'late_coming'],
             ])
             ->assertOk();
 

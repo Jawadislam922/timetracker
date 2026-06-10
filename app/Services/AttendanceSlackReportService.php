@@ -36,6 +36,7 @@ class AttendanceSlackReportService
             'leave',
             'half_day',
             'work_from_home',
+            'late_coming',
             'late_joining',
             'holidays',
             'public_holiday',
@@ -43,13 +44,13 @@ class AttendanceSlackReportService
         ]));
 
         if ($includeFields === []) {
-            $includeFields = ['present', 'absent', 'leave', 'half_day', 'work_from_home', 'late_joining'];
+            $includeFields = ['present', 'absent', 'leave', 'half_day', 'work_from_home', 'late_coming', 'late_joining'];
         }
 
         $users = User::query()
             ->whereIn('id', $userIds)
             ->orderBy('name')
-            ->get(['id', 'name', 'shift_start_time', 'shift_grace_minutes']);
+            ->get(['id', 'name', 'joining_date', 'shift_start_time', 'shift_grace_minutes']);
 
         $entriesByUserDate = TimeEntry::query()
             ->whereIn('user_id', $users->pluck('id'))
@@ -183,6 +184,7 @@ class AttendanceSlackReportService
             'leave' => 0,
             'half_day' => 0,
             'work_from_home' => 0,
+            'late_coming' => 0,
             'late_joining' => 0,
             'holidays' => 0,
             'public_holiday' => 0,
@@ -206,10 +208,14 @@ class AttendanceSlackReportService
             return null;
         }
 
+        if ($this->isBeforeJoiningDate($user, $date)) {
+            return 'LI';
+        }
+
         $firstClockIn = $entries->where('action_type', 'clock_in')->first();
 
         if ($firstClockIn) {
-            return $this->isLateClockIn($user, $date, $firstClockIn) ? 'LI' : 'P';
+            return $this->isLateClockIn($user, $date, $firstClockIn) ? 'LC' : 'P';
         }
 
         if ($date->isSunday()) {
@@ -251,8 +257,14 @@ class AttendanceSlackReportService
 
     private function addStatusToSummary(array &$summary, string $statusCode): void
     {
-        if ($statusCode === 'LI') {
+        if ($statusCode === 'LC') {
             $summary['present']++;
+            $summary['late_coming']++;
+
+            return;
+        }
+
+        if ($statusCode === 'LI') {
             $summary['late_joining']++;
 
             return;
@@ -268,6 +280,15 @@ class AttendanceSlackReportService
             'PH' => $summary['public_holiday']++,
             default => null,
         };
+    }
+
+    private function isBeforeJoiningDate(User $user, Carbon $date): bool
+    {
+        if (! $user->joining_date) {
+            return false;
+        }
+
+        return $date->toDateString() < $user->joining_date->toDateString();
     }
 
     private function calculateWorkHours(Collection $entries): float
@@ -305,7 +326,8 @@ class AttendanceSlackReportService
             'leave' => 'Leave',
             'half_day' => 'Half Day',
             'work_from_home' => 'WFH',
-            'late_joining' => 'Late',
+            'late_coming' => 'Late Coming',
+            'late_joining' => 'Late Joining',
             'holidays' => 'Holidays',
             'public_holiday' => 'Public Holiday',
             'total_work_hours' => 'Hours',

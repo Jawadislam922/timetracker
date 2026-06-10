@@ -102,11 +102,20 @@ export default function WorkHoursList({
         }
     }, [flash]);
 
+    const currentListUrl = () => (
+        typeof window === 'undefined'
+            ? route('work-hours.index')
+            : `${window.location.pathname}${window.location.search}`
+    );
+
     const handleDelete = (id) => setDeleteId(id);
 
     const confirmDelete = () => {
         if (!deleteId) return;
         router.delete(route('work-hours.destroy', deleteId), {
+            data: { return_to: currentListUrl() },
+            preserveState: true,
+            preserveScroll: true,
             onSuccess: () => {
                 setToast('Work entry deleted successfully');
                 setToastType('success');

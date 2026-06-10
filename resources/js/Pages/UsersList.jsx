@@ -13,17 +13,21 @@ const roleStyles = {
     member: 'bg-emerald-100 text-emerald-800',
 };
 
-export default function UsersList({ auth, users, filters = {}, filterOptions = {} }) {
+const noDesignationValue = 'no_designation';
+
+export default function UsersList({ auth, users, filters = {}, filterOptions = {}, managedDesignations = [] }) {
     const can = (permission) => auth.user?.is_super_admin || auth.user?.permissions?.includes(permission);
     const [search, setSearch] = useState(filters.search || '');
     const [roles, setRoles] = useState((filters.roles || []).map(String));
     const [designations, setDesignations] = useState((filters.designations || []).map(String));
     const [perPage, setPerPage] = useState(users?.per_page || 10);
     const [deleteUser, setDeleteUser] = useState(null);
+    const [showDesignationDialog, setShowDesignationDialog] = useState(false);
+    const [newDesignation, setNewDesignation] = useState('');
 
     const roleOptions = filterOptions.roles || [];
     const designationOptions = [
-        { value: 'no_designation', label: 'No shift' },
+        { value: noDesignationValue, label: 'No designation' },
         ...(filterOptions.designations || []).map((designation) => ({
             value: String(designation),
             label: String(designation),
@@ -68,8 +72,8 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
             },
         }));
         designations.forEach((designation) => items.push({
-            key: `shift-${designation}`,
-            label: `Shift: ${designationLabels.get(designation) || designation}`,
+            key: `designation-${designation}`,
+            label: `Designation: ${designationLabels.get(designation) || designation}`,
             onRemove: () => {
                 const next = designations.filter((item) => item !== designation);
                 setDesignations(next);
@@ -87,11 +91,46 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
         router.get(route('users.index'), { perPage }, { preserveState: true, replace: true });
     };
 
+    const currentListUrl = () => (
+        typeof window === 'undefined'
+            ? route('users.index')
+            : `${window.location.pathname}${window.location.search}`
+    );
+
+    const editUserHref = (userId) => {
+        const returnTo = currentListUrl();
+        return `${route('users.edit', userId)}?return_to=${encodeURIComponent(returnTo)}`;
+    };
+
     const confirmDelete = () => {
         if (!deleteUser) return;
         router.delete(route('users.destroy', deleteUser.id), {
+            data: { return_to: currentListUrl() },
+            preserveState: true,
             preserveScroll: true,
             onFinish: () => setDeleteUser(null),
+        });
+    };
+
+    const addDesignation = (event) => {
+        event.preventDefault();
+        const name = newDesignation.trim();
+
+        if (!name) return;
+
+        router.post(route('users.designations.store'), {
+            name,
+            return_to: currentListUrl(),
+        }, {
+            preserveScroll: true,
+            onSuccess: () => setNewDesignation(''),
+        });
+    };
+
+    const removeDesignation = (designation) => {
+        router.delete(route('users.designations.destroy', designation.id), {
+            data: { return_to: currentListUrl() },
+            preserveScroll: true,
         });
     };
 
@@ -104,16 +143,25 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                         <div>
                             <p className="text-sm font-semibold text-blue-700">Team management</p>
                             <h1 className="mt-1 text-2xl font-bold text-slate-950">Users</h1>
-                            <p className="mt-1 text-sm text-slate-600">Manage accounts, roles, shifts, and selected access.</p>
+                            <p className="mt-1 text-sm text-slate-600">Manage accounts, roles, designations, and selected access.</p>
                         </div>
                         {can('users.manage') && (
-                            <Link
-                                href={route('users.create')}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add user
-                            </Link>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDesignationDialog(true)}
+                                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+                                >
+                                    Manage designations
+                                </button>
+                                <Link
+                                    href={route('users.create')}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Add user
+                                </Link>
+                            </div>
                         )}
                     </section>
 
@@ -143,14 +191,14 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 placeholder="All roles"
                             />
                             <SearchableMultiSelect
-                                label="Shifts"
+                                label="Designations"
                                 options={designationOptions}
                                 selectedValues={designations}
                                 onChange={(next) => {
                                     setDesignations(next);
                                     applyFilters({ designations: next });
                                 }}
-                                placeholder="All shifts"
+                                placeholder="All designations"
                             />
                             <label className="block">
                                 <span className="mb-2 block text-sm font-semibold text-slate-700">Rows</span>
@@ -189,7 +237,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-900">
                                     <tr>
-                                        {['User', 'Shift', 'Role', 'Weekly hours', 'Actions'].map((heading, index) => (
+                                        {['User', 'Designation', 'Shift', 'Role', 'Weekly hours', 'Actions'].map((heading, index) => (
                                             <th
                                                 key={heading}
                                                 className={`whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-white ${
@@ -204,7 +252,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 <tbody className="divide-y divide-slate-200">
                                     {users.data.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="px-5 py-14 text-center">
+                                            <td colSpan={6} className="px-5 py-14 text-center">
                                                 <Users className="mx-auto h-10 w-10 text-slate-400" />
                                                 <h3 className="mt-3 font-semibold text-slate-900">No users found</h3>
                                                 <p className="mt-1 text-sm text-slate-500">Adjust the search or selected filters.</p>
@@ -228,11 +276,21 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                                     </div>
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
-                                                    <div className="font-medium text-slate-800">{user.designation || 'No shift'}</div>
-                                                    {user.shift_start_display && (
+                                                    <div className="font-medium text-slate-800">{user.designation || 'No designation'}</div>
+                                                    {user.joining_date_display && (
                                                         <div className="text-xs text-slate-500">
-                                                            {user.shift_start_display} + {user.shift_grace_minutes ?? 15}m grace
+                                                            Joined {user.joining_date_display}
                                                         </div>
+                                                    )}
+                                                </td>
+                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                                                    {user.shift_start_display ? (
+                                                        <>
+                                                            <div className="font-medium text-slate-800">{user.shift_start_display}</div>
+                                                            <div className="text-xs text-slate-500">{user.shift_grace_minutes ?? 15}m grace</div>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-slate-400">Not configured</span>
                                                     )}
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-3">
@@ -248,7 +306,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                                     <div className="flex items-center gap-2">
                                                         {canEdit && (
                                                             <Link
-                                                                href={route('users.edit', user.id)}
+                                                                href={editUserHref(user.id)}
                                                                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100"
                                                                 title={`Edit ${user.name}`}
                                                             >
@@ -305,6 +363,60 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700"
                             >
                                 Delete user
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showDesignationDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+                        <div className="border-b border-slate-200 px-5 py-4">
+                            <h2 className="text-lg font-bold text-slate-950">Manage designations</h2>
+                            <p className="mt-1 text-sm text-slate-600">These appear as suggestions when adding or editing users.</p>
+                        </div>
+                        <div className="space-y-4 p-5">
+                            <form onSubmit={addDesignation} className="flex gap-2">
+                                <input
+                                    value={newDesignation}
+                                    onChange={(event) => setNewDesignation(event.target.value)}
+                                    placeholder="Add designation"
+                                    className="min-w-0 flex-1 rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                />
+                                <button
+                                    type="submit"
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                                >
+                                    Add
+                                </button>
+                            </form>
+
+                            <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200">
+                                {managedDesignations.length === 0 ? (
+                                    <div className="px-4 py-6 text-center text-sm text-slate-500">No designation suggestions yet.</div>
+                                ) : managedDesignations.map((designation) => (
+                                    <div key={designation.id} className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0">
+                                        <span className="text-sm font-semibold text-slate-800">{designation.name}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeDesignation(designation)}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50"
+                                            title={`Remove ${designation.name}`}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowDesignationDialog(false)}
+                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>

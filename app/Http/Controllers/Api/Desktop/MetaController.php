@@ -14,8 +14,17 @@ class MetaController extends Controller
     public function clients(Request $request): JsonResponse
     {
         $clients = Client::query()
+            ->with('upworkProfile:id,name')
             ->orderBy('name')
-            ->get(['id', 'name', 'work_type', 'upwork_profile_id']);
+            ->get(['id', 'name', 'work_type', 'upwork_profile_id'])
+            ->map(fn (Client $client) => [
+                'id' => $client->id,
+                'name' => $client->name,
+                'work_type' => $client->work_type,
+                'work_type_label' => Client::getWorkTypes()[$client->work_type] ?? null,
+                'upwork_profile_id' => $client->upwork_profile_id,
+                'upwork_profile_name' => $client->upworkProfile?->name,
+            ]);
 
         return response()->json(['clients' => $clients]);
     }
@@ -38,20 +47,13 @@ class MetaController extends Controller
         return response()->json(['profiles' => $profiles]);
     }
 
-    public function settings(): JsonResponse
+    public function settings(Request $request): JsonResponse
     {
         $settings = MonitoringSetting::current();
+        $effective = $settings->effectiveForUser($request->user());
 
         return response()->json([
-            'settings' => [
-                'screenshot_interval_min_seconds' => $settings->screenshot_interval_min_seconds,
-                'screenshot_interval_max_seconds' => $settings->screenshot_interval_max_seconds,
-                'idle_threshold_seconds' => $settings->idle_threshold_seconds,
-                'activity_sample_interval_seconds' => $settings->activity_sample_interval_seconds,
-                'capture_enabled' => $settings->capture_enabled,
-                'blur_screenshots' => $settings->blur_screenshots,
-                'require_active_window_metadata' => $settings->require_active_window_metadata,
-            ],
+            'settings' => $effective,
         ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use App\Models\User;
 use Carbon\Carbon;
@@ -170,7 +171,7 @@ class TimeEntryController extends Controller
     {
         $user = Auth::user();
         $now = Carbon::now('Asia/Karachi');
-        $weekStart = Carbon::now('Asia/Karachi')->startOfWeek();
+        $weekStart = Carbon::now('Asia/Karachi')->startOfWeek(MonitoringSetting::weekStartDay());
         $monthStart = Carbon::now('Asia/Karachi')->startOfMonth();
 
         if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {

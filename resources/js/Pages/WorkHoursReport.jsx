@@ -272,7 +272,7 @@ export default function WorkHoursReport({
         })),
         ...selectedDesignations.map((value) => ({
             key: `designations-${value}`,
-            label: `Shift: ${value}`,
+            label: `Designation: ${value}`,
             onRemove: () => removeFilterValue('designations', value),
         })),
     ];
@@ -618,14 +618,14 @@ export default function WorkHoursReport({
                                     />
 
                                     <SearchableMultiSelect
-                                        label="Shift"
+                                        label="Designation"
                                         options={designationOptions}
                                         selectedValues={selectedDesignations}
                                         onChange={(values) => {
                                             setSelectedDesignations(values);
                                             applyFilters({ selectedDesignations: values });
                                         }}
-                                        placeholder="All shifts"
+                                        placeholder="All designations"
                                     />
                                 </div>
                             </div>
@@ -674,9 +674,21 @@ export default function WorkHoursReport({
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full capitalize">
-                                                        {entry.tracker}
-                                                    </span>
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full capitalize">
+                                                            {entry.tracker}
+                                                        </span>
+                                                        {entry.source === 'tracker' ? (
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700" title="Auto-populated from desktop tracker session">
+                                                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                                Auto
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600" title="Manually entered work-hour row">
+                                                                Manual
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-bold text-green-700">{timeFormat(entry.hours)}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-700">

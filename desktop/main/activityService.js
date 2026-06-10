@@ -79,6 +79,39 @@ function computeActivityPercent({ idle_seconds, elapsed_seconds }) {
   return Math.max(0, Math.min(100, Math.round((active / elapsed_seconds) * 100)));
 }
 
+// Normalise a process/app name (e.g. "chrome.exe" -> "Google Chrome").
+const BROWSER_NAMES = {
+  'chrome.exe': 'Google Chrome',
+  'msedge.exe': 'Microsoft Edge',
+  'firefox.exe': 'Mozilla Firefox',
+  'brave.exe': 'Brave',
+  'opera.exe': 'Opera',
+  'vivaldi.exe': 'Vivaldi',
+};
+
+function normaliseApp(name) {
+  if (!name) return null;
+  const key = name.toLowerCase();
+  if (BROWSER_NAMES[key]) return BROWSER_NAMES[key];
+  // Strip a trailing ".exe" for a cleaner label.
+  return name.replace(/\.exe$/i, '').slice(0, 255) || null;
+}
+
+// active-win only fills `url` on macOS. As a Windows-safe fallback we parse an
+// explicit http(s):// URL out of the window title when one is present (some
+// sites and address-bar extensions surface it). We never guess from bare
+// domains/emails to avoid recording the wrong host.
+function domainFromTitle(title) {
+  if (!title) return null;
+  const match = title.match(/https?:\/\/[^\s"']+/i);
+  if (!match) return null;
+  try {
+    return new URL(match[0]).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
 async function activeWindowInfo() {
   if (!activeWin) {
     return { active_app: null, active_window_title: null, url_domain: null };
@@ -86,14 +119,21 @@ async function activeWindowInfo() {
   try {
     const win = await activeWin();
     if (!win) return { active_app: null, active_window_title: null, url_domain: null };
+
+    const title = (win.title || '').slice(0, 255) || null;
+
     let urlDomain = null;
     if (win.url) {
       try { urlDomain = new URL(win.url).hostname; } catch { /* ignore */ }
     }
+    if (!urlDomain) {
+      urlDomain = domainFromTitle(win.title);
+    }
+
     return {
-      active_app: win.owner?.name?.slice(0, 255) || null,
-      active_window_title: (win.title || '').slice(0, 255) || null,
-      url_domain: urlDomain?.slice(0, 255) || null,
+      active_app: normaliseApp(win.owner?.name),
+      active_window_title: title,
+      url_domain: urlDomain ? urlDomain.slice(0, 255) : null,
     };
   } catch (err) {
     return { active_app: null, active_window_title: null, url_domain: null };

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Designation;
+use App\Models\MonitoringSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -48,7 +50,7 @@ class UserController extends Controller
             });
         }
 
-        // Apply shift filter (designation field stores shift information)
+        // Apply designation filter.
         if (! empty($designations)) {
             $query->where(function ($designationQuery) use ($designations) {
                 $regularDesignations = array_values(array_diff($designations, ['no_designation']));
@@ -75,8 +77,8 @@ class UserController extends Controller
             ->appends($request->query());
 
         // Calculate weekly hours for each user and format as HH:MM
-        $startOfWeek = now()->startOfWeek()->format('Y-m-d');
-        $endOfWeek = now()->endOfWeek()->format('Y-m-d');
+        $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
+        $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
 
         $users->getCollection()->transform(function ($user) use ($startOfWeek, $endOfWeek) {
             // Get the sum of hours for this week
@@ -92,11 +94,12 @@ class UserController extends Controller
             $user->weekly_hours_worked = sprintf('%02d:%02d', $hours, $minutes);
             $user->role_label = $user->role_label;
             $user->shift_start_display = $user->shift_start_time?->format('g:i A');
+            $user->joining_date_display = $user->joining_date?->format('Y-m-d');
 
             return $user;
         });
 
-        // Get all unique shifts (stored as designations) and roles for filter dropdowns
+        // Get all unique designations and roles for filter dropdowns.
         $allDesignations = User::whereNotNull('designation')
             ->where('designation', '!=', '')
             ->distinct()
@@ -117,6 +120,7 @@ class UserController extends Controller
                     fn (string $label, string $value) => ['value' => $value, 'label' => $label]
                 )->values(),
             ],
+            'managedDesignations' => $this->designationOptions(),
         ]);
     }
 
@@ -136,6 +140,7 @@ class UserController extends Controller
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'include_in_slack_reports' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
+            'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
         ];
@@ -164,6 +169,7 @@ class UserController extends Controller
                 ? ($validated['include_in_slack_reports'] ?? true)
                 : true,
             'designation' => $validated['designation'] ?? null,
+            'joining_date' => $validated['joining_date'] ?? null,
             'shift_start_time' => $validated['shift_start_time'] ?? null,
             'shift_grace_minutes' => $validated['shift_grace_minutes'] ?? 15,
         ];
@@ -174,6 +180,7 @@ class UserController extends Controller
         }
 
         User::create($userData);
+        $this->rememberDesignation($userData['designation']);
 
         return redirect()->route('users.index')->with('success', 'User created successfully!');
     }
@@ -192,8 +199,10 @@ class UserController extends Controller
                 'include_in_slack_reports' => $user->include_in_slack_reports,
                 'avatar_url' => $user->avatar_url,
                 'designation' => $user->designation,
+                'joining_date' => $user->joining_date?->format('Y-m-d'),
                 'shift_start_time' => $user->shift_start_time?->format('H:i'),
                 'shift_grace_minutes' => $user->shift_grace_minutes ?? 15,
+                'return_to' => request('return_to'),
             ],
             ...$this->accessFormProps(),
         ]);
@@ -215,6 +224,7 @@ class UserController extends Controller
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'include_in_slack_reports' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
+            'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
         ];
@@ -238,6 +248,7 @@ class UserController extends Controller
         $user->name = $validated['name'];
         $user->email = $validated['email'];
         $user->designation = $validated['designation'] ?? null;
+        $user->joining_date = $validated['joining_date'] ?? null;
         $user->shift_start_time = $validated['shift_start_time'] ?? null;
         $user->shift_grace_minutes = $validated['shift_grace_minutes'] ?? 15;
 
@@ -263,8 +274,11 @@ class UserController extends Controller
         }
 
         $user->save();
+        $this->rememberDesignation($user->designation);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully!');
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => 'User updated successfully!',
+        ]);
     }
 
     public function destroy(Request $request, User $user)
@@ -278,7 +292,53 @@ class UserController extends Controller
         $this->guardSuperAdminTarget($user);
         $user->delete();
 
-        return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => 'User deleted successfully.',
+        ]);
+    }
+
+    public function storeDesignation(Request $request)
+    {
+        if (! $request->user()->hasPermission('users.manage')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $name = $this->normalizeDesignationName($validated['name']);
+
+        if ($name === '') {
+            throw ValidationException::withMessages([
+                'name' => 'Enter a designation name.',
+            ]);
+        }
+
+        if (Designation::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists()) {
+            throw ValidationException::withMessages([
+                'name' => 'This designation already exists.',
+            ]);
+        }
+
+        Designation::create(['name' => $name]);
+
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => 'Designation added.',
+        ]);
+    }
+
+    public function destroyDesignation(Request $request, Designation $designation)
+    {
+        if (! $request->user()->hasPermission('users.manage')) {
+            abort(403);
+        }
+
+        $designation->delete();
+
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => 'Designation removed from suggestions.',
+        ]);
     }
 
     private function accessFormProps(): array
@@ -287,7 +347,47 @@ class UserController extends Controller
             'roles' => config('access.roles'),
             'permissionGroups' => config('access.permissions'),
             'canManageAccess' => request()->user()->isSuperAdmin(),
+            'designationOptions' => $this->designationOptions()->pluck('name')->values()->all(),
         ];
+    }
+
+    private function designationOptions()
+    {
+        return Designation::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    private function rememberDesignation(?string $designation): void
+    {
+        $name = $this->normalizeDesignationName($designation ?? '');
+
+        if ($name === '') {
+            return;
+        }
+
+        Designation::query()->firstOrCreate(['name' => $name]);
+    }
+
+    private function normalizeDesignationName(string $name): string
+    {
+        return trim((string) preg_replace('/\s+/', ' ', $name));
+    }
+
+    private function redirectToReturnPath(Request $request, string $fallbackRoute, array $flash = [])
+    {
+        $returnTo = $request->input('return_to');
+        $redirect = is_string($returnTo)
+            && str_starts_with($returnTo, '/')
+            && ! str_starts_with($returnTo, '//')
+                ? redirect($returnTo)
+                : redirect()->route($fallbackRoute);
+
+        foreach ($flash as $key => $value) {
+            $redirect->with($key, $value);
+        }
+
+        return $redirect;
     }
 
     private function permissionKeys(): array

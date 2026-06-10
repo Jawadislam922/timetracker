@@ -43,7 +43,8 @@ const attendanceSlackFieldOptions = [
     { value: 'leave', label: 'Leave' },
     { value: 'half_day', label: 'Half day' },
     { value: 'work_from_home', label: 'WFH' },
-    { value: 'late_joining', label: 'Late' },
+    { value: 'late_coming', label: 'Late coming' },
+    { value: 'late_joining', label: 'Late joining' },
     { value: 'holidays', label: 'Holidays' },
     { value: 'public_holiday', label: 'Public holiday' },
     { value: 'total_work_hours', label: 'Hours' },
@@ -71,7 +72,8 @@ const gridStatusStyles = {
     L: 'bg-amber-200 text-amber-900 border-amber-300',
     HD: 'bg-yellow-200 text-yellow-900 border-yellow-300',
     WFH: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-    LI: 'bg-orange-100 text-orange-800 border-orange-200',
+    LC: 'bg-orange-100 text-orange-800 border-orange-200',
+    LI: 'bg-slate-100 text-slate-700 border-slate-300',
     PH: 'bg-purple-100 text-purple-800 border-purple-200',
     empty: 'bg-slate-50 text-slate-400 border-slate-200',
 };
@@ -577,7 +579,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                         type="search"
                                         value={searchQuery}
                                         onChange={(event) => setSearchQuery(event.target.value)}
-                                        placeholder="Search employee or shift"
+                                        placeholder="Search employee or designation"
                                         className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
                                     />
                                 </label>
@@ -1105,7 +1107,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             </fieldset>
 
                             <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-                                Late is calculated from each person's shift start time and grace period. A late day is counted in both Present and Late totals.
+                                Late coming is calculated from each person's shift start time and grace period, and counts in both Present and Late coming totals. Late joining is for days before the employee's joining date.
                             </p>
                         </div>
 
@@ -1206,7 +1208,8 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
         { key: 'leave', label: 'Leave' },
         { key: 'half_day', label: 'Half day' },
         { key: 'work_from_home', label: 'WFH' },
-        { key: 'late_joining', label: 'Late' },
+        { key: 'late_coming', label: 'Late coming' },
+        { key: 'late_joining', label: 'Late joining' },
         { key: 'total_work_hours', label: 'Hours', format: (value) => formatHours(value) },
     ];
 

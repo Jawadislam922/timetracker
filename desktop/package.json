@@ -13,6 +13,8 @@
     "dev:renderer": "vite",
     "dev:electron": "wait-on tcp:5173 && electron .",
     "dev": "concurrently -k -n vite,electron -c blue,green \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:setup": "powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1",
+    "dev:fast": "powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1 -SkipMigrate -SkipRebuild",
     "build:renderer": "vite build",
     "start": "npm run build:renderer && electron .",
     "dist": "npm run build:renderer && electron-builder --win --x64",
@@ -51,8 +53,25 @@
       "renderer/dist/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/uiohook-napi/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/screenshot-desktop/**/*"
+    ],
     "win": {
-      "target": "nsis"
+      "signAndEditExecutable": false,
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Timetracker Desktop"
     }
   }
 }

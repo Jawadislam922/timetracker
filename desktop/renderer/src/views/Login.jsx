@@ -10,7 +10,6 @@ export default function Login({ initial, onLoggedIn }) {
 
   useEffect(() => {
     if (!deviceName) {
-      // Suggest a reasonable default like "Windows · Spark"
       setDeviceName(`${navigator.platform || 'Desktop'}`);
     }
   }, []);
@@ -19,6 +18,7 @@ export default function Login({ initial, onLoggedIn }) {
     e.preventDefault();
     setError('');
     setBusy(true);
+
     try {
       const user = await window.tt.auth.login({ email, password, deviceName, apiBaseUrl });
       onLoggedIn({ user, apiBaseUrl });
@@ -82,7 +82,7 @@ export default function Login({ initial, onLoggedIn }) {
         {error && <div className="error">{error}</div>}
 
         <button type="submit" className="primary" disabled={busy} style={{ width: '100%', marginTop: 8 }}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? 'Signing in...' : 'Sign in'}
         </button>
       </form>
     </div>

@@ -1,140 +1,155 @@
 # Timetracker Desktop
 
-Lightweight Electron tracker that uploads screenshots, activity samples,
-and time totals to the Timetracker Laravel app (the parent folder,
-`C:\laragon\www\timetracker`). This module lives at
-`C:\laragon\www\timetracker\desktop` so the whole project ships from a
-single git repository.
+Electron desktop tracker for the Timetracker Laravel app. It signs in with a
+Timetracker account, starts a tracking session, captures screenshots and
+activity counts, queues uploads locally when offline, and sends everything to
+the Laravel monitoring API.
 
-This is the Phase 2 prototype for the screenshot-monitoring feature
-described in `FEATURE_ROADMAP_ATTENDANCE_REPORTS_MONITORING.md`.
+The desktop app lives inside the main project:
 
-## Features
-
-- Sign in with your Timetracker email & password (token stored via
-  electron-store).
-- Pick a client, work type, optional Upwork profile, task note.
-- Start / Stop tracker.
-- Captures the primary screen at random intervals (range comes from
-  `/api/desktop/settings`; defaults 5–10 min).
-- Tracks keyboard & mouse counts (no key content) via `uiohook-napi`,
-  idle time via Electron's `powerMonitor`.
-- Captures active app name + window title (and URL domain on supported
-  browsers) via `active-win`.
-- Offline-safe: all uploads go through a SQLite queue
-  (`better-sqlite3`). When the network is down the local queue keeps
-  filling; uploads drain automatically when connectivity returns.
-
-## Project layout
-
+```text
+C:\laragon\www\timetracker\desktop
 ```
-timetracker-desktop/
-├── main/               # Electron main-process modules
-│   ├── main.js         # entry; creates the BrowserWindow
-│   ├── config.js       # paths + defaults
-│   ├── store.js        # electron-store wrapper (token, settings)
-│   ├── api.js          # axios client for /api/desktop/*
-│   ├── queue.js        # SQLite offline queue (better-sqlite3)
-│   ├── screenshotService.js
-│   ├── activityService.js
-│   ├── trackerService.js  # orchestrates start/stop/heartbeat/sync
-│   └── ipc.js          # ipcMain handlers exposed to the renderer
-├── preload/
-│   └── preload.js      # contextBridge -> window.tt
-├── renderer/           # Vite + React UI
-│   ├── index.html
-│   └── src/
-│       ├── main.jsx
-│       ├── App.jsx
-│       ├── styles.css
-│       └── views/
-│           ├── Login.jsx
-│           └── Tracker.jsx
-├── package.json
-├── vite.config.js
-└── README.md
+
+Read the main handoff first:
+
+```text
+C:\laragon\www\timetracker\documents\CODEX_COMPLETE_CHAT_AND_PROJECT_HANDOFF.md
 ```
+
+## Privacy Rules
+
+- Tracking only happens after the user clicks Start tracking.
+- Capture stops immediately when the user clicks Stop tracking.
+- The app records keyboard and mouse counts only, never keystroke contents.
+- It does not use webcam, microphone, or personal file access.
+- Local queued screenshots live in the OS user data folder, not in the repo.
 
 ## Prerequisites
 
-- Node.js 18+
-- npm 9+
-- Visual Studio Build Tools (Windows) — required to compile native
-  modules (`better-sqlite3`, `uiohook-napi`)
-- The Timetracker Laravel app reachable on your network. Default during
-  local dev: `http://timetracker.test`.
+- Laragon running.
+- Timetracker web app reachable, usually `http://timetracker.test`.
+- Node.js 18+ and npm.
+- Visual Studio Build Tools for native Electron modules.
+- Desktop dependencies installed with `npm install`.
 
-## Install
+## First-Time Local Run
+
+From PowerShell:
 
 ```powershell
 cd C:\laragon\www\timetracker\desktop
-npm install
-# Native modules must be built against Electron, not against system Node:
+npm run dev:setup
+```
+
+This script:
+
+1. Runs `php artisan migrate` in the parent Laravel app.
+2. Checks that `http://timetracker.test/login` is reachable.
+3. Runs `npm run rebuild` for Electron native modules.
+4. Starts the Vite renderer and Electron app with `npm run dev`.
+
+If your local site URL is different:
+
+```powershell
+cd C:\laragon\www\timetracker\desktop
+powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1 -ServerUrl http://127.0.0.1:8000
+```
+
+## Repeat Runs
+
+After native modules have already been rebuilt once:
+
+```powershell
+cd C:\laragon\www\timetracker\desktop
+npm run dev:fast
+```
+
+This skips migrations and native rebuild, then launches the app.
+
+## Manual Two-Window Run
+
+Window 1:
+
+```powershell
+cd C:\laragon\www\timetracker
+php artisan migrate
+```
+
+Window 2:
+
+```powershell
+cd C:\laragon\www\timetracker\desktop
 npm run rebuild
-```
-
-If `npm run rebuild` fails on Windows, install build tooling once:
-
-```powershell
-npm install --global windows-build-tools
-```
-
-## Development
-
-Run the Vite dev server and Electron together:
-
-```powershell
 npm run dev
 ```
 
-The renderer hot-reloads at `http://localhost:5173`; Electron picks
-that up automatically. DevTools open in a detached window.
+`npm run rebuild` is needed after Electron, Node, or native dependency changes.
+It compiles `better-sqlite3` and `uiohook-napi` against Electron's Node ABI.
 
-## Production build
+## Sign In
 
-```powershell
-npm run start    # builds renderer then launches Electron from packaged assets
-npm run dist     # produces an NSIS installer in dist-app/  (Windows)
+Use the same account as the web app.
+
+- Server URL: `http://timetracker.test` or your actual local URL.
+- Email/password: web app credentials.
+- Device name: any stable name, for example `Spark Laptop`.
+
+Then choose a client, enter a description, and click Start tracking. Work type
+and tracker/profile are attached to the client in the web app, so employees do
+not choose them in the desktop tracker.
+
+## View Captures
+
+Open:
+
+```text
+http://timetracker.test/monitoring/sessions
 ```
 
-## How it talks to the server
+Use your actual local URL if different. Click a session to view screenshot
+thumbnails and session details.
 
-The desktop app expects the Laravel Phase 1 endpoints under
-`/api/desktop/*` to exist. The full list:
+## Test Screenshot Interval
 
-| Method | Path                              | Purpose                                |
-|--------|-----------------------------------|----------------------------------------|
-| POST   | `/api/desktop/login`              | Exchange email+password for a token    |
-| GET    | `/api/desktop/me`                 | Get the current user                   |
-| POST   | `/api/desktop/logout`             | Revoke the current token               |
-| GET    | `/api/desktop/clients`            | List clients                           |
-| GET    | `/api/desktop/work-types`         | List work types                        |
-| GET    | `/api/desktop/upwork-profiles`    | List Upwork profiles                   |
-| GET    | `/api/desktop/settings`           | Capture interval, idle threshold, etc. |
-| POST   | `/api/desktop/sessions/start`     | Idempotent (per `client_uuid`)         |
-| PATCH  | `/api/desktop/sessions/{id}/heartbeat` | Periodic update of elapsed time   |
-| POST   | `/api/desktop/sessions/{id}/stop` | Mark a session stopped                 |
-| POST   | `/api/desktop/screenshots`        | Multipart upload                       |
-| POST   | `/api/desktop/activity/batch`     | Array of activity samples              |
+The local testing migration
+`database/migrations/2026_06_09_000006_set_testing_screenshot_intervals.php`
+sets screenshots and activity samples to every 10 seconds for end-to-end
+testing.
 
-## Privacy posture
+For realistic intervals, change `monitoring_settings` back to:
 
-This app follows the privacy guardrails from the project roadmap:
+```php
+App\Models\MonitoringSetting::current()->update([
+    'screenshot_interval_min_seconds' => 300,
+    'screenshot_interval_max_seconds' => 600,
+    'activity_sample_interval_seconds' => 60,
+]);
+```
 
-- Tracking only happens between Start and Stop. There is no background
-  capture.
-- We never record actual keystroke content — only counts.
-- We never access the webcam, microphone, or files outside the
-  screenshot directory the app owns.
-- All local artifacts live in your OS user-data directory (e.g.
-  `%APPDATA%\timetracker-desktop\` on Windows).
+## Troubleshooting
 
-## Roadmap (next iterations)
+- If `npm run rebuild` fails, install Visual Studio Build Tools with the C++
+  workload, then rerun `npm run rebuild`.
+- If login fails, verify the Server URL points to the Laravel app, not the Vite
+  dev server.
+- If screenshots do not appear, check the desktop app pending screenshot count
+  and Laravel logs.
+- If the monitoring page is forbidden, the user needs monitoring permissions.
+- If uploads fail while offline, keep the desktop app running after reconnecting
+  so the local SQLite queue can drain.
 
-- Auto-pause when idle exceeds the configured threshold; auto-resume on
-  activity.
-- System tray icon with quick Start / Stop and current status.
-- Multi-monitor capture toggle (currently primary monitor only).
-- "Offline time" entries when working without a computer.
-- Auto-update via electron-updater.
-- Encrypted local queue using a OS-keychain-backed key.
+## Main Files
+
+```text
+main/main.js                 Electron entry point
+main/api.js                  API client for /api/desktop/*
+main/queue.js                SQLite offline queue
+main/screenshotService.js    Primary screen capture
+main/activityService.js      Keyboard/mouse counts and active window metadata
+main/trackerService.js       Start/stop, timers, heartbeat, sync
+preload/preload.js           Safe IPC bridge
+renderer/src/views/Login.jsx Login screen
+renderer/src/views/Tracker.jsx Tracker screen
+scripts/start-dev.ps1        Repeatable local dev startup helper
+```

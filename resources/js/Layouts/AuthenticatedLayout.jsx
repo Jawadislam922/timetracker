@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@inertiajs/react';
 import {
+    Activity,
     BarChart3,
     Briefcase,
     CalendarDays,
     ChevronDown,
     Clock,
+    Film,
     LayoutDashboard,
     LogOut,
     Menu,
+    MonitorDown,
     Plus,
+    Settings as SettingsIcon,
     UserCircle,
     Users,
     X,
@@ -46,6 +50,7 @@ function NavItem({ item, onClick }) {
 export default function Authenticated({ user, header, children }) {
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
     const can = (permission) => user?.is_super_admin || user?.permissions?.includes(permission);
+    const canCreateManualWorkHour = user?.can_create_manual_work_hour ?? true;
 
     const navItems = useMemo(() => {
         const items = [
@@ -54,6 +59,18 @@ export default function Authenticated({ user, header, children }) {
                 href: route('dashboard'),
                 icon: LayoutDashboard,
                 active: ['dashboard'],
+            },
+            {
+                label: 'Timeline',
+                href: route('timeline.index'),
+                icon: Film,
+                active: ['timeline.index'],
+            },
+            {
+                label: 'Desktop App',
+                href: route('desktop-downloads.index'),
+                icon: MonitorDown,
+                active: ['desktop-downloads.index'],
             },
             {
                 label: 'Work Diary',
@@ -94,6 +111,18 @@ export default function Authenticated({ user, header, children }) {
                     icon: BarChart3,
                     active: ['work-hours.report'],
                 },
+            can('timeline.view_others') && {
+                    label: 'Team',
+                    href: route('team.index'),
+                    icon: Activity,
+                    active: ['team.index'],
+                },
+            can('monitoring.settings') && {
+                    label: 'Settings',
+                    href: route('settings.index'),
+                    icon: SettingsIcon,
+                    active: ['settings.index'],
+                },
         ].filter(Boolean);
 
         items.splice(1, 0, ...managementItems);
@@ -125,13 +154,15 @@ export default function Authenticated({ user, header, children }) {
                         </div>
 
                         <div className="hidden shrink-0 items-center gap-3 sm:flex">
-                            <Link
-                                href={route('work-hours.create')}
-                                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                            >
-                                <Plus className="h-4 w-4" />
-                                <span>Add Entry</span>
-                            </Link>
+                            {canCreateManualWorkHour && (
+                                <Link
+                                    href={route('work-hours.create')}
+                                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    <span>Add Entry</span>
+                                </Link>
+                            )}
 
                             <Dropdown>
                                 <Dropdown.Trigger>

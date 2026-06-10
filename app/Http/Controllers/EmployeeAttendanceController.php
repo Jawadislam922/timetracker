@@ -25,6 +25,7 @@ class EmployeeAttendanceController extends Controller
         'L' => 'Leave',
         'HD' => 'Half day',
         'WFH' => 'Work from home',
+        'LC' => 'Late coming',
         'LI' => 'Late joining',
         'PH' => 'Public holiday',
     ];
@@ -83,6 +84,7 @@ class EmployeeAttendanceController extends Controller
             'leave' => 0,
             'half_day' => 0,
             'work_from_home' => 0,
+            'late_coming' => 0,
             'late_joining' => 0,
             'public_holiday' => 0,
             'total_work_hours' => 0,
@@ -395,6 +397,7 @@ class EmployeeAttendanceController extends Controller
                     'leave',
                     'half_day',
                     'work_from_home',
+                    'late_coming',
                     'late_joining',
                     'holidays',
                     'public_holiday',
@@ -772,11 +775,19 @@ class EmployeeAttendanceController extends Controller
             ];
         }
 
+        if ($this->isBeforeJoiningDate($employee, $date)) {
+            return [
+                'code' => 'LI',
+                'label' => self::ATTENDANCE_STATUSES['LI'],
+                'source' => 'automatic',
+            ];
+        }
+
         if ($firstClockIn) {
             if ($this->isLateClockIn($employee, $date, $firstClockIn)) {
                 return [
-                    'code' => 'LI',
-                    'label' => self::ATTENDANCE_STATUSES['LI'],
+                    'code' => 'LC',
+                    'label' => self::ATTENDANCE_STATUSES['LC'],
                     'source' => 'automatic',
                 ];
             }
@@ -815,8 +826,14 @@ class EmployeeAttendanceController extends Controller
     {
         $summary['total_work_hours'] += (float) $workHours;
 
-        if ($statusCode === 'LI') {
+        if ($statusCode === 'LC') {
             $summary['present']++;
+            $summary['late_coming']++;
+
+            return;
+        }
+
+        if ($statusCode === 'LI') {
             $summary['late_joining']++;
 
             return;
@@ -832,6 +849,15 @@ class EmployeeAttendanceController extends Controller
             'PH' => $summary['public_holiday']++,
             default => null,
         };
+    }
+
+    private function isBeforeJoiningDate(User $employee, Carbon $date): bool
+    {
+        if (! $employee->joining_date) {
+            return false;
+        }
+
+        return $date->toDateString() < $employee->joining_date->toDateString();
     }
 
     private function isLateClockIn(User $employee, Carbon $date, TimeEntry $firstClockIn): bool

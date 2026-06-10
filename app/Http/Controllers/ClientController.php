@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\MonitoringSetting;
 use App\Models\UpworkProfile;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -30,8 +31,8 @@ class ClientController extends Controller
             $clients = $query->paginate($perPage)->appends($request->query());
 
             // Calculate weekly hours for each client and format as HH:MM
-            $startOfWeek = now()->startOfWeek()->format('Y-m-d');
-            $endOfWeek = now()->endOfWeek()->format('Y-m-d');
+            $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
+            $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
 
             $clients->getCollection()->transform(function ($client) use ($startOfWeek, $endOfWeek) {
                 // Get the sum of hours for this week
@@ -53,6 +54,7 @@ class ClientController extends Controller
                 'clients' => $clients,
                 'filters' => [
                     'search' => $search,
+                    'perPage' => $perPage,
                 ],
                 'workTypes' => Client::getWorkTypes(),
             ]);
@@ -130,6 +132,7 @@ class ClientController extends Controller
             'client' => $client->load(['upworkProfile', 'upworkProfiles']),
             'upworkProfiles' => $upworkProfiles,
             'workTypes' => $workTypes,
+            'returnTo' => request('return_to'),
         ]);
     }
 
@@ -177,14 +180,18 @@ class ClientController extends Controller
             $client->upworkProfiles()->sync($validated['upwork_profile_ids']);
         }
 
-        return redirect()->route('clients.index')->with('success', 'Client updated.');
+        return $this->redirectToReturnPath($request, 'clients.index', [
+            'success' => 'Client updated.',
+        ]);
     }
 
-    public function destroy(Client $client)
+    public function destroy(Request $request, Client $client)
     {
         $client->delete();
 
-        return redirect()->route('clients.index')->with('success', 'Client deleted.');
+        return $this->redirectToReturnPath($request, 'clients.index', [
+            'success' => 'Client deleted.',
+        ]);
     }
 
     public function bulkDestroy(Request $request)
@@ -197,11 +204,15 @@ class ClientController extends Controller
         try {
             $deletedCount = Client::whereIn('id', $request->client_ids)->delete();
 
-            return redirect()->route('clients.index')->with('success', "{$deletedCount} client(s) deleted successfully.");
+            return $this->redirectToReturnPath($request, 'clients.index', [
+                'success' => "{$deletedCount} client(s) deleted successfully.",
+            ]);
         } catch (\Exception $e) {
             \Log::error('Bulk delete error: '.$e->getMessage());
 
-            return redirect()->route('clients.index')->with('error', 'Failed to delete selected clients.');
+            return $this->redirectToReturnPath($request, 'clients.index', [
+                'error' => 'Failed to delete selected clients.',
+            ]);
         }
     }
 
@@ -326,5 +337,21 @@ class ClientController extends Controller
 
             return redirect()->back()->with('error', 'Failed to import clients: '.$e->getMessage());
         }
+    }
+
+    private function redirectToReturnPath(Request $request, string $fallbackRoute, array $flash = [])
+    {
+        $returnTo = $request->input('return_to');
+        $redirect = is_string($returnTo)
+            && str_starts_with($returnTo, '/')
+            && ! str_starts_with($returnTo, '//')
+                ? redirect($returnTo)
+                : redirect()->route($fallbackRoute);
+
+        foreach ($flash as $key => $value) {
+            $redirect->with($key, $value);
+        }
+
+        return $redirect;
     }
 }

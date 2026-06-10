@@ -34,6 +34,8 @@ return [
     'slack_reports' => [
         'webhook_url' => env('SLACK_REPORT_WEBHOOK_URL'),
         'weekly_enabled' => (bool) env('SLACK_WEEKLY_REPORT_ENABLED', false),
+        'daily_digest_enabled' => (bool) env('SLACK_DAILY_DIGEST_ENABLED', false),
+        'daily_digest_time' => env('SLACK_DAILY_DIGEST_TIME', '09:00'),
         'timezone' => env('SLACK_REPORT_TIMEZONE', 'Asia/Karachi'),
     ],
 

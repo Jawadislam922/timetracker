@@ -5,7 +5,7 @@ import { Head, useForm, Link } from '@inertiajs/react';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
 
-export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) {
+export default function ClientEdit({ auth, client, upworkProfiles, workTypes, returnTo = '' }) {
     // Initialize with existing multiple profiles or fallback to single profile
     const initialProfileIds = client.upwork_profiles && client.upwork_profiles.length > 0 
         ? client.upwork_profiles.map(p => p.id)
@@ -16,6 +16,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
         tags: client.tags || [],
         work_type: client.work_type || '',
         upwork_profile_ids: initialProfileIds, // Changed to support multiple profiles
+        return_to: returnTo || '',
     });
 
     // Search and dropdown states
@@ -328,7 +329,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                         <div>
                                             <p className="text-sm text-slate-500 mb-1">Current Work Type:</p>
-                                            <span className="inline-flex px-3 py-1 text-xs font-medium bg-blue-500/20 text-blue-600 rounded-md backdrop-blur-xl border border-blue-400/30">
+                                            <span className="inline-flex px-3 py-1 text-xs font-semibold bg-blue-50 text-blue-800 rounded-md border border-blue-200">
                                                 {workTypes?.[client.work_type] || client.work_type || 'Not set'}
                                             </span>
                                         </div>
@@ -339,16 +340,16 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                                 {/* Show multiple profiles if they exist */}
                                                 {client.upwork_profiles && client.upwork_profiles.length > 0 ? (
                                                     client.upwork_profiles.map((profile) => (
-                                                        <span key={profile.id} className="inline-flex px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-600 rounded-md backdrop-blur-xl border border-purple-400/30">
+                                                        <span key={profile.id} className="inline-flex px-3 py-1 text-xs font-semibold bg-purple-50 text-purple-800 rounded-md border border-purple-200">
                                                             {profile.name}
                                                         </span>
                                                     ))
                                                 ) : client.upwork_profile ? (
-                                                    <span className="inline-flex px-3 py-1 text-xs font-medium bg-purple-500/20 text-purple-600 rounded-md backdrop-blur-xl border border-purple-400/30">
+                                                    <span className="inline-flex px-3 py-1 text-xs font-semibold bg-purple-50 text-purple-800 rounded-md border border-purple-200">
                                                         {client.upwork_profile.name}
                                                     </span>
                                                 ) : (
-                                                    <span className="inline-flex px-3 py-1 text-xs font-medium bg-gray-500/20 text-gray-300 rounded-md backdrop-blur-xl border border-gray-400/30">
+                                                    <span className="inline-flex px-3 py-1 text-xs font-medium bg-slate-100 text-slate-700 rounded-md border border-slate-200">
                                                         Not set
                                                     </span>
                                                 )}
@@ -363,7 +364,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                                 {client.tags.map((tag, index) => (
                                                     <span
                                                         key={index}
-                                                        className="inline-flex px-2 py-1 text-xs font-medium bg-green-500/20 text-green-300 rounded-md backdrop-blur-xl border border-green-400/30"
+                                                        className="inline-flex px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-800 rounded-md border border-emerald-300"
                                                     >
                                                         {tag}
                                                     </span>
@@ -386,7 +387,7 @@ export default function ClientEdit({ auth, client, upworkProfiles, workTypes }) 
                                         {form.processing ? 'Updating...' : 'Update Client'}
                                     </button>
                                     <Link
-                                        href={route('clients.index')}
+                                        href={returnTo || route('clients.index')}
                                         className="inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

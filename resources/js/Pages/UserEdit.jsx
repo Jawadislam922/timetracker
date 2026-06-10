@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import UserForm from '@/Components/Users/UserForm';
 
-export default function UserEdit({ auth, user, roles, permissionGroups, canManageAccess }) {
+export default function UserEdit({ auth, user, roles, permissionGroups, canManageAccess, designationOptions = [] }) {
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title={`Edit ${user.name}`} />
@@ -18,6 +18,7 @@ export default function UserEdit({ auth, user, roles, permissionGroups, canManag
                         roles={roles}
                         permissionGroups={permissionGroups}
                         canManageAccess={canManageAccess}
+                        designationOptions={designationOptions}
                     />
                 </div>
             </div>

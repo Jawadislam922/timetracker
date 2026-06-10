@@ -17,6 +17,8 @@ class WorkHour extends Model
         'work_type',
         'client_id',
         'tracker',
+        'tracking_session_id',
+        'source',
     ];
 
     public function user()

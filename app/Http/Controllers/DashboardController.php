@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\MonitoringSetting;
 use App\Models\User;
 use App\Models\WorkHour;
 use Carbon\Carbon;
@@ -50,7 +51,7 @@ class DashboardController extends Controller
     private function getEmployeeAnalytics($userId)
     {
         $today = Carbon::today();
-        $weekStart = Carbon::today()->startOfWeek();
+        $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
         $monthStart = Carbon::today()->startOfMonth();
 
         // Today's hourly breakdown (last 24 hours by hour)
@@ -158,7 +159,7 @@ class DashboardController extends Controller
 
     private function getWeekDailyData($userId)
     {
-        $weekStart = Carbon::today()->startOfWeek();
+        $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
         $days = [];
         $data = [];
 
@@ -184,11 +185,11 @@ class DashboardController extends Controller
         $weeks = [];
         $data = [];
 
-        $currentWeekStart = $monthStart->copy()->startOfWeek();
+        $currentWeekStart = $monthStart->copy()->startOfWeek(MonitoringSetting::weekStartDay());
         $weekNumber = 1;
 
         while ($currentWeekStart->month <= Carbon::today()->month && $weekNumber <= 5) {
-            $weekEnd = $currentWeekStart->copy()->endOfWeek();
+            $weekEnd = $currentWeekStart->copy()->endOfWeek(MonitoringSetting::weekEndDay());
             $weeks[] = "Week {$weekNumber}";
 
             $hours = WorkHour::where('user_id', $userId)
@@ -295,8 +296,8 @@ class DashboardController extends Controller
         $data = [];
 
         for ($i = 3; $i >= 0; $i--) {
-            $weekStart = Carbon::today()->subWeeks($i)->startOfWeek();
-            $weekEnd = $weekStart->copy()->endOfWeek();
+            $weekStart = Carbon::today()->subWeeks($i)->startOfWeek(MonitoringSetting::weekStartDay());
+            $weekEnd = $weekStart->copy()->endOfWeek(MonitoringSetting::weekEndDay());
             $weeks[] = $weekStart->format('M j').'-'.$weekEnd->format('j');
 
             $weekTotal = WorkHour::whereBetween('date', [
@@ -405,8 +406,8 @@ class DashboardController extends Controller
 
     private function getWeekHours($userId)
     {
-        $weekStart = Carbon::today()->startOfWeek();
-        $weekEnd = Carbon::today()->endOfWeek();
+        $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
+        $weekEnd = Carbon::today()->endOfWeek(MonitoringSetting::weekEndDay());
 
         return WorkHour::where('user_id', $userId)
             ->whereBetween('date', [$weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
@@ -490,8 +491,8 @@ class DashboardController extends Controller
         $data = [];
 
         for ($i = 3; $i >= 0; $i--) {
-            $weekStart = Carbon::today()->subWeeks($i)->startOfWeek();
-            $weekEnd = $weekStart->copy()->endOfWeek();
+            $weekStart = Carbon::today()->subWeeks($i)->startOfWeek(MonitoringSetting::weekStartDay());
+            $weekEnd = $weekStart->copy()->endOfWeek(MonitoringSetting::weekEndDay());
             $weeks[] = $weekStart->format('M j').'-'.$weekEnd->format('j');
 
             $hours = WorkHour::where('user_id', $employeeId)
@@ -538,8 +539,8 @@ class DashboardController extends Controller
     private function getEmployeeStats($userId)
     {
         $today = Carbon::today();
-        $weekStart = Carbon::today()->startOfWeek();
-        $weekEnd = Carbon::today()->endOfWeek();
+        $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
+        $weekEnd = Carbon::today()->endOfWeek(MonitoringSetting::weekEndDay());
         $monthStart = Carbon::today()->startOfMonth();
 
         $thisWeekHours = WorkHour::where('user_id', $userId)
@@ -578,7 +579,7 @@ class DashboardController extends Controller
     private function getAdminStats()
     {
         $today = Carbon::today();
-        $weekStart = Carbon::today()->startOfWeek();
+        $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
         $monthStart = Carbon::today()->startOfMonth();
 
         $totalHoursToday = WorkHour::where('date', $today->format('Y-m-d'))->sum('hours');

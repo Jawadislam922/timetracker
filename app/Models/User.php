@@ -15,7 +15,6 @@ class User extends Authenticatable
 
     /**
      * The attributes that are mass assignable.
-     * Note: 'designation' field represents employee shifts (e.g., Morning, Evening, Night)
      *
      * @var array<int, string>
      */
@@ -27,7 +26,8 @@ class User extends Authenticatable
         'permissions',
         'include_in_slack_reports',
         'avatar',
-        'designation', // Stores shift information (Morning, Evening, Night, etc.)
+        'designation',
+        'joining_date',
         'shift_start_time',
         'shift_grace_minutes',
     ];
@@ -53,6 +53,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'permissions' => 'array',
         'include_in_slack_reports' => 'boolean',
+        'joining_date' => 'date',
         'shift_start_time' => 'datetime:H:i',
         'shift_grace_minutes' => 'integer',
     ];
@@ -121,6 +122,7 @@ class User extends Authenticatable
             'monitoring.view_screenshots' => ['monitoring.view'],
             'monitoring.delete_screenshots' => ['monitoring.view', 'monitoring.view_screenshots'],
             'monitoring.settings' => ['monitoring.view'],
+            'timeline.view_others' => [],
         ];
 
         foreach ($assigned as $permission) {

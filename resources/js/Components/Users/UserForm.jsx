@@ -14,6 +14,7 @@ export default function UserForm({
     roles = {},
     permissionGroups = {},
     canManageAccess = false,
+    designationOptions = [],
 }) {
     const editing = Boolean(user);
     const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
@@ -23,12 +24,14 @@ export default function UserForm({
         email: user?.email || '',
         password: '',
         designation: user?.designation || '',
+        joining_date: user?.joining_date || '',
         shift_start_time: user?.shift_start_time || '',
         shift_grace_minutes: user?.shift_grace_minutes ?? 15,
         role: user?.role || 'member',
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
         avatar: null,
+        return_to: user?.return_to || '',
     });
 
     const togglePermission = (permission) => {
@@ -65,7 +68,7 @@ export default function UserForm({
             <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-200 px-5 py-4">
                     <h2 className="font-bold text-slate-950">Account details</h2>
-                    <p className="mt-1 text-sm text-slate-600">Identity, login, and shift information.</p>
+                    <p className="mt-1 text-sm text-slate-600">Identity, login, designation, and attendance schedule.</p>
                 </div>
 
                 <div className="grid gap-6 p-5 lg:grid-cols-[180px_1fr]">
@@ -116,14 +119,29 @@ export default function UserForm({
                                 required={!editing}
                             />
                         </Field>
-                        <Field label="Shift" hint="For example: Morning, Evening, or Night." error={form.errors.designation}>
+                        <Field label="Designation" hint="Choose a suggestion or type a new designation." error={form.errors.designation}>
                             <input
+                                list="designation-options"
                                 value={form.data.designation}
                                 onChange={(event) => form.setData('designation', event.target.value)}
+                                placeholder="Admin, Graphic Designer, Video Editor..."
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                            <datalist id="designation-options">
+                                {designationOptions.map((designation) => (
+                                    <option key={designation} value={designation} />
+                                ))}
+                            </datalist>
+                        </Field>
+                        <Field label="Joining date" hint="Days before this date show as Late joining." error={form.errors.joining_date}>
+                            <input
+                                type="date"
+                                value={form.data.joining_date}
+                                onChange={(event) => form.setData('joining_date', event.target.value)}
                                 className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
                             />
                         </Field>
-                        <Field label="Shift start time" hint="Used to detect late joining automatically." error={form.errors.shift_start_time}>
+                        <Field label="Shift start time" hint="Used to detect late coming automatically." error={form.errors.shift_start_time}>
                             <input
                                 type="time"
                                 value={form.data.shift_start_time}

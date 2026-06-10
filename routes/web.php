@@ -2,11 +2,15 @@
 
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DesktopDownloadController;
 use App\Http\Controllers\EmployeeAttendanceController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SlackReportController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TimeEntryController;
+use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\UpworkProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkHourController;
@@ -55,8 +59,13 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/desktop-downloads', [DesktopDownloadController::class, 'index'])->name('desktop-downloads.index');
+    Route::get('/desktop-downloads/windows', [DesktopDownloadController::class, 'windows'])->name('desktop-downloads.windows');
+
     Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->middleware('permission:users.manage')->name('users.create');
+    Route::post('/users/designations', [UserController::class, 'storeDesignation'])->middleware('permission:users.manage')->name('users.designations.store');
+    Route::delete('/users/designations/{designation}', [UserController::class, 'destroyDesignation'])->middleware('permission:users.manage')->name('users.designations.destroy');
     Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.manage')->name('users.store');
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->middleware('permission:users.manage')->name('users.edit');
     Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])->middleware('permission:users.manage')->name('users.update');
@@ -120,12 +129,45 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export', [TimeEntryController::class, 'export'])->name('time-entries.export');
     });
 
+    // Daily timeline view (scrin.io-style). Anyone can see their own; viewing
+    // other users requires the timeline.view_others permission.
+    Route::prefix('timeline')->group(function () {
+        Route::get('/', [TimelineController::class, 'index'])->name('timeline.index');
+        Route::get('/data', [TimelineController::class, 'data'])->name('timeline.data');
+        Route::get('/history', [TimelineController::class, 'history'])->name('timeline.history');
+    });
+
+    // Team day snapshot. Anyone with timeline.view_others sees the team
+    // leaderboard; live "currently tracking" indicators are visible to all
+    // permitted viewers regardless of monitoring.view_screenshots.
+    Route::get('/team', [TeamController::class, 'index'])
+        ->middleware('permission:timeline.view_others')
+        ->name('team.index');
+    Route::get('/team/apps', [TeamController::class, 'apps'])
+        ->middleware('permission:timeline.view_others')
+        ->name('team.apps');
+    Route::post('/team/slack-digest', [TeamController::class, 'sendDigest'])
+        ->middleware('permission:reports.send_slack')
+        ->name('team.slack-digest');
+
+    // Tracking / monitoring settings (scrin.io-style). Super Admin only by
+    // default via the monitoring.settings permission.
+    Route::prefix('settings')->middleware('permission:monitoring.settings')->group(function () {
+        Route::get('/', [SettingsController::class, 'index'])->name('settings.index');
+        Route::put('/team', [SettingsController::class, 'updateTeam'])->name('settings.team.update');
+        Route::put('/users/{user}', [SettingsController::class, 'updateUser'])->name('settings.user.update');
+    });
+
     // Monitoring (screenshot tracker) routes
     Route::prefix('monitoring')->group(function () {
         Route::get('/sessions', [MonitoringController::class, 'sessions'])->name('monitoring.sessions');
         Route::get('/sessions/{session}', [MonitoringController::class, 'showSession'])->name('monitoring.sessions.show');
         Route::get('/screenshots/{screenshot}/image', [MonitoringController::class, 'screenshotImage'])->name('monitoring.screenshots.image');
         Route::get('/screenshots/{screenshot}/thumbnail', [MonitoringController::class, 'screenshotThumbnail'])->name('monitoring.screenshots.thumbnail');
+        Route::patch('/screenshots/{screenshot}/flag', [MonitoringController::class, 'flagScreenshot'])->name('monitoring.screenshots.flag');
+        Route::delete('/screenshots/{screenshot}', [MonitoringController::class, 'deleteScreenshot'])
+            ->middleware('permission:monitoring.delete_screenshots')
+            ->name('monitoring.screenshots.delete');
     });
 });
 

@@ -47,6 +47,8 @@ function register() {
   ipcMain.handle('meta:workTypes', async () => api.getWorkTypes());
   ipcMain.handle('meta:upworkProfiles', async () => api.getUpworkProfiles());
   ipcMain.handle('meta:settings', async () => api.getSettings());
+  ipcMain.handle('meta:todaySessions', async () => api.todaySessions());
+  ipcMain.handle('meta:weekSummary', async () => api.weekSummary());
 
   // ---- Tracker ----
   ipcMain.handle('tracker:start', async (_evt, opts) => {
@@ -62,6 +64,22 @@ function register() {
   tracker.on('changed', (status) => broadcast('tracker:changed', status));
   tracker.on('stopped', (session) => broadcast('tracker:stopped', session));
   tracker.on('warning', (msg) => broadcast('tracker:warning', msg));
+
+  // Pull the latest server-driven settings at boot, then keep the settings
+  // panel in sync while the app is idle (the tracker refreshes on its own
+  // cadence while a session is running). This makes admin Settings changes
+  // visible without restarting the desktop app.
+  const syncSettings = () => {
+    if (!store.get('token')) return;
+    tracker.refreshSettings()
+      .then(() => broadcast('tracker:changed', tracker.status()))
+      .catch(() => {});
+  };
+
+  syncSettings();
+  setInterval(() => {
+    if (!tracker.status().running) syncSettings();
+  }, 120_000);
 }
 
 module.exports = { register };

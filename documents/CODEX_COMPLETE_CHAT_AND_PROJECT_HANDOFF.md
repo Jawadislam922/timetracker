@@ -1,6 +1,6 @@
 # Complete Codex Chat And Project Handoff
 
-Last updated: 2026-06-09 after local manual attendance audit-history work
+Last updated: 2026-06-10 after local desktop installer build
 
 This is the canonical starting document for any new Codex session or account
 working on the Sparking Asia Time Tracker. It is the consolidated record of
@@ -83,7 +83,8 @@ Released in commit `349e67e`:
 - Attendance Slack report with configurable columns and selected users.
 - User-level shift start time and grace period.
 - Automatic `LI` late status based on first clock-in after
-  `shift start + grace`.
+  `shift start + grace` in released commit `349e67e`; this was split locally
+  on 2026-06-10 into `LC` Late coming and `LI` Late joining.
 - Matching late calculations in the web attendance grid and Slack report.
 - Removal of the temporary HR role.
 - Updated React production build assets.
@@ -117,6 +118,264 @@ the released attendance commit, including `app/Models/User.php`,
 `routes/api.php`, and `routes/web.php`. Preserve those hunks unless Jawad
 explicitly decides to discard or redesign the monitoring experiment.
 
+## Scrin.io Monitoring Suite (Claude Session, 2026-06-10, Local Only)
+
+A separate Claude Code session built a large scrin.io-parity monitoring suite
+on 2026-06-10. All of it is local and uncommitted, layered on top of the
+monitoring experiment above. It is verified locally (75 tests passing,
+`npm run build` green, `npm run build:renderer` green, pint passing) but has
+not been visually reviewed by Jawad at all widths. Preserve all of it.
+
+Features and their primary files:
+
+1. Settings page (scrin.io-style, Super Admin via `monitoring.settings`):
+   - `app/Http/Controllers/SettingsController.php`
+   - `resources/js/Pages/Settings/Index.jsx`
+   - `database/migrations/2026_06_09_000006_extend_monitoring_settings_with_scrinio_fields.php`
+   - `database/migrations/2026_06_09_000007_create_user_monitoring_settings_table.php`
+   - `app/Models/UserMonitoringSetting.php` plus
+     `MonitoringSetting::effectiveForUser()` per-user override resolution.
+   - Team categories: screenshots/hr + blur, activity tracking, app/URL
+     tracking, weekly time limit, auto-pause minutes, allow offline time,
+     notify on screenshot, week starts on, currency symbol, desktop app
+     settings. Per-user copy-then-edit overrides for most categories.
+2. Desktop tracker honors effective settings (`/api/desktop/settings` returns
+   the merged per-user payload; `desktop/main/trackerService.js` implements
+   capture toggle, activity toggle, app/URL suppression, auto-pause on idle,
+   weekly limit stop, screenshot notification, and an idle pre-pause warning).
+3. Reports auto-population: stopping a desktop session upserts a `work_hours`
+   row (`source` = `tracker`, linked by `tracking_session_id`,
+   migration `2026_06_09_000008_add_tracking_session_link_to_work_hours.php`).
+   Manual `work-hours/create` is blocked for Members unless the team
+   `allow_offline_time` setting is on; Admin/Super Admin always allowed.
+   Report rows show Auto/Manual badges.
+4. Timeline page (`/timeline`, `resources/js/Pages/Timeline/Index.jsx`,
+   `app/Http/Controllers/TimelineController.php`): month strip, day totals,
+   24h ruler with active/idle bands, session cards with screenshot grid,
+   Tasks vs Apps & URLs tabs, flag/delete screenshot actions, and a History
+   of changes modal. New permission `timeline.view_others` gates other users.
+5. Team pages (`/team`, `/team/apps`, `app/Http/Controllers/TeamController.php`,
+   `resources/js/Pages/Team/Index.jsx`, `resources/js/Pages/Team/Apps.jsx`):
+   live-now leaderboard and team-wide app/site usage with range filters.
+6. Audit log (`tracking_audit_logs` table,
+   `database/migrations/2026_06_10_000001_create_tracking_audit_logs_table.php`,
+   `app/Models/TrackingAuditLog.php`) recording screenshot flag/unflag/delete
+   with actor, reason, and old/new values.
+7. Slack daily activity digest (`app/Services/ActivityDigestService.php`,
+   `app/Console/Commands/SendDailyActivityDigest.php`, scheduled in
+   `app/Console/Kernel.php` behind `SLACK_DAILY_DIGEST_ENABLED`, manual send
+   button on the Team page). The locally configured webhook returned 404 on
+   2026-06-10 and must be rotated before digests will deliver.
+8. Desktop UI truth-fixes: real trailing-7-day week chart fed by
+   `GET /api/desktop/sessions/week`, settings panel mirrors server-driven
+   values, week bars update live during tracking.
+9. Shared Inertia props: `flash.success`/`flash.error` and `teamSettings`
+   (`allow_offline_time`, `currency_symbol`, `week_starts_on`) plus
+   `auth.user.can_create_manual_work_hour` in
+   `app/Http/Middleware/HandleInertiaRequests.php`.
+
+New tests: `tests/Feature/TeamPageTest.php`, a week-summary test in
+`tests/Feature/DesktopApiTest.php`. All migrations above were applied to the
+local database only.
+
+Also implemented on 2026-06-10 (same Claude session, local only):
+
+- Screenshot retention enforcement: `monitoring:prune-screenshots` command
+  (`app/Console/Commands/PruneTrackingScreenshots.php`) hard-deletes
+  screenshot files and rows (including soft-deleted) older than
+  `retention_days`, scheduled daily at 02:30 in `app/Console/Kernel.php`;
+  supports `--days` and `--dry-run`. Tests in
+  `tests/Feature/ScreenshotRetentionTest.php`.
+- `week_starts_on` wired into week-boundary computations via
+  `MonitoringSetting::weekStartDay()/weekEndDay()` in DashboardController,
+  ClientController, UserController, TimeEntryController (TimelineController
+  already honored it).
+
+## Next Actions For 2026-06-11 (Jawad's Testing Feedback, 2026-06-10)
+
+Work these in order before any new features. Items 1 and 2 are bugs Jawad
+found while testing the monitoring suite.
+
+1. URLs are not recorded in Apps & URLs views. Two suspected causes to
+   investigate and fix together:
+   - The team default for `app_url_tracking_enabled` is `false`, and the
+     desktop tracker suppresses `active_app`/`url_domain` entirely when it is
+     off. Turning it on in Settings is required, but the recording must also
+     be verified end to end after enabling.
+   - `active-win`'s `url` property is only populated on macOS. On Windows it
+     never returns a URL, so `url_domain` will always be null even with the
+     setting on. A Windows-compatible approach is needed: parse the browser
+     window title, use Windows UI Automation to read the address bar, or a
+     companion browser extension. Decide the approach with Jawad, then
+     implement. `active_app` (the application name) should already work on
+     Windows once the setting is on; verify that first.
+2. Settings changes do not apply live to the running desktop app for each
+   user. The tracker only refreshes settings at app boot and at session
+   start. Fix: refresh effective settings periodically while running (for
+   example with each heartbeat or every few minutes), apply changes to the
+   live timers (screenshot cadence, activity sampling, auto-pause), and
+   verify per-user overrides flow through `/api/desktop/settings` to the
+   right user.
+3. Jawad found other minor issues while testing and will report them one at
+   a time in the next session. Start the session by asking him for the next
+   issue on his list, fix it, verify, and repeat. Keep a running
+   issue/resolution log in this section as they are resolved.
+4. Then continue with the planned web-to-desktop protocol launch below.
+
+### Resolution log
+
+- 2026-06-11 — Item 2 (settings not applying live): FIXED locally.
+  `desktop/main/trackerService.js` now re-fetches per-user effective settings
+  every 120s while a session runs (`_refreshAndApplySettings`) and restarts
+  the activity-sample and screenshot timers when their cadence/toggle changes;
+  live-read settings (auto-pause, app/URL toggle, weekly limit, notify) apply
+  on the next sample/heartbeat automatically. `desktop/main/ipc.js` also
+  re-syncs settings every 120s while idle so the settings panel reflects admin
+  changes without an app restart. Per-user overrides flow through
+  `/api/desktop/settings` (`effectiveForUser`). Needs Jawad to verify by
+  changing a setting on the web while a tracker runs.
+- 2026-06-11 — Item 1 (URLs not recorded): PARTIALLY FIXED + DECISION NEEDED.
+  - App-name capture now works on Windows once "App & URL tracking" is enabled
+    in Settings: `desktop/main/activityService.js` `normaliseApp()` cleans the
+    process name (e.g. chrome.exe -> Google Chrome). With the live-settings fix
+    above, enabling the toggle takes effect within ~2 minutes, no restart.
+  - URL capture: added a Windows-safe `domainFromTitle()` fallback that parses
+    an explicit http(s):// URL out of the window title (correct when present,
+    no guessing from bare domains/emails). This rarely fires on Windows because
+    `active-win` only fills `url` on macOS and Chrome/Edge titles do not contain
+    the URL by default.
+  - DECISION (2026-06-11): Jawad chose (C) app-only on Windows for now;
+    revisit URLs later. Options A/B retained below for when it returns.
+    (A) Browser extension that posts the active tab URL to a local endpoint —
+        most reliable, cross-browser, but needs install per machine.
+    (B) Native Windows UI Automation to read the address bar — no extension,
+        but a heavy native dependency and fragile across browser updates.
+    (C) Accept app-only tracking on Windows for now; revisit URLs later.
+
+### Parked desktop UX improvements (suggested 2026-06-11, do later)
+
+Picked up after the testing pass returns. None are bugs; all are polish/UX
+that will make the tracker feel like a finished product.
+
+1. Default `auto_pause_minutes` is currently 1 (aggressive). Change the team
+   default to 5 minutes to match Scrin's behaviour; users can still override.
+2. Idle-time recovery prompt on resume: "You were idle X minutes. Keep that
+   time, or discard?" Mirrors Scrin and improves accuracy.
+3. "Start similar to" shortcut: keep the user's last 3 client+task combos as
+   one-click chips above the desktop start form.
+4. Tray icon menu (Start/Stop/Open) so the user does not need to focus the
+   window to switch state.
+5. Login screen polish — current screen is very plain.
+6. Per-client weekly target hours with a visual bar on the desktop Today
+   panel so each user sees if they are on pace.
+7. Smooth out the active/idle bands on the Timeline hour ruler (currently
+   6-minute slots; consider hover tooltip with timestamps).
+8. Currency symbol from Settings should render in the Report's cost column
+   once hourly rates exist.
+9. Weekly heatmap view on Timeline (7 days at a glance).
+10. Mobile visual audit of all new pages — never done at <768px.
+
+- 2026-06-11 — Pause-on-idle + rich Today rows + click-to-resume + polish
+  (Jawad testing): FIXED locally.
+  - `desktop/main/trackerService.js` now implements real pause/resume instead
+    of stop-on-idle. Active time is tracked via `frozen_seconds` and
+    `last_change_at_ms`; `_pauseSession` freezes the timer and stops
+    screenshots, `_resumeSession` unfreezes and reschedules captures.
+    `_sampleActivity` auto-resumes when keyboard/mouse input returns or system
+    idle drops under 5s. `status()` now reports `paused`, `frozen_seconds`,
+    and `last_change_at` so the renderer ticks smoothly without polling.
+  - `_currentSeconds()` excludes pause periods, so heartbeats, weekly-limit
+    checks, and the work_hour sync all report active-only time.
+  - Bug found while editing: `totalTodaySeconds` double-counted the active
+    session (sum of saved totals + liveSeconds). Fixed.
+  - Today rows now show description, client chip, work-type chip, tracker
+    chip, and a Live/Paused chip on the active row. Clicking a row when idle
+    pre-fills the picker (client + work_type + description) so switching
+    between clients is one click.
+  - `/api/desktop/sessions/today` now returns `upwork_profile_name` for the
+    tracker chip.
+  - Polish: orb shows "Live" / "Paused — resumes when you return" status pill
+    with a pulsing dot when live; paused state uses muted purple; today rows
+    are larger, have hover affordance when resumable, and use coloured chips.
+  - Verified: 80/80 PHP tests pass, desktop renderer build clean, pint clean.
+
+- 2026-06-11 — Work type & description fixes (Jawad testing): FIXED locally.
+  - Desktop start form now lets the user choose the per-entry Upwork work type
+    (Tracker/Manual for a tracker_manual client; Fixed / Outside Upwork for
+    those client types) via a selector in `desktop/renderer/src/views/Tracker.jsx`.
+    The choice is sent to `/api/desktop/sessions/start` and stored on the
+    session, then carried onto the auto-created work_hour.
+  - Description is now required in the desktop start form (start button
+    disabled until non-empty; web Work Diary already required it).
+  - `tracker_manual` is never stored as a per-entry work type:
+    `SessionController::normaliseWorkType()` maps it to `tracker` on both
+    session start and work_hour sync. The user's explicit choice now takes
+    priority over the client's engagement type (this reversed the old
+    "derive from client" behaviour; the corresponding test was updated).
+  - Migration `2026_06_11_000001_normalise_tracker_manual_work_type.php`
+    rewrites existing `work_hours.work_type` and `tracking_sessions.work_type`
+    of `tracker_manual` to `tracker` so older rows edit cleanly in Work Diary
+    and Report. Applied to the local DB only.
+  - Tests added in `tests/Feature/DesktopApiTest.php` (user choice wins,
+    tracker_manual normalisation on start and on work_hour sync). 80 passing.
+
+- 2026-06-10 - Desktop installer build: DONE locally after Claude handoff.
+  - `npm.cmd run rebuild` succeeded after Electron processes were closed.
+  - First `npm.cmd run dist` attempt failed while extracting `winCodeSign`
+    because Windows could not create symlinks in
+    `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign`.
+  - `desktop/package.json` now sets `build.win.signAndEditExecutable` to
+    `false` for this local handoff build. This avoids the broken signing-tool
+    extraction path. The generated installer is unsigned and uses the default
+    Electron icon because no app icon is configured yet.
+  - Successful artifact:
+    `C:\laragon\www\timetracker\desktop\dist-app\Timetracker Desktop Setup 0.1.0.exe`
+    (83,730,286 bytes, SHA256
+    `B3662C9C0D137211E561711CB1C6F6AB7B41151BD98F583B25A944B312D3CBE7`).
+  - Unpacked app also exists at
+    `C:\laragon\www\timetracker\desktop\dist-app\win-unpacked\Timetracker Desktop.exe`.
+  - Nothing was committed, pushed, or deployed.
+
+- 2026-06-10 - Desktop app download section: ADDED locally.
+  - Authenticated users can open `/desktop-downloads` from the main nav
+    (`Desktop App`) and download the Windows installer if present.
+  - Download route:
+    `GET /desktop-downloads/windows` (`desktop-downloads.windows`).
+  - `DesktopDownloadController` looks first in
+    `storage/app/desktop-installers/Timetracker Desktop Setup 0.1.0.exe`,
+    then falls back to
+    `desktop/dist-app/Timetracker Desktop Setup 0.1.0.exe` for local builds.
+  - macOS appears on the page as pending. A real Mac `.dmg`/`.pkg` must be
+    built on macOS, signed/notarized, then wired into the controller before
+    company Mac rollout.
+  - Do not commit large installer binaries accidentally; upload them to the
+    server storage path or attach them to a release artifact intentionally.
+
+Next planned item (agreed with Jawad on 2026-06-10, scheduled for 2026-06-11):
+
+- Launch the desktop tracker from the web interface via a custom
+  `timetracker://` URL protocol. Scope:
+  1. Electron main process: `app.setAsDefaultProtocolClient('timetracker')`,
+     single-instance lock (`requestSingleInstanceLock`), handle
+     `second-instance` argv to focus the window and parse the URL.
+  2. `desktop/package.json` electron-builder `build.protocols` entry so the
+     NSIS installer registers the protocol permanently.
+  3. Web: "Open desktop tracker" button on Timeline and Dashboard that
+     navigates to `timetracker://open`, with a timeout fallback offering a
+     download link when the protocol is not handled.
+  4. Optional: `timetracker://start?client_id=X` pre-selects the client in
+     the desktop start form (never auto-starts tracking).
+  5. DONE LOCALLY on 2026-06-10: produced the first packaged installer with
+     `npm.cmd run dist` in `desktop/`. Use it to test the protocol flow end to
+     end after the protocol handlers/buttons are implemented; dev-mode
+     protocol registration on Windows is unreliable.
+  6. No web-to-desktop credential handoff in v1; the desktop app keeps its
+     own Sanctum login.
+
+Known follow-ups for this suite: weekly heatmap view, currency symbol
+rendering, mobile visual audit of the new pages, and the production release
+decision (nothing committed or pushed).
+
 Paused/resume point on 2026-06-09:
 
 - Jawad reported that production verification for attendance release `349e67e`
@@ -129,6 +388,25 @@ Paused/resume point on 2026-06-09:
 - `php artisan migrate` was run locally for browser verification. It applied
   the local monitoring migrations and the new audit-history migration to the
   local database only.
+- The desktop monitoring run flow was improved locally after the original
+  two-window instructions. The active desktop app path is
+  `C:\laragon\www\timetracker\desktop`. It now has
+  `desktop\scripts\start-dev.ps1`, `npm run dev:setup`, `npm run dev:fast`,
+  a cleaned `desktop\README.md`, fixed desktop UI encoding artifacts, and a
+  desktop-local `postcss.config.cjs` so renderer builds do not inherit the
+  Laravel Tailwind pipeline.
+- The desktop tracker start form was simplified locally to only ask for Client
+  and Description. Work type and tracker/profile are attached to each client
+  in the web app and are now derived from the selected client by the desktop
+  UI and by the backend `/api/desktop/sessions/start` endpoint.
+- The desktop tracker UI was redesigned locally in a scrin.io-inspired style:
+  compact top header, circular timer, week chart, large start/stop pill,
+  Today list, status footer, and slide-out settings panel. The app now loads
+  `/api/desktop/sessions/today` through Electron IPC for the Today list.
+  `php artisan test tests\Feature\DesktopApiTest.php` passed after this
+  change. The final `npm.cmd run build:renderer` verification was not rerun
+  after the redesign because the escalation/usage system rejected the build
+  command; run it before approval or push.
 - Resume later today with "Improve Attendance Slack Controls" unless Jawad
   changes priority.
 
@@ -196,14 +474,20 @@ conversation.
 
 - Attendance uses a monthly spreadsheet-style employee-by-day grid.
 - Statuses are Present, Absent, Holiday, Leave, Half day, Work from home, Late
-  joining, and Public holiday.
+  coming, Late joining, and Public holiday.
 - Planned individual absence is Leave.
 - Absent remains the automatic status when there is no clock-in and no approved
   manual status.
-- Late joining counts in both Present and Late totals.
+- Late coming (`LC`) is based on first clock-in after shift start plus grace,
+  and counts in both Present and Late coming totals.
+- Late joining (`LI`) is based on dates before the employee joining date and
+  does not count as Present or Absent.
 - Half day remains manual until expected working hours are configured.
 - Each user can have a different shift start and grace period.
-- Clock-in at the grace boundary is Present; one minute later is Late.
+- Each user can have an optional joining date. If joining date is 2026-06-06,
+  then 2026-06-01 through 2026-06-05 are `LI`; 2026-06-06 onward follows the
+  normal Present, Absent, Holiday, Late coming, and manual rules.
+- Clock-in at the grace boundary is Present; one minute later is Late coming.
 - On the current day, an employee is not marked Absent until their configured
   shift start plus grace period has passed.
 - A current-day employee without a configured shift remains pending because
@@ -391,12 +675,15 @@ Test these scenarios in the browser:
 1. Set different shift starts such as 08:00, 12:00, 16:00, and 00:00.
 2. Set grace periods of 0, 5, 10, and 15 minutes.
 3. Confirm clock-in exactly at the grace limit remains `P`.
-4. Confirm clock-in one minute after the grace limit becomes `LI`.
+4. Confirm clock-in one minute after the grace limit becomes `LC`.
 5. Confirm a user without a shift start is not automatically marked late.
-6. Confirm a manual status overrides the calculated status.
-7. Confirm an unauthorized Member cannot manually edit attendance.
-8. Confirm the Slack attendance summary matches the grid.
-9. Check the grid at desktop and smaller browser widths.
+6. Confirm a user with joining date 2026-06-06 shows `LI` for 2026-06-01
+   through 2026-06-05 and normal statuses from 2026-06-06 onward.
+7. Confirm a previous attendance cell can still be manually edited.
+8. Confirm a manual status overrides the calculated status.
+9. Confirm an unauthorized Member cannot manually edit attendance.
+10. Confirm the Slack attendance summary matches the grid.
+11. Check the grid at desktop and smaller browser widths.
 
 Do not push after testing. Record defects here or fix them locally.
 
@@ -418,11 +705,23 @@ Status: Core rules implemented.
 
 Confirmed on 2026-06-09:
 
-- A late day remains `LI`, but contributes to both Present and Late totals.
+- A time-based late arrival is now `LC`, and contributes to both Present and
+  Late coming totals.
+- `LI` is reserved for dates before `users.joining_date`; it does not count as
+  Present or Absent.
 - Half day remains manual until expected daily hours or shift duration is
   configured.
 - Planned individual absence is stored as Leave.
 - Overnight activity belongs to the date the shift started.
+
+Local update on 2026-06-10:
+
+- User create/edit now has a Joining date field, and the Users list displays
+  it when present.
+- Previous attendance cells remain editable through the manual status popup;
+  manual marks still override automatic `LC`, `LI`, `P`, `A`, `H`, and other
+  calculated statuses.
+- Attendance Slack columns now separate Late coming and Late joining.
 
 Current overnight rule:
 

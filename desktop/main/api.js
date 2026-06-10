@@ -89,6 +89,16 @@ async function stopSession(sessionId, payload) {
   return res.data;
 }
 
+async function todaySessions() {
+  const res = await client().get('/sessions/today');
+  return res.data.sessions;
+}
+
+async function weekSummary() {
+  const res = await client().get('/sessions/week');
+  return res.data.days;
+}
+
 async function uploadScreenshot(localPath, payload) {
   const form = new FormData();
   form.append('tracking_session_id', String(payload.tracking_session_id));
@@ -136,6 +146,8 @@ module.exports = {
   startSession,
   heartbeat,
   stopSession,
+  todaySessions,
+  weekSummary,
   uploadScreenshot,
   sendActivityBatch,
   isOnline,

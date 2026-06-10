@@ -52,7 +52,8 @@ return [
             'monitoring.manage' => 'Manage tracking sessions (stop, flag, abandon)',
             'monitoring.view_screenshots' => 'View captured screenshots of other users',
             'monitoring.delete_screenshots' => 'Delete or hide screenshots',
-            'monitoring.settings' => 'Update monitoring configuration (intervals, retention)',
+            'monitoring.settings' => 'Update team and per-user tracking settings (screenshots, activity, auto-pause, etc.)',
+            'timeline.view_others' => "View other team members' daily timeline and screenshot stream",
         ],
     ],
 ];
