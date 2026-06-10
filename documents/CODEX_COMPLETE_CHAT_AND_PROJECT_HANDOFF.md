@@ -246,6 +246,18 @@ row.
   if extraction is still incomplete, unzip the cached
   `~/Library/Caches/electron/...zip` with `ditto` and write
   `path.txt` containing `Electron.app/Contents/MacOS/Electron`.
+- **macOS permission prompts repeat forever unless the app is properly
+  ad-hoc signed.** With `mac.identity: null`, electron-builder leaves only
+  a raw linker signature (`Info.plist=not bound`, no sealed resources), so
+  TCC cannot pin a stable identity and Accessibility/Screen Recording
+  grants do not stick. Fix after every `npm run dist:mac`, before
+  packaging/uploading:
+  `codesign --force --deep --sign - "dist-app/mac-arm64/Timetracker Desktop.app"`
+  then rebuild the DMG from the signed app (hdiutil with an /Applications
+  symlink works). If a broken copy was already granted permissions, clear
+  them with `tccutil reset Accessibility|ScreenCapture|AppleEvents
+  com.spark.timetracker.desktop` and re-grant after relaunch. (Proper
+  Developer ID signing makes this moot — see below.)
 - UX notes from Jawad: the idle warning toast auto-dismisses after 10s
   (renderer behavior, by design); the big timer resets when switching
   clients because each client gets its own session (by design — "Today"
