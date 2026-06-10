@@ -178,7 +178,16 @@ Recovery (completed the same evening):
   uploads-backup-2026-06-10-1845.tar.gz, plus two .env backups in the
   public_html folder.
 
-## macOS Desktop Build (prepared 2026-06-11; to be run on Jawad's spare Mac)
+## macOS Desktop Build — DONE 2026-06-11 (see results subsection below)
+
+STATUS: completed on Jawad's spare Mac (Apple Silicon, macOS 26.5) on
+2026-06-11. The DMG is built, verified end to end, and live on
+https://timetracker.sparkingasia.com/desktop-downloads (sha256
+99f153ed69a603f3bc1701e71c8b9db8a12d116b975e53ccf8883c5d52f6fd3f,
+117,259,091 bytes). Everything below is kept for reference / future
+rebuilds. For continuing work on the Windows PC, read "macOS build run
+results" below plus "What the next session should pick up" at the end of
+that subsection.
 
 Everything is pre-wired from the Windows side. A Claude Code session running
 ON THE MAC should follow these steps exactly.
@@ -262,6 +271,59 @@ row.
   (renderer behavior, by design); the big timer resets when switching
   clients because each client gets its own session (by design — "Today"
   total accumulates).
+- **Second bug found and fixed (commit ff7691d): week chart bars were
+  misaligned** — `.week-labels` was a 280px grid flush right while the bars
+  sat in a 310px chart minus a 38px axis gutter, so every bar appeared
+  "between" days. Labels row now mirrors the chart geometry.
+
+### Session log (2026-06-11, completed)
+
+All four commits are pushed to `origin/jawad`:
+
+1. `d4576da` Fix auto-pause never triggering (raw system idle vs clamped
+   sample idle) — desktop/main/trackerService.js.
+2. `dbaf51a` Record macOS build verification results in handoff doc.
+3. `5ef4746` Document macOS ad-hoc signing requirement for TCC persistence.
+4. `ff7691d` Align week chart day labels with their bar columns —
+   desktop/renderer/src/styles.css.
+
+Verified end to end on the INSTALLED app (not just dev): login against
+production, timer, screenshots in web Timeline, activity % (54–57% while
+working, OS-idle based and honest — verified no phantom input inflates it),
+app capture, URL capture (after Automation permission), pause-on-idle at 5
+min + auto-resume, Work Diary `Tracker` row created on session stop, week
+chart alignment. DMG uploaded via SSH to
+`domains/timetracker.sparkingasia.com/public_html/storage/app/desktop-installers/`
+(the directory did NOT exist; plain `scp` fails until it is created —
+`mkdir -p` over ssh first). macOS card confirmed live on
+/desktop-downloads.
+
+Spare-Mac environment notes: Node 24 via nvm (no Homebrew); Electron's
+postinstall needed the manual `ditto` extraction workaround above; the
+desktop package has NO test suite, and the Laravel suite was not run (no
+PHP/composer env on the Mac — desktop-only changes).
+
+Timezone gotcha that confused testing: sessions tracked late evening
+Pakistan time file under the PREVIOUS day on the server (UTC grouping), so
+"today's" session can appear under yesterday in Timeline/Work Diary.
+Existing behavior, not a Mac issue — worth a look someday.
+
+### What the next session (Windows PC) should pick up
+
+1. "Next Actions" item 1, Windows half: URL capture on Windows still needs
+   an approach (title parsing / UI Automation / browser extension) —
+   macOS half is RESOLVED (works via Automation permission; document THREE
+   mac permissions in any user-facing install guide: Screen Recording,
+   Accessibility, Automation per browser).
+2. "Next Actions" item 2 (live settings refresh while running) — still open.
+3. Jawad's running bug list (item 3) — ask him for the next issue; the
+   auto-pause and week-chart bugs from his list are fixed (commits above).
+4. macOS rough edges for later: ad-hoc signing re-prompts permissions once
+   per new build (fix = Developer ID, see signing notes below); idle
+   warning toast could persist instead of auto-dismissing at 10s; app icon
+   is the default Electron icon (electron-builder warned: no icon set).
+5. Rebuilds of the mac DMG MUST repeat the post-build ad-hoc signing step
+   (see above) or permissions will never stick for users.
 
 Signing/notarization (later, when product-ready): enroll in the Apple
 Developer Program ($99/yr), set `mac.identity` to the Developer ID cert name,
