@@ -219,6 +219,38 @@ Steps:
 9. Verify the macOS card on https://timetracker.sparkingasia.com/desktop-downloads
    shows the download and the sha256.
 
+### macOS build run results (2026-06-11, Jawad's spare Mac, arm64)
+
+Dev-run verification passed: timer runs, screenshots reach the web
+Timeline, activity % > 0, apps captured, pause-on-idle works (after the
+fix below), auto-resume works, stopping a session creates the Work Diary
+row.
+
+- **URL capture: WORKS on macOS, but needs a third permission.** active-win
+  fetches the browser URL via an Apple Event to Chrome/Safari, which
+  requires the per-browser **Automation** permission (System Settings ->
+  Privacy & Security -> Automation -> [app] -> Google Chrome). Until it is
+  granted the request is silently denied and `url_domain` stays null even
+  though `active_app` populates. Once granted, `url_domain` populated
+  immediately (verified end to end in the web Timeline). So macOS needs
+  THREE permissions: Screen Recording, Accessibility, Automation.
+- **Bug found and fixed (commit f675efa, NOT pushed yet): auto-pause never
+  triggered.** The pause check compared `snap.idle_seconds`, which is
+  clamped to the ~10s sample interval, against the multi-minute
+  `auto_pause_minutes` threshold, so it could never fire. Fixed to use the
+  raw system idle clock (same source the idle warning already uses).
+  Verified: pause at 5 min idle, auto-resume on activity.
+- Electron's postinstall did not extract the mac binary correctly under
+  `npm ci` here (missing `path.txt` / incomplete dist). Fix: delete
+  `node_modules/electron/dist`, re-run `node node_modules/electron/install.js`;
+  if extraction is still incomplete, unzip the cached
+  `~/Library/Caches/electron/...zip` with `ditto` and write
+  `path.txt` containing `Electron.app/Contents/MacOS/Electron`.
+- UX notes from Jawad: the idle warning toast auto-dismisses after 10s
+  (renderer behavior, by design); the big timer resets when switching
+  clients because each client gets its own session (by design — "Today"
+  total accumulates).
+
 Signing/notarization (later, when product-ready): enroll in the Apple
 Developer Program ($99/yr), set `mac.identity` to the Developer ID cert name,
 `hardenedRuntime: true` plus an entitlements plist (allow-jit,
