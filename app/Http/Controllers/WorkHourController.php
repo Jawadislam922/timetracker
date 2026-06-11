@@ -331,15 +331,17 @@ class WorkHourController extends Controller
         if ($user->hasPermission('work_hours.manage_all')) {
             $deletedCount = WorkHour::whereIn('id', $ids)->delete();
         } else {
-            // Ensure user can only delete their own entries
-            $deletableEntries = WorkHour::whereIn('id', $ids)
+            // Ensure user can only delete their own entries.
+            $ownCount = WorkHour::whereIn('id', $ids)
                 ->where('user_id', $user->id)
-                ->get();
+                ->count();
 
-            if ($deletableEntries->count() !== count($ids)) {
-                return response()->json([
-                    'message' => 'Some entries could not be deleted. You can only delete your own entries.',
-                ], 403);
+            if ($ownCount !== count($ids)) {
+                // Inertia requests must get a redirect/validation response, not
+                // plain JSON — surface the failure as a form error.
+                return back()->withErrors([
+                    'ids' => 'Some entries could not be deleted. You can only delete your own entries.',
+                ]);
             }
 
             $deletedCount = WorkHour::whereIn('id', $ids)
@@ -347,10 +349,7 @@ class WorkHourController extends Controller
                 ->delete();
         }
 
-        return response()->json([
-            'message' => "Successfully deleted {$deletedCount} entries.",
-            'deleted_count' => $deletedCount,
-        ]);
+        return back()->with('success', "Successfully deleted {$deletedCount} entries.");
     }
 
     public function exportPersonal(Request $request)
