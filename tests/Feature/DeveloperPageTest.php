@@ -47,6 +47,59 @@ class DeveloperPageTest extends TestCase
             ->assertSessionHasErrors('action');
     }
 
+    public function test_env_update_is_super_admin_only(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'permissions' => ['monitoring.settings']]);
+
+        $this->actingAs($admin)
+            ->put('/developer/env', ['values' => ['AWS_DEFAULT_REGION' => 'us-east-1']])
+            ->assertForbidden();
+    }
+
+    public function test_env_update_writes_whitelisted_keys_and_ignores_others(): void
+    {
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+        $envPath = base_path('.env');
+        if (! file_exists($envPath)) {
+            $this->markTestSkipped('.env file not present in this environment.');
+        }
+        $original = file_get_contents($envPath);
+
+        try {
+            $this->actingAs($superAdmin)
+                ->from('/developer')
+                ->put('/developer/env', ['values' => [
+                    'AWS_DEFAULT_REGION' => 'eu-north-1',
+                    'SCREENSHOTS_BUCKET' => 'test-bucket',
+                    'APP_KEY' => 'hacked',          // not whitelisted — must be ignored
+                    'DB_PASSWORD' => 'hacked',       // not whitelisted — must be ignored
+                ]])
+                ->assertRedirect('/developer')
+                ->assertSessionHas('success');
+
+            $env = file_get_contents($envPath);
+            $this->assertStringContainsString('AWS_DEFAULT_REGION=eu-north-1', $env);
+            $this->assertStringContainsString('SCREENSHOTS_BUCKET=test-bucket', $env);
+            $this->assertStringNotContainsString('APP_KEY=hacked', $env);
+            $this->assertStringNotContainsString('DB_PASSWORD=hacked', $env);
+        } finally {
+            if ($original !== null) {
+                file_put_contents($envPath, $original);
+            }
+            $this->artisan('config:clear');
+        }
+    }
+
+    public function test_env_update_rejects_invalid_webhook(): void
+    {
+        $superAdmin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+
+        $this->actingAs($superAdmin)
+            ->from('/developer')
+            ->put('/developer/env', ['values' => ['SLACK_REPORT_WEBHOOK_URL' => 'not-a-url']])
+            ->assertSessionHas('error');
+    }
+
     public function test_digest_preview_action_builds_output_without_sending(): void
     {
         $superAdmin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);

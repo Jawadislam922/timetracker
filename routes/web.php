@@ -157,6 +157,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('developer')->group(function () {
         Route::get('/', [DeveloperController::class, 'index'])->name('developer.index');
         Route::post('/run', [DeveloperController::class, 'run'])->name('developer.run');
+        Route::put('/env', [DeveloperController::class, 'updateEnv'])->name('developer.env.update');
         Route::get('/logs', [DeveloperController::class, 'logs'])->name('developer.logs');
     });
 

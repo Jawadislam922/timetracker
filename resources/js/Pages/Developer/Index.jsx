@@ -7,6 +7,7 @@ import {
     CheckCircle2,
     Database,
     FileText,
+    KeyRound,
     Play,
     RefreshCw,
     Send,
@@ -76,12 +77,30 @@ function ActionButton({ icon: Icon, label, hint, danger, busy, onClick }) {
     );
 }
 
-export default function DeveloperIndex({ auth, system, health, schedule, lastOutput, lastAction }) {
+function buildEnvDraft(groups) {
+    const draft = {};
+    (groups || []).forEach((group) => {
+        group.fields.forEach((field) => {
+            if (field.type === 'secret') {
+                draft[field.key] = ''; // blank = keep current
+            } else if (field.type === 'bool') {
+                draft[field.key] = String(field.value) === 'true';
+            } else {
+                draft[field.key] = field.value ?? '';
+            }
+        });
+    });
+    return draft;
+}
+
+export default function DeveloperIndex({ auth, system, health, schedule, envGroups, lastOutput, lastAction }) {
     const flash = usePage().props.flash || {};
     const [busy, setBusy] = useState(false);
     const [logLines, setLogLines] = useState([]);
     const [logFile, setLogFile] = useState(null);
     const [logsLoading, setLogsLoading] = useState(false);
+    const [envDraft, setEnvDraft] = useState(() => buildEnvDraft(envGroups));
+    const [savingEnv, setSavingEnv] = useState(false);
 
     const runAction = (action, confirmText) => {
         if (confirmText && !confirm(confirmText)) return;
@@ -89,6 +108,24 @@ export default function DeveloperIndex({ auth, system, health, schedule, lastOut
         router.post(route('developer.run'), { action }, {
             preserveScroll: true,
             onFinish: () => setBusy(false),
+        });
+    };
+
+    const setEnvField = (key, value) => setEnvDraft((d) => ({ ...d, [key]: value }));
+
+    const saveEnv = () => {
+        setSavingEnv(true);
+        router.put(route('developer.env.update'), { values: envDraft }, {
+            preserveScroll: true,
+            onSuccess: () => setEnvDraft((d) => {
+                // clear secret fields after a successful save so they show "set"
+                const next = { ...d };
+                (envGroups || []).forEach((g) => g.fields.forEach((f) => {
+                    if (f.type === 'secret') next[f.key] = '';
+                }));
+                return next;
+            }),
+            onFinish: () => setSavingEnv(false),
         });
     };
 
@@ -214,6 +251,13 @@ export default function DeveloperIndex({ auth, system, health, schedule, lastOut
                                 onClick={() => runAction('slack_test', 'Send a test message to Slack?')}
                             />
                             <ActionButton
+                                icon={Database}
+                                label="Test screenshot storage"
+                                hint="Writes, reads, signs, and deletes a probe file (S3 or local)."
+                                busy={busy}
+                                onClick={() => runAction('s3_test')}
+                            />
+                            <ActionButton
                                 icon={FileText}
                                 label="Preview activity digest"
                                 hint="Builds yesterday's digest text without sending."
@@ -230,6 +274,78 @@ export default function DeveloperIndex({ auth, system, health, schedule, lastOut
                         </div>
                     </Card>
                 </div>
+
+                <Card title="Integration credentials" icon={KeyRound}>
+                    <p className="mb-4 text-xs text-slate-500">
+                        Edit Slack and S3 settings without touching the server. Secret fields are write-only —
+                        they show whether a value is set, never the value itself. Leave a secret blank to keep
+                        the current one. Saving reloads the config automatically.
+                    </p>
+                    <div className="grid gap-5 lg:grid-cols-2">
+                        {(envGroups || []).map((group) => (
+                            <div key={group.key} className="rounded-lg border border-slate-200 p-4">
+                                <h3 className="mb-3 text-sm font-semibold text-slate-900">{group.label}</h3>
+                                <div className="space-y-3">
+                                    {group.fields.map((field) => (
+                                        <div key={field.key}>
+                                            <label className="flex items-center justify-between text-xs font-medium text-slate-600">
+                                                <span>{field.label}</span>
+                                                {field.type === 'secret' && (
+                                                    <span className={field.is_set ? 'text-emerald-600' : 'text-slate-400'}>
+                                                        {field.is_set ? 'set' : 'not set'}
+                                                    </span>
+                                                )}
+                                            </label>
+                                            <div className="mt-1">
+                                                {field.type === 'bool' ? (
+                                                    <select
+                                                        value={envDraft[field.key] ? 'true' : 'false'}
+                                                        onChange={(e) => setEnvField(field.key, e.target.value === 'true')}
+                                                        className="w-full rounded border-slate-300 text-sm"
+                                                    >
+                                                        <option value="true">Enabled</option>
+                                                        <option value="false">Disabled</option>
+                                                    </select>
+                                                ) : field.type === 'select' ? (
+                                                    <select
+                                                        value={envDraft[field.key] ?? ''}
+                                                        onChange={(e) => setEnvField(field.key, e.target.value)}
+                                                        className="w-full rounded border-slate-300 text-sm"
+                                                    >
+                                                        {field.options.map((opt) => (
+                                                            <option key={opt} value={opt}>{opt}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : (
+                                                    <input
+                                                        type={field.type === 'secret' ? 'password' : 'text'}
+                                                        value={envDraft[field.key] ?? ''}
+                                                        onChange={(e) => setEnvField(field.key, e.target.value)}
+                                                        placeholder={field.type === 'secret' ? (field.is_set ? '•••••••• (leave blank to keep)' : 'not set') : (field.placeholder || '')}
+                                                        autoComplete="off"
+                                                        className="w-full rounded border-slate-300 font-mono text-sm"
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-4 flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={saveEnv}
+                            disabled={savingEnv}
+                            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                        >
+                            <KeyRound className="h-4 w-4" />
+                            {savingEnv ? 'Saving…' : 'Save credentials'}
+                        </button>
+                        <span className="text-xs text-slate-400">After saving, use “Test screenshot storage” / “Test Slack webhook” above to verify.</span>
+                    </div>
+                </Card>
 
                 <Card title={`Logs ${logFile ? `— ${logFile}` : ''}`} icon={AlertTriangle}>
                     <div className="mb-2 flex items-center justify-between">

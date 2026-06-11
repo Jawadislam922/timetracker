@@ -26,6 +26,7 @@ class DeveloperController extends Controller
         'optimize',
         'optimize_clear',
         'slack_test',
+        's3_test',
         'digest_preview',
         'prune_dry_run',
         'migrate',
@@ -39,9 +40,224 @@ class DeveloperController extends Controller
             'system' => $this->systemInfo(),
             'health' => $this->healthChecks(),
             'schedule' => $this->scheduleInfo(),
+            'envGroups' => $this->envSettings(),
             'lastOutput' => session('dev_output'),
             'lastAction' => session('dev_action'),
         ]);
+    }
+
+    /**
+     * Schema of the .env keys editable from the Developer page. Only these keys
+     * can ever be written. Secret fields are never sent back to the browser.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function envSchema(): array
+    {
+        return [
+            'slack' => [
+                'label' => 'Slack reports',
+                'fields' => [
+                    ['key' => 'SLACK_REPORT_WEBHOOK_URL', 'label' => 'Incoming webhook URL', 'type' => 'secret'],
+                    ['key' => 'SLACK_REPORT_TIMEZONE', 'label' => 'Timezone', 'type' => 'text', 'placeholder' => 'Asia/Karachi'],
+                    ['key' => 'SLACK_WEEKLY_REPORT_ENABLED', 'label' => 'Weekly work-hours report', 'type' => 'bool'],
+                    ['key' => 'SLACK_DAILY_DIGEST_ENABLED', 'label' => 'Daily activity digest', 'type' => 'bool'],
+                    ['key' => 'SLACK_DAILY_DIGEST_TIME', 'label' => 'Daily digest time (HH:MM)', 'type' => 'text', 'placeholder' => '09:00'],
+                ],
+            ],
+            's3' => [
+                'label' => 'Screenshot storage (S3)',
+                'fields' => [
+                    ['key' => 'SCREENSHOTS_DRIVER', 'label' => 'Driver', 'type' => 'select', 'options' => ['local', 's3']],
+                    ['key' => 'AWS_ACCESS_KEY_ID', 'label' => 'Access key ID', 'type' => 'secret'],
+                    ['key' => 'AWS_SECRET_ACCESS_KEY', 'label' => 'Secret access key', 'type' => 'secret'],
+                    ['key' => 'AWS_DEFAULT_REGION', 'label' => 'Region', 'type' => 'text', 'placeholder' => 'eu-north-1'],
+                    ['key' => 'SCREENSHOTS_BUCKET', 'label' => 'Bucket name', 'type' => 'text', 'placeholder' => 'company-screenshots'],
+                ],
+            ],
+        ];
+    }
+
+    public function updateEnv(Request $request): RedirectResponse
+    {
+        $this->authorizeDeveloper($request);
+
+        $schema = $this->envSchema();
+        $managed = [];
+        $secretKeys = [];
+        foreach ($schema as $group) {
+            foreach ($group['fields'] as $field) {
+                $managed[$field['key']] = $field;
+                if ($field['type'] === 'secret') {
+                    $secretKeys[] = $field['key'];
+                }
+            }
+        }
+
+        $input = (array) $request->input('values', []);
+        $updates = [];
+
+        foreach ($managed as $key => $field) {
+            if (! array_key_exists($key, $input)) {
+                continue;
+            }
+            $value = $input[$key];
+
+            // Blank secret means "keep the current value" — never overwrite a
+            // set secret with an empty string.
+            if (in_array($key, $secretKeys, true) && ($value === null || $value === '')) {
+                continue;
+            }
+
+            if ($field['type'] === 'bool') {
+                $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
+            } elseif ($field['type'] === 'select' && ! in_array($value, $field['options'], true)) {
+                return back()->with('error', "Invalid value for {$key}.");
+            }
+
+            $updates[$key] = (string) $value;
+        }
+
+        // Light validation on the values most likely to break things.
+        if (isset($updates['SLACK_REPORT_WEBHOOK_URL']) && $updates['SLACK_REPORT_WEBHOOK_URL'] !== ''
+            && ! str_starts_with($updates['SLACK_REPORT_WEBHOOK_URL'], 'https://')) {
+            return back()->with('error', 'Slack webhook must be an https:// URL.');
+        }
+        if (isset($updates['SLACK_DAILY_DIGEST_TIME']) && $updates['SLACK_DAILY_DIGEST_TIME'] !== ''
+            && ! preg_match('/^\d{1,2}:\d{2}$/', $updates['SLACK_DAILY_DIGEST_TIME'])) {
+            return back()->with('error', 'Daily digest time must be HH:MM.');
+        }
+
+        if (empty($updates)) {
+            return back()->with('success', 'No changes to save.');
+        }
+
+        try {
+            $this->writeEnv($updates);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Could not write .env: '.$e->getMessage());
+        }
+
+        // Re-apply config caching state so the new values take effect.
+        $wasCached = file_exists(base_path('bootstrap/cache/config.php'));
+        Artisan::call('config:clear');
+        if ($wasCached) {
+            Artisan::call('config:cache');
+        }
+        Cache::forget('monitoring_settings.shared');
+
+        $changed = array_keys($updates);
+
+        return back()
+            ->with('success', 'Settings saved and configuration reloaded.')
+            ->with('dev_action', 'env_update')
+            ->with('dev_output', 'Updated keys: '.implode(', ', $changed));
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function envSettings(): array
+    {
+        $current = $this->readEnvFile();
+        $out = [];
+
+        foreach ($this->envSchema() as $groupKey => $group) {
+            $fields = [];
+            foreach ($group['fields'] as $field) {
+                $value = $current[$field['key']] ?? '';
+                $entry = [
+                    'key' => $field['key'],
+                    'label' => $field['label'],
+                    'type' => $field['type'],
+                ];
+                if (isset($field['placeholder'])) {
+                    $entry['placeholder'] = $field['placeholder'];
+                }
+                if (isset($field['options'])) {
+                    $entry['options'] = $field['options'];
+                }
+                if ($field['type'] === 'secret') {
+                    $entry['is_set'] = $value !== '';   // never expose the value
+                } else {
+                    $entry['value'] = $value;
+                }
+                $fields[] = $entry;
+            }
+            $out[] = ['key' => $groupKey, 'label' => $group['label'], 'fields' => $fields];
+        }
+
+        return $out;
+    }
+
+    /** @return array<string, string> */
+    private function readEnvFile(): array
+    {
+        $path = base_path('.env');
+        if (! is_readable($path)) {
+            return [];
+        }
+
+        $pairs = [];
+        foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            $trim = ltrim($line);
+            if ($trim === '' || str_starts_with($trim, '#') || ! str_contains($line, '=')) {
+                continue;
+            }
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            if (strlen($value) >= 2 && ($value[0] === '"' || $value[0] === "'") && $value[-1] === $value[0]) {
+                $value = substr($value, 1, -1);
+            }
+            $pairs[$key] = $value;
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * Update or append the given keys in .env, preserving everything else.
+     *
+     * @param  array<string, string>  $updates
+     */
+    private function writeEnv(array $updates): void
+    {
+        $path = base_path('.env');
+        $lines = file($path, FILE_IGNORE_NEW_LINES);
+        if ($lines === false) {
+            throw new \RuntimeException('.env is not readable.');
+        }
+
+        $seen = [];
+        foreach ($lines as $i => $line) {
+            $trim = ltrim($line);
+            if ($trim === '' || str_starts_with($trim, '#') || ! str_contains($line, '=')) {
+                continue;
+            }
+            $key = trim(explode('=', $line, 2)[0]);
+            if (array_key_exists($key, $updates)) {
+                $lines[$i] = $key.'='.$this->envQuote($updates[$key]);
+                $seen[$key] = true;
+            }
+        }
+
+        foreach ($updates as $key => $value) {
+            if (empty($seen[$key])) {
+                $lines[] = $key.'='.$this->envQuote($value);
+            }
+        }
+
+        if (file_put_contents($path, implode("\n", $lines)."\n") === false) {
+            throw new \RuntimeException('.env is not writable.');
+        }
+    }
+
+    private function envQuote(string $value): string
+    {
+        if ($value === '' || preg_match('/[\s#"\'\\\\]/', $value)) {
+            return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+        }
+
+        return $value;
     }
 
     public function run(Request $request): RedirectResponse
@@ -56,6 +272,7 @@ class DeveloperController extends Controller
             'optimize' => $this->runOptimize(),
             'optimize_clear' => $this->runOptimizeClear(),
             'slack_test' => $this->runSlackTest(),
+            's3_test' => $this->runS3Test(),
             'digest_preview' => $this->runDigestPreview(),
             'prune_dry_run' => $this->runPruneDryRun(),
             'migrate' => $this->runMigrate(),
@@ -246,6 +463,37 @@ class DeveloperController extends Controller
                 : ['Slack rejected the request — the webhook is probably revoked/rotated.', 'HTTP '.$response->status().' '.$response->body()];
         } catch (\Throwable $e) {
             return ['Could not reach Slack.', $e->getMessage()];
+        }
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function runS3Test(): array
+    {
+        $driver = config('filesystems.disks.screenshots.driver');
+
+        try {
+            $disk = Storage::disk('screenshots');
+            $probe = '_dev_s3_test_'.uniqid().'.txt';
+            $disk->put($probe, 'ok');
+            $ok = $disk->exists($probe) && $disk->get($probe) === 'ok';
+
+            $signed = 'n/a (local disk)';
+            if ($driver === 's3') {
+                try {
+                    $url = $disk->temporaryUrl($probe, now()->addMinutes(2));
+                    $signed = str_contains($url, 'X-Amz-Signature') ? 'presigned URL OK' : 'presigned URL generated';
+                } catch (\Throwable $e) {
+                    $signed = 'presigned URL failed: '.$e->getMessage();
+                }
+            }
+
+            $disk->delete($probe);
+
+            return $ok
+                ? ["Screenshot storage OK (driver: {$driver}).", "put + read + delete OK; {$signed}"]
+                : ['Screenshot storage read/write mismatch.', "driver: {$driver}"];
+        } catch (\Throwable $e) {
+            return ["Screenshot storage test failed (driver: {$driver}).", $e->getMessage()];
         }
     }
 
