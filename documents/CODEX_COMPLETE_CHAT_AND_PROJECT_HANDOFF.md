@@ -281,6 +281,17 @@ visible re-clone), which deletes `bootstrap/cache/config.php` and the file
 cache in `storage/framework/cache` — so the first Desktop App page view after
 each deploy re-hashes the installers once (~2s), then is warm again.
 
+## HTTP scheduler trigger (2026-06-12, commit e9590fb)
+
+Hostinger's hPanel cron never executed a correctly configured `* * * * *` job
+(verified with absolute paths + output logging — it simply never ran). The
+scheduler can instead be driven over HTTP: `GET /cron/run/{token}` runs
+`schedule:run` (SchedulerController; token = `SCHEDULER_HTTP_TOKEN` in .env,
+hash_equals check, 404 otherwise, throttle 12/min). Point an external pinger
+(cron-job.org free tier, every minute) at that URL. Safe to call repeatedly —
+scheduled tasks use withoutOverlapping. Verified live: the endpoint executed
+the config-cache-self-heal task on request.
+
 Follow-up fixes (2026-06-12, commit 2cf9379):
 - **Avatars now live on S3 in production** (`AVATARS_DRIVER=s3` in .env, new
   env-switchable `avatars` disk in config/filesystems.php, signed URLs via the
