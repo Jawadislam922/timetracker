@@ -7,7 +7,7 @@ use App\Http\Requests\Desktop\UploadScreenshotRequest;
 use App\Jobs\GenerateScreenshotThumbnail;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
-use Carbon\Carbon;
+use App\Support\BusinessTime;
 use Illuminate\Http\JsonResponse;
 
 class ScreenshotController extends Controller
@@ -20,7 +20,7 @@ class ScreenshotController extends Controller
         $session = TrackingSession::findOrFail($data['tracking_session_id']);
         abort_unless($session->user_id === $user->id, 403);
 
-        $capturedAt = Carbon::parse($data['captured_at']);
+        $capturedAt = BusinessTime::fromClient($data['captured_at']) ?? now();
         $file = $request->file('image');
 
         $dir = sprintf(

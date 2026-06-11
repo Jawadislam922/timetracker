@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Desktop\ActivityBatchRequest;
 use App\Models\TrackingActivitySample;
 use App\Models\TrackingSession;
-use Carbon\Carbon;
+use App\Support\BusinessTime;
 use Illuminate\Http\JsonResponse;
 
 class ActivityController extends Controller
@@ -23,7 +23,7 @@ class ActivityController extends Controller
         $rows = collect($data['samples'])->map(fn (array $sample) => [
             'tracking_session_id' => $session->id,
             'user_id' => $user->id,
-            'captured_at' => Carbon::parse($sample['captured_at']),
+            'captured_at' => BusinessTime::fromClient($sample['captured_at']),
             'keyboard_count' => $sample['keyboard_count'] ?? 0,
             'mouse_count' => $sample['mouse_count'] ?? 0,
             'idle_seconds' => $sample['idle_seconds'] ?? 0,

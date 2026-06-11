@@ -47,8 +47,10 @@ class SessionController extends Controller
                 // engagement type as a per-entry category.
                 'work_type' => $this->normaliseWorkType($data['work_type'] ?? $client?->work_type),
                 'task_note' => $data['task_note'] ?? null,
-                'started_at' => $data['started_at'],
-                'last_heartbeat_at' => $data['started_at'],
+                // Desktop sends UTC ISO; convert to app timezone for storage so
+                // it lines up with the rest of the data (see BusinessTime).
+                'started_at' => BusinessTime::fromClient($data['started_at']) ?? now(),
+                'last_heartbeat_at' => BusinessTime::fromClient($data['started_at']) ?? now(),
                 'status' => TrackingSession::STATUS_ACTIVE,
                 'source' => 'desktop',
                 'device_name' => $data['device_name'] ?? null,
@@ -74,7 +76,7 @@ class SessionController extends Controller
         $session->update([
             'total_seconds' => $data['total_seconds'],
             'activity_percent' => $data['activity_percent'] ?? $session->activity_percent,
-            'last_heartbeat_at' => $data['heartbeat_at'] ?? now(),
+            'last_heartbeat_at' => BusinessTime::fromClient($data['heartbeat_at'] ?? null) ?? now(),
         ]);
 
         return response()->json(['status' => 'ok']);
@@ -87,7 +89,7 @@ class SessionController extends Controller
         $data = $request->validated();
 
         $session->update([
-            'stopped_at' => $data['stopped_at'],
+            'stopped_at' => BusinessTime::fromClient($data['stopped_at']) ?? now(),
             'total_seconds' => $data['total_seconds'],
             'activity_percent' => $data['activity_percent'] ?? $session->activity_percent,
             'task_note' => $data['task_note'] ?? $session->task_note,

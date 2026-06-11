@@ -34,6 +34,25 @@ class BusinessTime
     }
 
     /**
+     * Convert a timestamp received from a client (the desktop app sends ISO-8601
+     * in UTC, e.g. "...Z") into the app's storage timezone, so the stored
+     * wall-clock matches every other table (which is written in app.timezone).
+     * Without this, desktop timestamps land 5h behind Asia/Karachi.
+     */
+    public static function fromClient(?string $iso): ?Carbon
+    {
+        if ($iso === null || $iso === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($iso)->setTimezone(static::tz());
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
      * Query bounds for a business-day range. Stored values share the app
      * timezone, so the bounds pass through in that timezone.
      *
