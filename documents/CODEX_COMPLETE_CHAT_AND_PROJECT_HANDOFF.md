@@ -281,6 +281,21 @@ visible re-clone), which deletes `bootstrap/cache/config.php` and the file
 cache in `storage/framework/cache` — so the first Desktop App page view after
 each deploy re-hashes the installers once (~2s), then is warm again.
 
+Follow-up fixes (2026-06-12, commit 2cf9379):
+- **Avatars now live on S3 in production** (`AVATARS_DRIVER=s3` in .env, new
+  env-switchable `avatars` disk in config/filesystems.php, signed URLs via the
+  disk-aware `User::avatar_url` accessor which is now in `$appends`). Deploy
+  pruning had wiped all locally stored avatar files (every avatar 404'd);
+  users must RE-UPLOAD their avatars once. Local dev keeps the public disk.
+- **Stale session sweep**: `monitoring:close-stale-sessions` (every 10 min via
+  scheduler) closes active sessions with no heartbeat for 15+ min at their
+  last-heartbeat time and syncs work hours via the shared
+  `App\Services\TrackingSessionService` (extracted from the desktop stop
+  endpoint). Ran once manually: closed 9 orphaned test sessions.
+- **WARNING: production .env has no trailing newline** — `echo X >> .env` glues
+  onto the last line and 500s the site with "The environment file is invalid!".
+  Append with `printf "\nKEY=val\n"` or use the Developer credentials editor.
+
 Perf changes shipped (QA-measured before → prod-measured after):
 - Desktop App page 3.6s → 10ms server compute: `DesktopDownloadController` was
   running `hash_file('sha256')` over both ~100MB installers on EVERY page view;
