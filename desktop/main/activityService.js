@@ -19,6 +19,10 @@ try {
   console.warn('active-win not loaded; active app/window will not be captured:', err.message);
 }
 
+// Windows-only browser URL capture via UI Automation (active-win returns URLs
+// on macOS only).
+const winUrl = require('./winUrl');
+
 let started = false;
 let keyboardCount = 0;
 let mouseCount = 0;
@@ -121,6 +125,7 @@ async function activeWindowInfo() {
     if (!win) return { active_app: null, active_window_title: null, url_domain: null };
 
     const title = (win.title || '').slice(0, 255) || null;
+    const appName = win.owner?.name;
 
     let urlDomain = null;
     if (win.url) {
@@ -129,9 +134,18 @@ async function activeWindowInfo() {
     if (!urlDomain) {
       urlDomain = domainFromTitle(win.title);
     }
+    // Windows: active-win never fills `url`, so read the browser address bar
+    // via UI Automation when the foreground app is a browser.
+    if (!urlDomain && process.platform === 'win32' && winUrl.isBrowser(appName)) {
+      try {
+        urlDomain = await winUrl.getBrowserDomain(appName);
+      } catch {
+        urlDomain = null;
+      }
+    }
 
     return {
-      active_app: normaliseApp(win.owner?.name),
+      active_app: normaliseApp(appName),
       active_window_title: title,
       url_domain: urlDomain ? urlDomain.slice(0, 255) : null,
     };
