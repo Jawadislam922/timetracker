@@ -51,6 +51,12 @@ class Kernel extends ConsoleKernel
                 Artisan::call('config:cache');
             }
         })->name('config-cache-self-heal')->everyFiveMinutes();
+
+        // Liveness marker: this file's mtime shows when the scheduler last
+        // ran, regardless of what drives it (host cron or the HTTP trigger).
+        $schedule->call(function () {
+            touch(storage_path('framework/schedule-heartbeat'));
+        })->name('schedule-heartbeat')->everyMinute();
     }
 
     /**
