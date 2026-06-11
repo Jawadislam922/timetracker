@@ -175,6 +175,29 @@ Both installers now live and deploy-proof (2026-06-11):
   (checksum verified) and uploaded to `~/desktop-installers/`; the controller
   prefers the .dmg over any .zip. /desktop-downloads serves both.
 
+## Display timezone + 12/24h format (2026-06-11)
+
+Times across the site were rendering in the viewer's MACHINE timezone (so a UK
+browser showed UK time), not a fixed business timezone. Added a configurable
+display timezone (default Asia/Karachi = PKT) and 12/24-hour format:
+- Stored on monitoring_settings (`display_timezone`, `time_format`) with a
+  per-user override on user_monitoring_settings (`override_display` +
+  `display_timezone`/`time_format`). Migration
+  2026_06_11_000003_add_display_timezone_and_time_format (applied on prod).
+- Settings page has a "Time zone & format" category (team default + individual
+  override) — first item in the left rail.
+- HandleInertiaRequests shares the effective per-user values as the `display`
+  prop ({ timezone, format }).
+- `resources/js/lib/datetime.js` (useFormatters hook) + module-level DISPLAY in
+  Timeline/Team render every timestamp in the configured tz/format. Timeline
+  session + screenshot times and the history modal are tz-aware; Team's
+  last-seen fallback too. NB: the desktop app shows durations, not wall-clock
+  times, so it needed no change; the /api/desktop/settings payload does carry
+  display_timezone/time_format for future use.
+- Note for future work: other pages that show wall-clock times (if any are
+  added) should use useFormatters() / fmtTime rather than raw
+  toLocaleTimeString.
+
 ## CRITICAL OPS RULE: never route:cache / optimize this app (2026-06-11)
 
 `routes/web.php` contains CLOSURE routes (the `/` welcome page and the
