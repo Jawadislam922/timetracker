@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Inertia\Inertia;
 
@@ -29,8 +30,8 @@ class DesktopDownloadController extends Controller
 
     public function index()
     {
-        $windows = $this->windowsInstaller();
-        $mac = $this->macInstaller();
+        $windows = $this->installerMeta($this->windowsInstaller());
+        $mac = $this->installerMeta($this->macInstaller());
 
         return Inertia::render('DesktopDownloads', [
             'downloads' => [
@@ -38,19 +39,43 @@ class DesktopDownloadController extends Controller
                     'available' => $windows !== null,
                     'version' => self::WINDOWS_VERSION,
                     'filename' => self::WINDOWS_INSTALLER,
-                    'size' => $windows ? File::size($windows) : null,
-                    'sha256' => $windows ? hash_file('sha256', $windows) : null,
+                    'size' => $windows['size'] ?? null,
+                    'sha256' => $windows['sha256'] ?? null,
                     'url' => $windows ? route('desktop-downloads.windows') : null,
                 ],
                 'mac' => [
                     'available' => $mac !== null,
                     'version' => $mac ? self::MAC_VERSION : null,
-                    'filename' => $mac ? basename($mac) : null,
-                    'size' => $mac ? File::size($mac) : null,
-                    'sha256' => $mac ? hash_file('sha256', $mac) : null,
+                    'filename' => $mac ? basename($mac['path']) : null,
+                    'size' => $mac['size'] ?? null,
+                    'sha256' => $mac['sha256'] ?? null,
                     'url' => $mac ? route('desktop-downloads.mac') : null,
                 ],
             ],
+        ]);
+    }
+
+    /**
+     * Size + SHA-256 for an installer, cached keyed by path and mtime.
+     *
+     * Hashing the ~100MB artifacts on every page view is what made this the
+     * slowest page in the app; the mtime in the key means a re-uploaded
+     * installer invalidates its entry automatically.
+     *
+     * @return array{path: string, size: int, sha256: string}|null
+     */
+    private function installerMeta(?string $path): ?array
+    {
+        if (! $path) {
+            return null;
+        }
+
+        $mtime = File::lastModified($path);
+
+        return Cache::rememberForever('installer-meta:'.md5($path).':'.$mtime, fn () => [
+            'path' => $path,
+            'size' => File::size($path),
+            'sha256' => hash_file('sha256', $path),
         ]);
     }
 

@@ -7,11 +7,29 @@ use App\Models\MonitoringSetting;
 use App\Models\User;
 use App\Models\WorkHour;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
+    /**
+     * Per-user daily hour sums for the last six months, loaded with a single
+     * GROUP BY query. Every chart and stat on both dashboards is an aggregate
+     * over this dataset; before this preload the admin dashboard issued one
+     * SUM query per employee per day/week/month bucket (~400 queries).
+     *
+     * @var array<int, array<string, float>> [userId][Y-m-d] => hours
+     */
+    private array $userDateSums = [];
+
+    /** @var array<string, float> [Y-m-d] => hours across all users */
+    private array $dateSums = [];
+
+    private bool $sumsLoaded = false;
+
+    private ?Collection $members = null;
+
     public function index()
     {
         $user = auth()->user();
@@ -37,7 +55,7 @@ class DashboardController extends Controller
 
     private function adminDashboard()
     {
-        $employees = User::where('role', 'member')->get();
+        $employees = $this->members();
         $analytics = $this->getAdminAnalytics();
 
         return Inertia::render('Dashboard', [
@@ -48,39 +66,90 @@ class DashboardController extends Controller
         ]);
     }
 
+    private function members(): Collection
+    {
+        return $this->members ??= User::where('role', 'member')->get();
+    }
+
+    private function loadSums(): void
+    {
+        if ($this->sumsLoaded) {
+            return;
+        }
+
+        $from = Carbon::today()->subMonths(6)->startOfMonth()->format('Y-m-d');
+
+        WorkHour::where('date', '>=', $from)
+            ->groupBy('user_id', 'date')
+            ->get([DB::raw('user_id'), DB::raw('date as d'), DB::raw('SUM(hours) as h')])
+            ->each(function ($row) {
+                $date = substr((string) $row->d, 0, 10);
+                $hours = (float) $row->h;
+                $this->userDateSums[$row->user_id][$date] = $hours;
+                $this->dateSums[$date] = ($this->dateSums[$date] ?? 0) + $hours;
+            });
+
+        $this->sumsLoaded = true;
+    }
+
+    private function userHoursOn(int $userId, Carbon|string $date): float
+    {
+        $this->loadSums();
+        $key = $date instanceof Carbon ? $date->format('Y-m-d') : $date;
+
+        return $this->userDateSums[$userId][$key] ?? 0.0;
+    }
+
+    private function userHoursBetween(int $userId, Carbon $start, Carbon $end): float
+    {
+        $this->loadSums();
+        $sum = 0.0;
+
+        foreach ($this->userDateSums[$userId] ?? [] as $date => $hours) {
+            if ($date >= $start->format('Y-m-d') && $date <= $end->format('Y-m-d')) {
+                $sum += $hours;
+            }
+        }
+
+        return $sum;
+    }
+
+    private function teamHoursOn(Carbon|string $date): float
+    {
+        $this->loadSums();
+        $key = $date instanceof Carbon ? $date->format('Y-m-d') : $date;
+
+        return $this->dateSums[$key] ?? 0.0;
+    }
+
+    private function teamHoursBetween(Carbon $start, Carbon $end): float
+    {
+        $this->loadSums();
+        $sum = 0.0;
+
+        foreach ($this->dateSums as $date => $hours) {
+            if ($date >= $start->format('Y-m-d') && $date <= $end->format('Y-m-d')) {
+                $sum += $hours;
+            }
+        }
+
+        return $sum;
+    }
+
     private function getEmployeeAnalytics($userId)
     {
-        $today = Carbon::today();
-        $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
-        $monthStart = Carbon::today()->startOfMonth();
-
-        // Today's hourly breakdown (last 24 hours by hour)
-        $todayHourly = $this->getTodayHourlyData($userId);
-
-        // This week's daily breakdown
-        $weekDaily = $this->getWeekDailyData($userId);
-
-        // This month's weekly breakdown
-        $monthWeekly = $this->getMonthWeeklyData($userId);
-
-        // Client distribution
-        $clientDistribution = $this->getClientDistribution($userId);
-
-        // Performance metrics
-        $metrics = $this->getEmployeeMetrics($userId);
-
         return [
             'today' => [
-                'hourly' => $todayHourly,
+                'hourly' => $this->getTodayHourlyData($userId),
             ],
             'week' => [
-                'daily' => $weekDaily,
+                'daily' => $this->getWeekDailyData($userId),
             ],
             'month' => [
-                'weekly' => $monthWeekly,
+                'weekly' => $this->getMonthWeeklyData($userId),
             ],
-            'clientDistribution' => $clientDistribution,
-            'metrics' => $metrics,
+            'clientDistribution' => $this->getClientDistribution($userId),
+            'metrics' => $this->getEmployeeMetrics($userId),
             'summary' => [
                 'today' => $this->formatHours($this->getTodayHours($userId)),
                 'week' => $this->formatHours($this->getWeekHours($userId)),
@@ -91,8 +160,7 @@ class DashboardController extends Controller
 
     private function getAdminAnalytics()
     {
-        $today = Carbon::today();
-        $employees = User::where('role', 'member')->get();
+        $employees = $this->members();
 
         // Team data for different time periods
         $teamData = [
@@ -111,17 +179,11 @@ class DashboardController extends Controller
             ];
         }
 
-        // Employee comparison
-        $employeeComparison = $this->getEmployeeComparison();
-
-        // Top performers
-        $topPerformers = $this->getTopPerformers();
-
         return [
             'teamData' => $teamData,
             'employeeData' => $employeeData,
-            'employeeComparison' => $employeeComparison,
-            'topPerformers' => $topPerformers,
+            'employeeComparison' => $this->getEmployeeComparison(),
+            'topPerformers' => $this->getTopPerformers(),
             'summary' => [
                 'totalToday' => $this->formatHours($this->getTotalTeamHoursToday()),
                 'activeEmployees' => $this->getActiveEmployeesToday(),
@@ -137,10 +199,7 @@ class DashboardController extends Controller
         $hours = range(8, 18); // 8 AM to 6 PM
         $labels = array_map(fn ($h) => sprintf('%02d:00', $h), $hours);
 
-        // This is a simplified version - you might want to track actual start/end times
-        $todayHours = WorkHour::where('user_id', $userId)
-            ->where('date', Carbon::today()->format('Y-m-d'))
-            ->sum('hours');
+        $todayHours = $this->userHoursOn($userId, Carbon::today());
 
         // Distribute hours across the day (simplified)
         $data = array_fill(0, count($hours), 0);
@@ -166,11 +225,7 @@ class DashboardController extends Controller
         for ($i = 0; $i < 7; $i++) {
             $date = $weekStart->copy()->addDays($i);
             $days[] = $date->format('D');
-
-            $hours = WorkHour::where('user_id', $userId)
-                ->where('date', $date->format('Y-m-d'))
-                ->sum('hours');
-            $data[] = round($hours, 1);
+            $data[] = round($this->userHoursOn($userId, $date), 1);
         }
 
         return [
@@ -191,14 +246,7 @@ class DashboardController extends Controller
         while ($currentWeekStart->month <= Carbon::today()->month && $weekNumber <= 5) {
             $weekEnd = $currentWeekStart->copy()->endOfWeek(MonitoringSetting::weekEndDay());
             $weeks[] = "Week {$weekNumber}";
-
-            $hours = WorkHour::where('user_id', $userId)
-                ->whereBetween('date', [
-                    $currentWeekStart->format('Y-m-d'),
-                    $weekEnd->format('Y-m-d'),
-                ])
-                ->sum('hours');
-            $data[] = round($hours, 1);
+            $data[] = round($this->userHoursBetween($userId, $currentWeekStart, $weekEnd), 1);
 
             $currentWeekStart->addWeek();
             $weekNumber++;
@@ -232,25 +280,21 @@ class DashboardController extends Controller
     private function getEmployeeMetrics($userId)
     {
         $monthStart = Carbon::today()->startOfMonth();
+        $today = Carbon::today();
 
         // Average daily hours
-        $totalHours = WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$monthStart->format('Y-m-d'), Carbon::today()->format('Y-m-d')])
-            ->sum('hours');
-        $workDays = $this->getWorkDaysInMonth($monthStart, Carbon::today());
+        $totalHours = $this->userHoursBetween($userId, $monthStart, $today);
+        $workDays = $this->getWorkDaysInMonth($monthStart, $today);
         $avgDailyHours = $workDays > 0 ? round($totalHours / $workDays, 1) : 0;
 
         // Total clients
         $totalClients = WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$monthStart->format('Y-m-d'), Carbon::today()->format('Y-m-d')])
+            ->whereBetween('date', [$monthStart->format('Y-m-d'), $today->format('Y-m-d')])
             ->distinct('client_id')
             ->count('client_id');
 
         // Consistency (days worked vs work days)
-        $daysWorked = WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$monthStart->format('Y-m-d'), Carbon::today()->format('Y-m-d')])
-            ->distinct('date')
-            ->count('date');
+        $daysWorked = $this->daysWorkedBetween($userId, $monthStart, $today);
         $consistency = $workDays > 0 ? round(($daysWorked / $workDays) * 100) : 0;
 
         // Productivity (hours vs expected hours)
@@ -265,21 +309,33 @@ class DashboardController extends Controller
         ];
     }
 
+    private function daysWorkedBetween(int $userId, Carbon $start, Carbon $end): int
+    {
+        $this->loadSums();
+        $count = 0;
+
+        foreach ($this->userDateSums[$userId] ?? [] as $date => $hours) {
+            if ($hours > 0 && $date >= $start->format('Y-m-d') && $date <= $end->format('Y-m-d')) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
     private function getTeamDailyData()
     {
         $days = [];
         $totalHours = [];
         $averageHours = [];
+        $employeeCount = $this->members()->count();
 
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::today()->subDays($i);
             $days[] = $date->format('M j');
 
-            $dayTotal = WorkHour::whereDate('date', $date)
-                ->sum('hours');
+            $dayTotal = $this->teamHoursOn($date);
             $totalHours[] = round($dayTotal, 1);
-
-            $employeeCount = User::where('role', 'member')->count();
             $averageHours[] = $employeeCount > 0 ? round($dayTotal / $employeeCount, 1) : 0;
         }
 
@@ -299,12 +355,7 @@ class DashboardController extends Controller
             $weekStart = Carbon::today()->subWeeks($i)->startOfWeek(MonitoringSetting::weekStartDay());
             $weekEnd = $weekStart->copy()->endOfWeek(MonitoringSetting::weekEndDay());
             $weeks[] = $weekStart->format('M j').'-'.$weekEnd->format('j');
-
-            $weekTotal = WorkHour::whereBetween('date', [
-                $weekStart->format('Y-m-d'),
-                $weekEnd->format('Y-m-d'),
-            ])->sum('hours');
-            $data[] = round($weekTotal, 1);
+            $data[] = round($this->teamHoursBetween($weekStart, $weekEnd), 1);
         }
 
         return [
@@ -322,12 +373,7 @@ class DashboardController extends Controller
             $monthStart = Carbon::today()->subMonths($i)->startOfMonth();
             $monthEnd = $monthStart->copy()->endOfMonth();
             $months[] = $monthStart->format('M Y');
-
-            $monthTotal = WorkHour::whereBetween('date', [
-                $monthStart->format('Y-m-d'),
-                $monthEnd->format('Y-m-d'),
-            ])->sum('hours');
-            $data[] = round($monthTotal, 1);
+            $data[] = round($this->teamHoursBetween($monthStart, $monthEnd), 1);
         }
 
         return [
@@ -339,69 +385,50 @@ class DashboardController extends Controller
     private function getEmployeeComparison()
     {
         $monthStart = Carbon::today()->startOfMonth();
+        $today = Carbon::today();
 
-        $employeeHours = User::where('role', 'member')
-            ->leftJoin('work_hours', function ($join) use ($monthStart) {
-                $join->on('users.id', '=', 'work_hours.user_id')
-                    ->whereBetween('work_hours.date', [
-                        $monthStart->format('Y-m-d'),
-                        Carbon::today()->format('Y-m-d'),
-                    ]);
-            })
-            ->select('users.name', DB::raw('COALESCE(SUM(work_hours.hours), 0) as total_hours'))
-            ->groupBy('users.id', 'users.name')
-            ->orderBy('total_hours', 'desc')
-            ->get();
+        $employeeHours = $this->members()
+            ->map(fn (User $employee) => [
+                'name' => $employee->name,
+                'total' => $this->userHoursBetween($employee->id, $monthStart, $today),
+            ])
+            ->sortByDesc('total')
+            ->values();
 
         return [
             'labels' => $employeeHours->pluck('name')->toArray(),
-            'data' => $employeeHours->pluck('total_hours')->map(fn ($h) => round($h, 1))->toArray(),
+            'data' => $employeeHours->pluck('total')->map(fn ($h) => round($h, 1))->toArray(),
         ];
     }
 
     private function getTopPerformers()
     {
         $monthStart = Carbon::today()->startOfMonth();
+        $today = Carbon::today();
+        $workDays = $this->getWorkDaysInMonth($monthStart, $today);
+        $expectedHours = $workDays * 8;
 
-        return User::where('role', 'member')
-            ->leftJoin('work_hours', function ($join) use ($monthStart) {
-                $join->on('users.id', '=', 'work_hours.user_id')
-                    ->whereBetween('work_hours.date', [
-                        $monthStart->format('Y-m-d'),
-                        Carbon::today()->format('Y-m-d'),
-                    ]);
-            })
-            ->select(
-                'users.id',
-                'users.name',
-                'users.designation',
-                DB::raw('COALESCE(SUM(work_hours.hours), 0) as hours_this_month')
-            )
-            ->groupBy('users.id', 'users.name', 'users.designation')
-            ->orderBy('hours_this_month', 'desc')
-            ->take(6)
-            ->get()
-            ->map(function ($user) {
-                $workDays = $this->getWorkDaysInMonth(Carbon::today()->startOfMonth(), Carbon::today());
-                $expectedHours = $workDays * 8;
-                $efficiency = $expectedHours > 0 ? min(100, round(($user->hours_this_month / $expectedHours) * 100)) : 0;
+        return $this->members()
+            ->map(function (User $employee) use ($monthStart, $today, $expectedHours) {
+                $hours = $this->userHoursBetween($employee->id, $monthStart, $today);
 
                 return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'designation' => $user->designation ?: 'Employee',
-                    'hoursThisMonth' => round($user->hours_this_month, 1),
-                    'efficiency' => $efficiency,
+                    'id' => $employee->id,
+                    'name' => $employee->name,
+                    'designation' => $employee->designation ?: 'Employee',
+                    'hoursThisMonth' => round($hours, 1),
+                    'efficiency' => $expectedHours > 0 ? min(100, round(($hours / $expectedHours) * 100)) : 0,
                 ];
-            });
+            })
+            ->sortByDesc('hoursThisMonth')
+            ->take(6)
+            ->values();
     }
 
     // Helper methods for getting individual metrics
     private function getTodayHours($userId)
     {
-        return WorkHour::where('user_id', $userId)
-            ->where('date', Carbon::today()->format('Y-m-d'))
-            ->sum('hours');
+        return $this->userHoursOn($userId, Carbon::today());
     }
 
     private function getWeekHours($userId)
@@ -409,41 +436,34 @@ class DashboardController extends Controller
         $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
         $weekEnd = Carbon::today()->endOfWeek(MonitoringSetting::weekEndDay());
 
-        return WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
-            ->sum('hours');
+        return $this->userHoursBetween($userId, $weekStart, $weekEnd);
     }
 
     private function getMonthHours($userId)
     {
-        $monthStart = Carbon::today()->startOfMonth();
-
-        return WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$monthStart->format('Y-m-d'), Carbon::today()->format('Y-m-d')])
-            ->sum('hours');
+        return $this->userHoursBetween($userId, Carbon::today()->startOfMonth(), Carbon::today());
     }
 
     private function getTotalTeamHoursToday()
     {
-        return WorkHour::where('date', Carbon::today()->format('Y-m-d'))->sum('hours');
+        return $this->teamHoursOn(Carbon::today());
     }
 
     private function getActiveEmployeesToday()
     {
-        return WorkHour::where('date', Carbon::today()->format('Y-m-d'))
-            ->distinct('user_id')
-            ->count('user_id');
+        $this->loadSums();
+        $today = Carbon::today()->format('Y-m-d');
+
+        return count(array_filter(
+            $this->userDateSums,
+            fn (array $dates) => ($dates[$today] ?? 0) > 0
+        ));
     }
 
     private function getAverageEmployeeHours()
     {
-        $monthStart = Carbon::today()->startOfMonth();
-        $totalHours = WorkHour::whereBetween('date', [
-            $monthStart->format('Y-m-d'),
-            Carbon::today()->format('Y-m-d'),
-        ])->sum('hours');
-
-        $employeeCount = User::where('role', 'member')->count();
+        $totalHours = $this->teamHoursBetween(Carbon::today()->startOfMonth(), Carbon::today());
+        $employeeCount = $this->members()->count();
 
         return $employeeCount > 0 ? $totalHours / $employeeCount : 0;
     }
@@ -451,14 +471,12 @@ class DashboardController extends Controller
     private function getTeamEfficiency()
     {
         $monthStart = Carbon::today()->startOfMonth();
-        $workDays = $this->getWorkDaysInMonth($monthStart, Carbon::today());
-        $employeeCount = User::where('role', 'member')->count();
+        $today = Carbon::today();
+        $workDays = $this->getWorkDaysInMonth($monthStart, $today);
+        $employeeCount = $this->members()->count();
         $expectedTotalHours = $workDays * $employeeCount * 8;
 
-        $actualTotalHours = WorkHour::whereBetween('date', [
-            $monthStart->format('Y-m-d'),
-            Carbon::today()->format('Y-m-d'),
-        ])->sum('hours');
+        $actualTotalHours = $this->teamHoursBetween($monthStart, $today);
 
         return $expectedTotalHours > 0 ? round(($actualTotalHours / $expectedTotalHours) * 100) : 0;
     }
@@ -472,11 +490,7 @@ class DashboardController extends Controller
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::today()->subDays($i);
             $days[] = $date->format('M j');
-
-            $hours = WorkHour::where('user_id', $employeeId)
-                ->where('date', $date->format('Y-m-d'))
-                ->sum('hours');
-            $data[] = round($hours, 1);
+            $data[] = round($this->userHoursOn($employeeId, $date), 1);
         }
 
         return [
@@ -494,14 +508,7 @@ class DashboardController extends Controller
             $weekStart = Carbon::today()->subWeeks($i)->startOfWeek(MonitoringSetting::weekStartDay());
             $weekEnd = $weekStart->copy()->endOfWeek(MonitoringSetting::weekEndDay());
             $weeks[] = $weekStart->format('M j').'-'.$weekEnd->format('j');
-
-            $hours = WorkHour::where('user_id', $employeeId)
-                ->whereBetween('date', [
-                    $weekStart->format('Y-m-d'),
-                    $weekEnd->format('Y-m-d'),
-                ])
-                ->sum('hours');
-            $data[] = round($hours, 1);
+            $data[] = round($this->userHoursBetween($employeeId, $weekStart, $weekEnd), 1);
         }
 
         return [
@@ -519,14 +526,7 @@ class DashboardController extends Controller
             $monthStart = Carbon::today()->subMonths($i)->startOfMonth();
             $monthEnd = $monthStart->copy()->endOfMonth();
             $months[] = $monthStart->format('M Y');
-
-            $hours = WorkHour::where('user_id', $employeeId)
-                ->whereBetween('date', [
-                    $monthStart->format('Y-m-d'),
-                    $monthEnd->format('Y-m-d'),
-                ])
-                ->sum('hours');
-            $data[] = round($hours, 1);
+            $data[] = round($this->userHoursBetween($employeeId, $monthStart, $monthEnd), 1);
         }
 
         return [
@@ -543,9 +543,7 @@ class DashboardController extends Controller
         $weekEnd = Carbon::today()->endOfWeek(MonitoringSetting::weekEndDay());
         $monthStart = Carbon::today()->startOfMonth();
 
-        $thisWeekHours = WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$weekStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
-            ->sum('hours');
+        $thisWeekHours = $this->userHoursBetween($userId, $weekStart, $weekEnd);
 
         $thisMonthClients = WorkHour::where('user_id', $userId)
             ->whereBetween('date', [$monthStart->format('Y-m-d'), $today->format('Y-m-d')])
@@ -553,10 +551,7 @@ class DashboardController extends Controller
             ->count('client_id');
 
         $workDaysThisMonth = $this->getWorkDaysInMonth($monthStart, $today);
-        $daysWithHours = WorkHour::where('user_id', $userId)
-            ->whereBetween('date', [$monthStart->format('Y-m-d'), $today->format('Y-m-d')])
-            ->distinct('date')
-            ->count('date');
+        $daysWithHours = $this->daysWorkedBetween($userId, $monthStart, $today);
 
         $efficiency = $workDaysThisMonth > 0 ? round(($daysWithHours / $workDaysThisMonth) * 100) : 0;
 
@@ -582,25 +577,20 @@ class DashboardController extends Controller
         $weekStart = Carbon::today()->startOfWeek(MonitoringSetting::weekStartDay());
         $monthStart = Carbon::today()->startOfMonth();
 
-        $totalHoursToday = WorkHour::where('date', $today->format('Y-m-d'))->sum('hours');
-        $activeEmployees = User::where('role', 'member')->count();
+        $totalHoursToday = $this->teamHoursOn($today);
+        $activeEmployees = $this->members()->count();
         $totalClients = Client::count();
         $teamEfficiency = $this->getTeamEfficiency();
 
         // Work Hours Report Statistics
-        $totalHoursThisWeek = WorkHour::whereBetween('date', [
-            $weekStart->format('Y-m-d'),
-            $today->format('Y-m-d'),
-        ])->sum('hours');
+        $totalHoursThisWeek = $this->teamHoursBetween($weekStart, $today);
 
         $totalEntriesThisMonth = WorkHour::whereBetween('date', [
             $monthStart->format('Y-m-d'),
             $today->format('Y-m-d'),
         ])->count();
 
-        $activeUsersToday = WorkHour::where('date', $today->format('Y-m-d'))
-            ->distinct('user_id')
-            ->count('user_id');
+        $activeUsersToday = $this->getActiveEmployeesToday();
 
         $activeClientsThisMonth = WorkHour::whereBetween('date', [
             $monthStart->format('Y-m-d'),

@@ -74,7 +74,10 @@ class MonitoringSetting extends Model
 
     public static function current(): self
     {
-        return static::firstOrCreate(
+        // Memoized per request: weekStartDay()/weekEndDay() are called inside
+        // loops all over the dashboard/report code, and each current() call
+        // was a separate firstOrCreate query.
+        return once(fn () => static::firstOrCreate(
             ['id' => 1],
             [
                 'screenshots_per_hour' => 6,
@@ -99,7 +102,7 @@ class MonitoringSetting extends Model
                 'display_timezone' => 'Asia/Karachi',
                 'time_format' => '12',
             ]
-        );
+        ));
     }
 
     /**

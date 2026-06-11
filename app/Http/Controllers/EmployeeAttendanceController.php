@@ -66,6 +66,12 @@ class EmployeeAttendanceController extends Controller
             ];
         });
 
+        // Parsed once per day here rather than once per employee-day cell —
+        // with a full team this loop body otherwise runs ~700 times a month.
+        $carbonDays = $days->mapWithKeys(fn (array $day) => [
+            $day['date'] => Carbon::parse($day['date'], 'Asia/Karachi'),
+        ]);
+
         $entriesByUserDate = TimeEntry::query()
             ->whereBetween('action_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->orderBy('action_timestamp')
@@ -93,11 +99,11 @@ class EmployeeAttendanceController extends Controller
         $employees = User::query()
             ->orderBy('name')
             ->get()
-            ->map(function (User $employee) use ($days, $entriesByUserDate, $manualMarks, $now, $today, $summaryTemplate) {
+            ->map(function (User $employee) use ($days, $carbonDays, $entriesByUserDate, $manualMarks, $now, $today, $summaryTemplate) {
                 $summary = $summaryTemplate;
 
-                $dayCells = $days->map(function (array $day) use ($employee, $entriesByUserDate, $manualMarks, $now, $today, &$summary) {
-                    $date = Carbon::parse($day['date'], 'Asia/Karachi');
+                $dayCells = $days->map(function (array $day) use ($employee, $carbonDays, $entriesByUserDate, $manualMarks, $now, $today, &$summary) {
+                    $date = $carbonDays[$day['date']];
                     $key = $employee->id.'|'.$day['date'];
                     $entries = $entriesByUserDate->get($key, collect());
                     $manualMark = $manualMarks->get($key);
