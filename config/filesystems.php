@@ -79,6 +79,30 @@ return [
                 'visibility' => 'private',
             ],
 
+        // Avatar storage. Defaults to the local public disk; set
+        // AVATARS_DRIVER=s3 in production — the host's git deploy prunes
+        // untracked files under storage/, which deletes locally stored
+        // avatars on every push. Served via signed URLs on S3.
+        'avatars' => env('AVATARS_DRIVER', 'local') === 's3'
+            ? [
+                'driver' => 's3',
+                'key' => env('AWS_ACCESS_KEY_ID'),
+                'secret' => env('AWS_SECRET_ACCESS_KEY'),
+                'region' => env('AWS_DEFAULT_REGION'),
+                'bucket' => env('AVATARS_BUCKET', env('SCREENSHOTS_BUCKET', env('AWS_BUCKET'))),
+                'endpoint' => env('AWS_ENDPOINT'),
+                'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+                'visibility' => 'private',
+                'throw' => false,
+            ]
+            : [
+                'driver' => 'local',
+                'root' => storage_path('app/public'),
+                'url' => env('APP_URL').'/storage',
+                'visibility' => 'public',
+                'throw' => false,
+            ],
+
     ],
 
     /*

@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -41,6 +42,16 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'permissions',
+    ];
+
+    /**
+     * Serialized users always carry a resolvable avatar URL; the raw path is
+     * only meaningful server-side (the avatars disk may be local or S3).
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'avatar_url',
     ];
 
     /**
@@ -134,12 +145,21 @@ class User extends Authenticatable
 
     /**
      * Get the avatar URL attribute.
+     *
+     * On S3 this is a short-lived signed URL (objects are private); on the
+     * local disk it is the public /storage path.
      */
     public function getAvatarUrlAttribute()
     {
-        return $this->avatar
-            ? asset('storage/'.$this->avatar)
-            : null;
+        if (! $this->avatar) {
+            return null;
+        }
+
+        if (config('filesystems.disks.avatars.driver') === 's3') {
+            return Storage::disk('avatars')->temporaryUrl($this->avatar, now()->addMinutes(30));
+        }
+
+        return asset('storage/'.$this->avatar);
     }
 
     /**

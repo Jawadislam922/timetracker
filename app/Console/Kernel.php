@@ -36,6 +36,12 @@ class Kernel extends ConsoleKernel
             ->timezone($timezone)
             ->withoutOverlapping();
 
+        // Close sessions whose desktop app died without sending a stop, so
+        // they don't sit "active" forever and their hours still sync.
+        $schedule->command('monitoring:close-stale-sessions')
+            ->everyTenMinutes()
+            ->withoutOverlapping();
+
         // Hostinger's git auto-deploy re-clones the tree and wipes
         // bootstrap/cache, dropping the config cache (a large chunk of TTFB
         // on shared hosting). Rebuild it whenever it's found missing.

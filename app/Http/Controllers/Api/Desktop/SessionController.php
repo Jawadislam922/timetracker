@@ -8,14 +8,15 @@ use App\Http\Requests\Desktop\StartSessionRequest;
 use App\Http\Requests\Desktop\StopSessionRequest;
 use App\Models\Client;
 use App\Models\TrackingSession;
-use App\Models\UpworkProfile;
-use App\Models\WorkHour;
+use App\Services\TrackingSessionService;
 use App\Support\BusinessTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SessionController extends Controller
 {
+    public function __construct(private TrackingSessionService $sessions) {}
+
     /**
      * Start a new tracking session. Idempotent on (user_id, client_uuid)
      * so the desktop app can safely retry after a flaky upload.
@@ -45,7 +46,7 @@ class SessionController extends Controller
                 // app (tracker/manual/fixed/...). Fall back to deriving from the
                 // client, and never store the client-level "tracker_manual"
                 // engagement type as a per-entry category.
-                'work_type' => $this->normaliseWorkType($data['work_type'] ?? $client?->work_type),
+                'work_type' => $this->sessions->normaliseWorkType($data['work_type'] ?? $client?->work_type),
                 'task_note' => $data['task_note'] ?? null,
                 // Desktop sends UTC ISO; convert to app timezone for storage so
                 // it lines up with the rest of the data (see BusinessTime).
@@ -97,57 +98,13 @@ class SessionController extends Controller
             'last_heartbeat_at' => now(),
         ]);
 
-        $this->syncWorkHourFromSession($session->fresh());
+        $this->sessions->syncWorkHour($session->fresh());
 
         return response()->json([
             'id' => $session->id,
             'status' => $session->status,
             'stopped_at' => $session->stopped_at?->toIso8601String(),
         ]);
-    }
-
-    /**
-     * Mirror a finished tracking session into the work_hours table so the
-     * existing Report sheet auto-populates without manual entry.
-     */
-    private function syncWorkHourFromSession(TrackingSession $session): void
-    {
-        if (! $session->total_seconds || $session->total_seconds < 60) {
-            return;
-        }
-
-        $trackerName = $session->upwork_profile_id
-            ? UpworkProfile::query()->where('id', $session->upwork_profile_id)->value('name')
-            : null;
-
-        WorkHour::updateOrCreate(
-            ['tracking_session_id' => $session->id],
-            [
-                'user_id' => $session->user_id,
-                'date' => $session->started_at?->toDateString() ?? now()->toDateString(),
-                'hours' => round($session->total_seconds / 3600, 4),
-                'description' => $session->task_note ?: 'Tracked via desktop',
-                'work_type' => $this->normaliseWorkType($session->work_type) ?: 'tracker',
-                'client_id' => $session->client_id,
-                'tracker' => $trackerName,
-                'source' => 'tracker',
-            ]
-        );
-    }
-
-    /**
-     * Map a stored work type to a valid per-entry billing category. The
-     * client-level "tracker_manual" engagement type defaults to "tracker"
-     * (the desktop app records tracked time); users choose tracker/manual
-     * explicitly in the app.
-     */
-    private function normaliseWorkType(?string $workType): ?string
-    {
-        if ($workType === null || $workType === '') {
-            return null;
-        }
-
-        return $workType === 'tracker_manual' ? 'tracker' : $workType;
     }
 
     /**

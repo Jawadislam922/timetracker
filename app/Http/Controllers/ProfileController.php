@@ -37,16 +37,16 @@ class ProfileController extends Controller
         if ($request->hasFile('avatar')) {
             // Delete old avatar if exists
             if ($user->avatar) {
-                Storage::disk('public')->delete($user->avatar);
+                Storage::disk('avatars')->delete($user->avatar);
             }
 
             // Store new avatar
-            $avatarPath = $request->file('avatar')->store('avatars', 'public');
+            $avatarPath = $request->file('avatar')->store('avatars', 'avatars');
             $validatedData['avatar'] = $avatarPath;
         } elseif ($request->has('avatar') && $request->input('avatar') === null) {
             // Handle avatar removal
             if ($user->avatar) {
-                Storage::disk('public')->delete($user->avatar);
+                Storage::disk('avatars')->delete($user->avatar);
             }
             $validatedData['avatar'] = null;
         }

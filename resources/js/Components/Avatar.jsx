@@ -11,14 +11,18 @@ export default function Avatar({ user, size = 'md', className = '' }) {
 
     const baseClasses = `rounded-full object-cover border flex-shrink-0 ${sizeClasses[size]} ${className}`;
 
+    // avatar_url is resolvable wherever the file lives (local /storage or a
+    // signed S3 URL); the raw avatar path only works for local storage.
+    const src = user.avatar_url || (user.avatar ? `/storage/${user.avatar}` : null);
+
     useEffect(() => {
         setImageFailed(false);
-    }, [user.avatar]);
+    }, [src]);
 
-    if (user.avatar && !imageFailed) {
+    if (src && !imageFailed) {
         return (
             <img
-                src={`/storage/${user.avatar}`}
+                src={src}
                 alt={`${user.name}'s avatar`}
                 className={baseClasses}
                 onError={() => setImageFailed(true)}
