@@ -9,6 +9,7 @@ import {
     Clock,
     Film,
     LayoutDashboard,
+    LayoutGrid,
     LogOut,
     Menu,
     MonitorDown,
@@ -48,88 +49,75 @@ function NavItem({ item, onClick }) {
     );
 }
 
+// A top-bar grouping: a trigger button that opens a dropdown of related links.
+function NavGroup({ label, icon: Icon, items }) {
+    const active = items.some((item) => isActiveRoute(item.active));
+
+    return (
+        <Dropdown>
+            <Dropdown.Trigger>
+                <button
+                    type="button"
+                    className={[
+                        'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition xl:px-3',
+                        active ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
+                    ].join(' ')}
+                >
+                    <Icon className="h-4 w-4" />
+                    <span>{label}</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                </button>
+            </Dropdown.Trigger>
+            <Dropdown.Content align="left" width="56">
+                {items.map((item) => {
+                    const ItemIcon = item.icon;
+                    const isActive = isActiveRoute(item.active);
+                    return (
+                        <Dropdown.Link
+                            key={item.label}
+                            href={item.href}
+                            className={isActive ? 'bg-slate-100 font-semibold text-slate-900' : ''}
+                        >
+                            <span className="flex items-center gap-2">
+                                <ItemIcon className="h-4 w-4 text-slate-400" />
+                                {item.label}
+                            </span>
+                        </Dropdown.Link>
+                    );
+                })}
+            </Dropdown.Content>
+        </Dropdown>
+    );
+}
+
 export default function Authenticated({ user, header, children }) {
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
     const can = (permission) => user?.is_super_admin || user?.permissions?.includes(permission);
     const canCreateManualWorkHour = user?.can_create_manual_work_hour ?? true;
 
-    const navItems = useMemo(() => {
-        const items = [
-            {
-                label: 'Dashboard',
-                href: route('dashboard'),
-                icon: LayoutDashboard,
-                active: ['dashboard'],
-            },
-            {
-                label: 'Timeline',
-                href: route('timeline.index'),
-                icon: Film,
-                active: ['timeline.index'],
-            },
-            {
-                label: 'Desktop App',
-                href: route('desktop-downloads.index'),
-                icon: MonitorDown,
-                active: ['desktop-downloads.index'],
-            },
-            {
-                label: 'Work Diary',
-                href: route('work-hours.index'),
-                icon: Clock,
-                active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'],
-            },
-        ];
+    // Primary, always-visible personal links.
+    const primaryItems = useMemo(() => [
+        { label: 'Dashboard', href: route('dashboard'), icon: LayoutDashboard, active: ['dashboard'] },
+        { label: 'Timeline', href: route('timeline.index'), icon: Film, active: ['timeline.index'] },
+        { label: 'Work Diary', href: route('work-hours.index'), icon: Clock, active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'] },
+    ], []);
 
-        const managementItems = [
-            can('users.view') && {
-                    label: 'Users',
-                    href: route('users.index'),
-                    icon: Users,
-                    active: ['users.index', 'users.create', 'users.edit'],
-                },
-            can('clients.view') && {
-                    label: 'Clients',
-                    href: route('clients.index'),
-                    icon: Briefcase,
-                    active: ['clients.index', 'clients.create', 'clients.edit'],
-                },
-            can('profiles.view') && {
-                    label: 'Profiles',
-                    href: route('upwork-profiles.index'),
-                    icon: UserCircle,
-                    active: ['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'],
-                },
-            can('attendance.view') && {
-                    label: 'Attendance',
-                    href: route('employee-attendance.index'),
-                    icon: CalendarDays,
-                    active: ['employee-attendance.index'],
-                },
-            can('reports.view') && {
-                    label: 'Report',
-                    href: route('work-hours.report'),
-                    icon: BarChart3,
-                    active: ['work-hours.report'],
-                },
-            can('timeline.view_others') && {
-                    label: 'Team',
-                    href: route('team.index'),
-                    icon: Activity,
-                    active: ['team.index'],
-                },
-            can('monitoring.settings') && {
-                    label: 'Settings',
-                    href: route('settings.index'),
-                    icon: SettingsIcon,
-                    active: ['settings.index'],
-                },
-        ].filter(Boolean);
+    // Management / reporting — grouped under a "Manage" dropdown.
+    const manageItems = useMemo(() => [
+        can('reports.view') && { label: 'Reports', href: route('work-hours.report'), icon: BarChart3, active: ['work-hours.report'] },
+        can('timeline.view_others') && { label: 'Team', href: route('team.index'), icon: Activity, active: ['team.index'] },
+        can('attendance.view') && { label: 'Attendance', href: route('employee-attendance.index'), icon: CalendarDays, active: ['employee-attendance.index'] },
+        can('users.view') && { label: 'Users', href: route('users.index'), icon: Users, active: ['users.index', 'users.create', 'users.edit'] },
+        can('clients.view') && { label: 'Clients', href: route('clients.index'), icon: Briefcase, active: ['clients.index', 'clients.create', 'clients.edit'] },
+        can('profiles.view') && { label: 'Profiles', href: route('upwork-profiles.index'), icon: UserCircle, active: ['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'] },
+    ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
-        items.splice(1, 0, ...managementItems);
-
-        return items;
-    }, [user?.is_super_admin, user?.permissions]);
+    // System / configuration — grouped under a "System" dropdown.
+    const systemItems = useMemo(() => [
+        can('monitoring.settings') && { label: 'Settings', href: route('settings.index'), icon: SettingsIcon, active: ['settings.index'] },
+        { label: 'Desktop App', href: route('desktop-downloads.index'), icon: MonitorDown, active: ['desktop-downloads.index'] },
+        user?.is_super_admin && { label: 'Developer', href: route('developer.index'), icon: Wrench, active: ['developer.index'] },
+    ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
     return (
         <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -148,9 +136,11 @@ export default function Authenticated({ user, header, children }) {
                             </Link>
 
                             <div className="hidden items-center gap-1 lg:flex">
-                                {navItems.map((item) => (
+                                {primaryItems.map((item) => (
                                     <NavItem key={item.label} item={item} />
                                 ))}
+                                {manageItems.length > 0 && <NavGroup label="Manage" icon={LayoutGrid} items={manageItems} />}
+                                {systemItems.length > 0 && <NavGroup label="System" icon={SettingsIcon} items={systemItems} />}
                             </div>
                         </div>
 
@@ -161,7 +151,7 @@ export default function Authenticated({ user, header, children }) {
                                     className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                 >
                                     <Plus className="h-4 w-4" />
-                                    <span>Add Entry</span>
+                                    <span className="hidden md:inline">Add Entry</span>
                                 </Link>
                             )}
 
@@ -180,14 +170,6 @@ export default function Authenticated({ user, header, children }) {
                                             Profile
                                         </span>
                                     </Dropdown.Link>
-                                    {user?.is_super_admin && (
-                                        <Dropdown.Link href={route('developer.index')}>
-                                            <span className="flex items-center gap-2">
-                                                <Wrench className="h-4 w-4" />
-                                                Developer
-                                            </span>
-                                        </Dropdown.Link>
-                                    )}
                                     <Dropdown.Link href={route('logout')} method="post" as="button">
                                         <span className="flex items-center gap-2">
                                             <LogOut className="h-4 w-4" />
@@ -211,21 +193,38 @@ export default function Authenticated({ user, header, children }) {
                 {showingNavigationDropdown && (
                     <div className="border-t border-slate-200 bg-white lg:hidden">
                         <div className="space-y-1 px-4 py-3">
-                            {navItems.map((item) => (
-                                <NavItem
-                                    key={item.label}
-                                    item={item}
-                                    onClick={() => setShowingNavigationDropdown(false)}
-                                />
+                            {primaryItems.map((item) => (
+                                <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
                             ))}
-                            <Link
-                                href={route('work-hours.create')}
-                                onClick={() => setShowingNavigationDropdown(false)}
-                                className="mt-3 flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add Entry
-                            </Link>
+
+                            {manageItems.length > 0 && (
+                                <div className="pt-3">
+                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Manage</div>
+                                    {manageItems.map((item) => (
+                                        <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
+                                    ))}
+                                </div>
+                            )}
+
+                            {systemItems.length > 0 && (
+                                <div className="pt-3">
+                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">System</div>
+                                    {systemItems.map((item) => (
+                                        <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
+                                    ))}
+                                </div>
+                            )}
+
+                            {canCreateManualWorkHour && (
+                                <Link
+                                    href={route('work-hours.create')}
+                                    onClick={() => setShowingNavigationDropdown(false)}
+                                    className="mt-3 flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Add Entry
+                                </Link>
+                            )}
                         </div>
 
                         <div className="border-t border-slate-200 px-4 py-4">
@@ -244,15 +243,6 @@ export default function Authenticated({ user, header, children }) {
                                     <UserCircle className="h-4 w-4" />
                                     Profile Settings
                                 </Link>
-                                {user?.is_super_admin && (
-                                    <Link
-                                        href={route('developer.index')}
-                                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                                    >
-                                        <Wrench className="h-4 w-4" />
-                                        Developer
-                                    </Link>
-                                )}
                                 <Link
                                     href={route('logout')}
                                     method="post"
