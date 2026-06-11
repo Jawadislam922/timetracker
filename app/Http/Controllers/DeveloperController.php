@@ -431,9 +431,21 @@ class DeveloperController extends Controller
     /** @return array{0: string, 1: string} */
     private function runOptimize(): array
     {
-        Artisan::call('optimize');
+        // IMPORTANT: do NOT run `optimize` / `route:cache` here. This app has
+        // closure-based routes (the welcome page and avatar streamer) that
+        // cannot be route-cached — a cached route file 500s the whole site.
+        // Cache only config + views + events, which are safe and give the
+        // real boot-time win.
+        $out = [];
+        foreach (['config:cache', 'view:cache', 'event:cache'] as $cmd) {
+            Artisan::call($cmd);
+            $out[] = trim(Artisan::output());
+        }
 
-        return ['Caches built (config, routes, views). Remember: run "Clear caches" before php artisan test.', trim(Artisan::output())];
+        return [
+            'Caches built (config, views, events). Route cache is intentionally skipped — this app uses closure routes that cannot be route-cached. Run "Clear caches" before php artisan test.',
+            implode("\n", array_filter($out)),
+        ];
     }
 
     /** @return array{0: string, 1: string} */

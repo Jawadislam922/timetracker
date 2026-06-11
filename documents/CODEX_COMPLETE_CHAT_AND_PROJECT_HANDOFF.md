@@ -175,6 +175,37 @@ Both installers now live and deploy-proof (2026-06-11):
   (checksum verified) and uploaded to `~/desktop-installers/`; the controller
   prefers the .dmg over any .zip. /desktop-downloads serves both.
 
+## CRITICAL OPS RULE: never route:cache / optimize this app (2026-06-11)
+
+`routes/web.php` contains CLOSURE routes (the `/` welcome page and the
+`/storage/avatars/{filename}` streamer). `php artisan route:cache` serializes
+these and the cached route file then 500s the ENTIRE site. Confirmed in
+production this session (login went 500; `route:clear` fixed it instantly).
+
+Therefore:
+- NEVER run `php artisan route:cache` or `php artisan optimize` (optimize
+  includes route:cache) on this app, locally or in production.
+- Safe production warmup is `php artisan config:cache && php artisan
+  view:cache && php artisan event:cache` only.
+- The Developer page "Optimize" button was fixed to do exactly that (skip
+  route:cache) — see DeveloperController::runOptimize.
+- Post-deploy steps in this doc that say `optimize` should be read as the
+  config/view/event trio instead.
+
+## Developer page credentials manager (2026-06-11)
+
+The Developer page (super-admin only) now edits Slack + S3 `.env` settings
+from the browser — no SSH needed:
+- Managed keys are a strict whitelist (Slack webhook/timezone/schedule flags;
+  S3 driver/key/secret/region/bucket). Any other key in the payload is
+  ignored (tested: APP_KEY / DB_PASSWORD injection is dropped).
+- Secret fields are write-only: the page shows only "set"/"not set", never the
+  value; leaving a secret blank keeps the current one.
+- On save it rewrites `.env` line-safely and re-applies the config cache.
+- New "Test screenshot storage" action (put/read/sign/delete probe) sits next
+  to "Test Slack webhook". Route: PUT /developer/env. Tests in
+  DeveloperPageTest. Use this to rotate the S3 key (see S3 section) without SSH.
+
 ## Screenshots moved to AWS S3 (2026-06-11)
 
 Screenshots now store on AWS S3 instead of the shared host's disk — the local
