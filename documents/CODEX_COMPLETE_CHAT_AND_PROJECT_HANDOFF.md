@@ -175,6 +175,26 @@ Both installers now live and deploy-proof (2026-06-11):
   (checksum verified) and uploaded to `~/desktop-installers/`; the controller
   prefers the .dmg over any .zip. /desktop-downloads serves both.
 
+## Windows browser URL capture (2026-06-11, commit 062a7d0)
+
+Jawad chose "Windows UI Automation" for the long-open URL-capture decision.
+active-win only returns browser URLs on macOS; on Windows `url_domain` was
+always null ("No browser activity captured"). Implemented
+`desktop/main/winUrl.js`: when App & URL tracking is on and the foreground app
+is a browser, it reads the address bar via Windows UI Automation (PowerShell
+-EncodedCommand, no native module, no employee install) — FocusedElement ->
+walk to top-level window -> find the "Address and search bar" Edit control ->
+ValuePattern value -> domain. Wired into `activityService.activeWindowInfo`
+(Windows + browser only; 4s timeout; best-effort null on failure). Validated
+against a live Chrome window (read youtube.com/...). Apps already worked on
+Windows; this adds URLs.
+
+DELIVERY: rebuilt the Windows installer (still 0.1.0, new sha 7522aa3b…) and
+re-uploaded to ~/desktop-installers/. Employees must DOWNLOAD + REINSTALL the
+desktop app to get URL capture (main-process change). macOS unchanged (URLs
+already work there via the Automation permission). Version not bumped to avoid
+breaking the Mac DMG download (no Mac available to rebuild it).
+
 ## Desktop timestamp storage bug — 5h off (2026-06-11, commit d44b84e)
 
 Root cause of "times show 4:25pm when it's 9:25pm": the desktop app sends
