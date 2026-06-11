@@ -332,6 +332,7 @@ export default function WorkHoursReport({
                     'Client': entry.client?.name || 'No Client',
                     'Work Type': formatWorkType(entry.work_type),
                     'Tracker': entry.tracker,
+                    'Source': entry.source === 'tracker' ? 'Auto' : 'Logged',
                     'Hours': timeFormat(entry.hours),
                     'Description': entry.description || ''
                 }));
@@ -645,6 +646,7 @@ export default function WorkHoursReport({
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Client</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Work Type</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Tracker</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Source</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Hours</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Description</th>
                                     </tr>
@@ -652,7 +654,7 @@ export default function WorkHoursReport({
                                 <tbody className="divide-y divide-slate-200">
                                     {filteredData.length === 0 ? (
                                         <tr>
-                                            <td colSpan="7" className="px-0 py-12 text-center">
+                                            <td colSpan="8" className="px-0 py-12 text-center">
                                                 <div className="sticky left-0 flex w-[calc(100vw-4rem)] flex-col items-center px-4 sm:w-auto">
                                                     <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -674,21 +676,21 @@ export default function WorkHoursReport({
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <div className="flex flex-wrap items-center gap-1.5">
-                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full capitalize">
-                                                            {entry.tracker}
+                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full capitalize">
+                                                        {entry.tracker}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-sm">
+                                                    {entry.source === 'tracker' ? (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700" title="Auto-captured from the desktop tracker">
+                                                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                            Auto
                                                         </span>
-                                                        {entry.source === 'tracker' ? (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700" title="Auto-populated from desktop tracker session">
-                                                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                                Auto
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600" title="Manually entered work-hour row">
-                                                                Manual
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700" title="Logged by hand in the web app (Add Entry)">
+                                                            Logged
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-bold text-green-700">{timeFormat(entry.hours)}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-700">
@@ -703,7 +705,7 @@ export default function WorkHoursReport({
                                 {filteredData.length > 0 && (
                                     <tfoot className="bg-gradient-to-r from-emerald-50 to-teal-50">
                                         <tr>
-                                            <td colSpan="5" className="px-4 py-3 text-right font-bold text-slate-900">Total:</td>
+                                            <td colSpan="6" className="px-4 py-3 text-right font-bold text-slate-900">Total:</td>
                                             <td className="px-4 py-3 font-bold text-green-700 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
                                             <td></td>
                                         </tr>
