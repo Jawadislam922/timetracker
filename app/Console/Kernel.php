@@ -4,6 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use Illuminate\Support\Facades\Artisan;
 
 class Kernel extends ConsoleKernel
 {
@@ -34,6 +35,16 @@ class Kernel extends ConsoleKernel
             ->dailyAt('02:30')
             ->timezone($timezone)
             ->withoutOverlapping();
+
+        // Hostinger's git auto-deploy re-clones the tree and wipes
+        // bootstrap/cache, dropping the config cache (a large chunk of TTFB
+        // on shared hosting). Rebuild it whenever it's found missing.
+        // NOTE: route:cache must never be added here — closure routes.
+        $schedule->call(function () {
+            if (! file_exists(base_path('bootstrap/cache/config.php'))) {
+                Artisan::call('config:cache');
+            }
+        })->name('config-cache-self-heal')->everyFiveMinutes();
     }
 
     /**
