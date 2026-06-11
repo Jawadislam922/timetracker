@@ -56,12 +56,28 @@ return [
             'throw' => false,
         ],
 
-        'screenshots' => [
-            'driver' => 'local',
-            'root' => storage_path('app/private/screenshots'),
-            'throw' => false,
-            'visibility' => 'private',
-        ],
+        // Screenshot storage. Defaults to the local disk; set SCREENSHOTS_DRIVER=s3
+        // (plus the AWS_* / SCREENSHOTS_BUCKET env vars) to offload screenshots
+        // to S3 so the shared host's disk and inodes don't fill up. Objects stay
+        // private — they are served via signed URLs, never public.
+        'screenshots' => env('SCREENSHOTS_DRIVER', 'local') === 's3'
+            ? [
+                'driver' => 's3',
+                'key' => env('AWS_ACCESS_KEY_ID'),
+                'secret' => env('AWS_SECRET_ACCESS_KEY'),
+                'region' => env('AWS_DEFAULT_REGION'),
+                'bucket' => env('SCREENSHOTS_BUCKET', env('AWS_BUCKET')),
+                'endpoint' => env('AWS_ENDPOINT'),
+                'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+                'visibility' => 'private',
+                'throw' => false,
+            ]
+            : [
+                'driver' => 'local',
+                'root' => storage_path('app/private/screenshots'),
+                'throw' => false,
+                'visibility' => 'private',
+            ],
 
     ],
 
