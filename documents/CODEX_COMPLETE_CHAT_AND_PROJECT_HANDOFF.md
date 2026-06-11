@@ -281,16 +281,26 @@ visible re-clone), which deletes `bootstrap/cache/config.php` and the file
 cache in `storage/framework/cache` — so the first Desktop App page view after
 each deploy re-hashes the installers once (~2s), then is warm again.
 
-## HTTP scheduler trigger (2026-06-12, commit e9590fb)
+## Scheduler cron: RESOLVED (2026-06-12) — root cause + working setup
 
-Hostinger's hPanel cron never executed a correctly configured `* * * * *` job
-(verified with absolute paths + output logging — it simply never ran). The
-scheduler can instead be driven over HTTP: `GET /cron/run/{token}` runs
-`schedule:run` (SchedulerController; token = `SCHEDULER_HTTP_TOKEN` in .env,
-hash_equals check, 404 otherwise, throttle 12/min). Point an external pinger
-(cron-job.org free tier, every minute) at that URL. Safe to call repeatedly —
-scheduled tasks use withoutOverlapping. Verified live: the endpoint executed
-the config-cache-self-heal task on request.
+Hostinger's hPanel cron daemon works, but its runner SILENTLY BREAKS commands
+containing shell metacharacters: jobs with `&&` never executed at all, and a
+job with `>` ran every minute but the redirect target stayed 0 bytes (file
+truncated, output never written). Diagnosed with Hostinger support using
+per-minute mtime monitoring over SSH.
+
+THE WORKING CRON (saved in hPanel, `* * * * *`, no special characters):
+`/usr/bin/php /home/u406855808/domains/timetracker.sparkingasia.com/public_html/artisan schedule:run`
+
+Liveness check: `storage/framework/schedule-heartbeat` is touched every
+scheduler minute (schedule-heartbeat task in app/Console/Kernel.php) — if its
+mtime is recent, the scheduler is alive. NEVER add `&&`/`>`/`>>`/`$()` to a
+Hostinger cron command.
+
+Backup trigger (commit e9590fb): `GET /cron/run/{token}` runs `schedule:run`
+over HTTP (SchedulerController; token = `SCHEDULER_HTTP_TOKEN` in .env,
+hash_equals check, 404 otherwise, throttle 12/min). Safe to call repeatedly —
+scheduled tasks use withoutOverlapping.
 
 Follow-up fixes (2026-06-12, commit 2cf9379):
 - **Avatars now live on S3 in production** (`AVATARS_DRIVER=s3` in .env, new
