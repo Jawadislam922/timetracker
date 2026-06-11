@@ -175,6 +175,40 @@ Both installers now live and deploy-proof (2026-06-11):
   (checksum verified) and uploaded to `~/desktop-installers/`; the controller
   prefers the .dmg over any .zip. /desktop-downloads serves both.
 
+## Screenshots moved to AWS S3 (2026-06-11)
+
+Screenshots now store on AWS S3 instead of the shared host's disk — the local
+`storage/app/private/screenshots` was being wiped on every git auto-deploy
+(same mechanism that hit the installers), so local screenshot storage was
+never viable on this host. Details:
+
+- AWS S3 bucket `sparkingasia-timetracker-screenshots`, region `eu-north-1`,
+  Block-All-Public-Access ON (private; served via presigned URLs).
+- IAM user `timetracker-s3` with a bucket-scoped policy
+  (PutObject/GetObject/DeleteObject + ListBucket on that bucket only).
+- `config/filesystems.php` screenshots disk is env-switchable
+  (`SCREENSHOTS_DRIVER=s3`); package `league/flysystem-aws-s3-v3` added.
+  Production `.env` has SCREENSHOTS_DRIVER=s3 + AWS_ACCESS_KEY_ID /
+  AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION=eu-north-1 / SCREENSHOTS_BUCKET.
+- Serving: `TrackingScreenshot` image/thumbnail URLs return short-lived (20m)
+  presigned S3 URLs when on S3, so the browser fetches straight from S3 — no
+  PHP proxy, no per-image exists() round trip. Local disk path unchanged.
+  Commits: b992e36 (disk switch), acb901c (presigned serving).
+- Verified on production: live put/read/delete OK, presigned URL generation
+  OK (X-Amz-Signature present), disk=s3. 55 orphaned pre-S3 screenshot rows
+  (their files were already wiped) were force-deleted to avoid broken images.
+- SECURITY: the S3 secret access key was shared in chat during setup — it is
+  bucket-scoped and rotatable; rotate it in IAM when convenient and update the
+  production `.env` (AWS_SECRET_ACCESS_KEY) + re-run config:cache.
+
+Site speed note: production /login TTFB is ~1.1s even with OPcache on, JIT on,
+config/route/view cached, DB at 18ms — i.e. it is the Hostinger shared-CPU
+floor, not code. Fixes (not yet done): put the domain behind Cloudflare
+(free, edge-caches assets) and/or upgrade the hosting tier. NB: git
+auto-deploy WIPES bootstrap/cache, so `php artisan optimize` (or
+config/route/view:cache) must be re-run after every deploy — consider a
+Hostinger deploy command for it.
+
 ## Production Incident + Recovery (2026-06-10, same evening)
 
 Shortly after the deployment above, the lightseagreen temporary-domain
