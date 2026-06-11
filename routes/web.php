@@ -7,6 +7,7 @@ use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\EmployeeAttendanceController;
 use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SchedulerController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SlackReportController;
 use App\Http\Controllers\TeamController;
@@ -50,6 +51,13 @@ Route::get('/storage/avatars/{filename}', function (string $filename) {
         'X-Content-Type-Options' => 'nosniff',
     ]);
 })->where('filename', '[A-Za-z0-9][A-Za-z0-9._-]*')->name('avatars.show');
+
+// HTTP scheduler trigger for external cron pingers (see SchedulerController).
+// 404s unless the shared token matches; throttled to a sane ping rate.
+Route::get('/cron/run/{token}', [SchedulerController::class, 'run'])
+    ->where('token', '[A-Za-z0-9]{32,128}')
+    ->middleware('throttle:12,1')
+    ->name('scheduler.run');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 

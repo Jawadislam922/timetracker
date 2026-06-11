@@ -39,4 +39,10 @@ return [
         'timezone' => env('SLACK_REPORT_TIMEZONE', 'Asia/Karachi'),
     ],
 
+    // Shared token for the HTTP scheduler trigger (SchedulerController). Leave
+    // unset to disable the endpoint entirely.
+    'scheduler' => [
+        'token' => env('SCHEDULER_HTTP_TOKEN'),
+    ],
+
 ];
