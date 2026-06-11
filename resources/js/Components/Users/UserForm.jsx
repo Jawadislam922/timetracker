@@ -108,7 +108,7 @@ export default function UserForm({
                         </Field>
                         <Field
                             label={editing ? 'New password' : 'Password'}
-                            hint={editing ? 'Leave blank to keep the current password.' : 'Use at least 8 characters.'}
+                            hint={editing ? 'Leave blank to keep the current password, or use at least 12 characters.' : 'Use at least 12 characters.'}
                             error={form.errors.password}
                         >
                             <input
