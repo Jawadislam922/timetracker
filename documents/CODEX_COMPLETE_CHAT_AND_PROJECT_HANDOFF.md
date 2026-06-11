@@ -175,6 +175,33 @@ Both installers now live and deploy-proof (2026-06-11):
   (checksum verified) and uploaded to `~/desktop-installers/`; the controller
   prefers the .dmg over any .zip. /desktop-downloads serves both.
 
+## Desktop timestamp storage bug — 5h off (2026-06-11, commit d44b84e)
+
+Root cause of "times show 4:25pm when it's 9:25pm": the desktop app sends
+timestamps in UTC (`new Date().toISOString()` -> "...Z"), but the app reads
+stored datetimes as `app.timezone` = Asia/Karachi. Laravel stores datetimes
+WITHOUT tz conversion, so a UTC instant got written as a UTC wall-clock string
+and then read back as if it were Karachi — landing every desktop timestamp 5h
+behind (Karachi = UTC+5, no DST).
+
+Fix: `App\Support\BusinessTime::fromClient($iso)` parses the incoming ISO and
+`setTimezone(app.timezone)` before storage. Applied at every desktop ingestion
+point: ScreenshotController (captured_at), ActivityController (sample
+captured_at), SessionController (started_at, stopped_at, last_heartbeat_at,
+heartbeat). New data now stores correct Karachi wall-clock.
+
+Existing data fix-up (run once on prod): `+5 HOUR` on
+tracking_screenshots.captured_at, tracking_activity_samples.captured_at, and
+tracking_sessions.started_at/stopped_at/last_heartbeat_at (19 / 1258 / 24
+rows). created_at/updated_at were already correct (server-side now()) and left
+untouched. A handful of rows ingested during the deploy window MAY still be
+-5h; negligible (test data). Together with the display-timezone work, times
+now render correctly in PKT.
+
+NOTE: Hostinger auto-deploy lags and leaves the repo in detached HEAD. When a
+fix must go live immediately, SSH and `git fetch origin jawad && git checkout
+-f <sha>` then config:cache + view:cache (NOT route:cache).
+
 ## Display timezone + 12/24h format (2026-06-11)
 
 Times across the site were rendering in the viewer's MACHINE timezone (so a UK
