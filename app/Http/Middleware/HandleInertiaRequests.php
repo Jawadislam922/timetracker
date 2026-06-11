@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
+use App\Models\UserMonitoringSetting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -70,6 +71,7 @@ class HandleInertiaRequests extends Middleware
         // public routes. Cached for 60s so repeated authenticated requests
         // don't re-query the monitoring_settings table.
         $teamSettings = null;
+        $display = ['timezone' => 'Asia/Karachi', 'format' => '12'];
         if ($user) {
             try {
                 $teamSettings = Cache::remember('monitoring_settings.shared', 60, function () {
@@ -79,8 +81,27 @@ class HandleInertiaRequests extends Middleware
                         'allow_offline_time' => (bool) $row->allow_offline_time,
                         'currency_symbol' => $row->currency_symbol,
                         'week_starts_on' => $row->week_starts_on,
+                        'display_timezone' => $row->display_timezone ?: 'Asia/Karachi',
+                        'time_format' => $row->time_format ?: '12',
                     ];
                 });
+
+                // Team default, then apply this user's display override if any.
+                $display = [
+                    'timezone' => $teamSettings['display_timezone'] ?? 'Asia/Karachi',
+                    'format' => $teamSettings['time_format'] ?? '12',
+                ];
+                $override = UserMonitoringSetting::where('user_id', $user->id)
+                    ->where('override_display', true)
+                    ->first(['display_timezone', 'time_format']);
+                if ($override) {
+                    if ($override->display_timezone) {
+                        $display['timezone'] = $override->display_timezone;
+                    }
+                    if ($override->time_format) {
+                        $display['format'] = $override->time_format;
+                    }
+                }
             } catch (\Throwable $e) {
                 $teamSettings = null;
             }
@@ -104,6 +125,7 @@ class HandleInertiaRequests extends Middleware
                 'lastActionToday' => $lastActionToday,
             ],
             'teamSettings' => $teamSettings,
+            'display' => $display,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

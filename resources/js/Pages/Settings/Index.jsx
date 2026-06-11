@@ -12,9 +12,17 @@ import {
     Laptop,
     PauseCircle,
     Timer,
+    Clock3,
 } from 'lucide-react';
 
+const TIMEZONES = [
+    'Asia/Karachi', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Riyadh',
+    'Europe/London', 'Europe/Berlin', 'America/New_York', 'America/Chicago',
+    'America/Los_Angeles', 'Australia/Sydney', 'UTC',
+];
+
 const CATEGORIES = [
+    { key: 'display', label: 'Time zone & format', icon: Clock3, summary: (t) => `${(t.display_timezone || 'Asia/Karachi').split('/').pop()} · ${t.time_format === '24' ? '24h' : '12h'}` },
     { key: 'screenshots', label: 'Screenshots', icon: Camera, summary: (t) => `${t.screenshots_per_hour}/hr` },
     { key: 'activity', label: 'Activity Level tracking', icon: Activity, summary: (t) => (t.activity_tracking_enabled ? 'Yes' : 'No') },
     { key: 'app_url', label: 'App & URL tracking', icon: Globe, summary: (t) => (t.app_url_tracking_enabled ? 'On' : 'Off') },
@@ -36,6 +44,7 @@ const CATEGORY_OVERRIDE_KEY = {
     offline_time: 'override_offline_time',
     notify_screenshot: 'override_notify_screenshot',
     desktop_app: 'override_desktop_app',
+    display: 'override_display',
 };
 
 function Toggle({ checked, onChange, disabled }) {
@@ -457,6 +466,81 @@ function AutoPauseSection({ team, users, setTeam }) {
     );
 }
 
+function DisplaySection({ team, users, setTeam }) {
+    return (
+        <SectionShell
+            title="Time zone & format"
+            blurb="All dates and times shown across the website and desktop app render in this time zone and format. Set this to where your team works (e.g. Asia/Karachi for Pakistan)."
+        >
+            <div className="flex flex-wrap items-end gap-6 text-sm">
+                <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-500">Time zone</span>
+                    <select
+                        className="rounded border-slate-300 text-sm"
+                        value={team.display_timezone || 'Asia/Karachi'}
+                        onChange={(e) => {
+                            const next = { ...team, display_timezone: e.target.value };
+                            setTeam(next);
+                            patchTeam(next);
+                        }}
+                    >
+                        {TIMEZONES.map((tz) => (
+                            <option key={tz} value={tz}>{tz}</option>
+                        ))}
+                    </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-500">Time format</span>
+                    <div className="flex items-center gap-4">
+                        {[['12', '12-hour (1:30 PM)'], ['24', '24-hour (13:30)']].map(([val, label]) => (
+                            <label key={val} className="flex items-center gap-1.5">
+                                <input
+                                    type="radio"
+                                    checked={(team.time_format || '12') === val}
+                                    onChange={() => {
+                                        const next = { ...team, time_format: val };
+                                        setTeam(next);
+                                        patchTeam(next);
+                                    }}
+                                />
+                                {label}
+                            </label>
+                        ))}
+                    </div>
+                </label>
+            </div>
+
+            <IndividualSettings
+                category="display"
+                users={users}
+                flagKey="override_display"
+                defaultValues={{ display_timezone: team.display_timezone || 'Asia/Karachi', time_format: team.time_format || '12' }}
+                editor={(override, setValues) => (
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                        <select
+                            className="rounded border-slate-300 text-xs"
+                            value={override.display_timezone || team.display_timezone || 'Asia/Karachi'}
+                            onChange={(e) => setValues({ display_timezone: e.target.value, time_format: override.time_format || team.time_format || '12' })}
+                        >
+                            {TIMEZONES.map((tz) => (
+                                <option key={tz} value={tz}>{tz}</option>
+                            ))}
+                        </select>
+                        <select
+                            className="rounded border-slate-300 text-xs"
+                            value={override.time_format || team.time_format || '12'}
+                            onChange={(e) => setValues({ display_timezone: override.display_timezone || team.display_timezone || 'Asia/Karachi', time_format: e.target.value })}
+                        >
+                            <option value="12">12-hour</option>
+                            <option value="24">24-hour</option>
+                        </select>
+                    </div>
+                )}
+            />
+        </SectionShell>
+    );
+}
+
 function WeekStartsSection({ team, setTeam }) {
     return (
         <SectionShell title="Week starts on" blurb="Used for the Report week ranges and the Attendance grid.">
@@ -689,6 +773,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users }) {
                                     offLabel="Do not notify"
                                 />
                             )}
+                            {active === 'display' && <DisplaySection team={team} users={users} setTeam={setTeam} />}
                             {active === 'week_starts_on' && <WeekStartsSection team={team} setTeam={setTeam} />}
                             {active === 'currency' && <CurrencySection team={team} setTeam={setTeam} />}
                             {active === 'desktop_app' && <DesktopAppSection team={team} users={users} setTeam={setTeam} />}

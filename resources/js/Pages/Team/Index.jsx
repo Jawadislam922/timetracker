@@ -12,6 +12,8 @@ function fmtHm(seconds) {
     return `${h}h ${String(m).padStart(2, '0')}m`;
 }
 
+let DISPLAY = { timezone: 'Asia/Karachi', format: '12' };
+
 function fmtRelative(iso) {
     if (!iso) return '—';
     const diffMs = Date.now() - new Date(iso).getTime();
@@ -20,7 +22,11 @@ function fmtRelative(iso) {
     if (mins < 60) return `${mins} min ago`;
     const hrs = Math.round(mins / 60);
     if (hrs < 24) return `${hrs} hr ago`;
-    return new Date(iso).toLocaleDateString();
+    try {
+        return new Date(iso).toLocaleDateString('en-US', { timeZone: DISPLAY.timezone, month: 'short', day: 'numeric' });
+    } catch {
+        return new Date(iso).toLocaleDateString();
+    }
 }
 
 function activityClass(percent) {
@@ -36,6 +42,7 @@ function shiftDate(iso, delta) {
 }
 
 export default function TeamIndex({ auth, date, rows, totals, permissions, slack }) {
+    DISPLAY = usePage().props.display || DISPLAY;
     const [activeDate, setActiveDate] = useState(date);
     const [sending, setSending] = useState(false);
     const flash = usePage().props.flash || {};

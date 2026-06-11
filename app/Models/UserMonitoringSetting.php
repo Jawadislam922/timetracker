@@ -17,6 +17,7 @@ class UserMonitoringSetting extends Model
         'override_offline_time',
         'override_notify_screenshot',
         'override_desktop_app',
+        'override_display',
         'screenshots_per_hour',
         'blur_screenshots',
         'capture_enabled',
@@ -28,6 +29,8 @@ class UserMonitoringSetting extends Model
         'notify_on_screenshot',
         'desktop_auto_start',
         'desktop_force_quit_on_idle',
+        'display_timezone',
+        'time_format',
     ];
 
     protected $casts = [
@@ -39,6 +42,7 @@ class UserMonitoringSetting extends Model
         'override_offline_time' => 'boolean',
         'override_notify_screenshot' => 'boolean',
         'override_desktop_app' => 'boolean',
+        'override_display' => 'boolean',
         'screenshots_per_hour' => 'integer',
         'blur_screenshots' => 'boolean',
         'capture_enabled' => 'boolean',

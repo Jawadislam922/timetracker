@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Trash2, X } from 'lucide-react';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOTS_PER_HOUR = 10;
 const TOTAL_SLOTS = 24 * SLOTS_PER_HOUR;
+
+// Company display settings, refreshed on each page render from the shared
+// Inertia `display` prop so every timestamp renders in the configured business
+// timezone + format regardless of the viewer's machine.
+let DISPLAY = { timezone: 'Asia/Karachi', format: '12' };
 
 function fmtHm(seconds) {
     const s = Math.max(0, Math.floor(seconds || 0));
@@ -17,8 +22,26 @@ function fmtHm(seconds) {
 
 function fmtTime(iso) {
     if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', '');
+    try {
+        return new Date(iso)
+            .toLocaleTimeString('en-US', { timeZone: DISPLAY.timezone, hour: 'numeric', minute: '2-digit', hour12: String(DISPLAY.format) !== '24' })
+            .toLowerCase()
+            .replace(' ', '');
+    } catch {
+        return '';
+    }
+}
+
+function fmtDateTime(iso) {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleString('en-US', {
+            timeZone: DISPLAY.timezone, year: 'numeric', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: String(DISPLAY.format) !== '24',
+        });
+    } catch {
+        return '';
+    }
 }
 
 function fmtHour(h) {
@@ -312,6 +335,9 @@ export default function TimelineIndex({
     initialData,
     weekStartsOn,
 }) {
+    // Keep the module-level display config current for fmtTime/fmtDateTime.
+    DISPLAY = usePage().props.display || DISPLAY;
+
     const [data, setData] = useState(initialData);
     const [activeDate, setActiveDate] = useState(date);
     const [activeUserId, setActiveUserId] = useState(targetUser.id);
@@ -580,7 +606,7 @@ export default function TimelineIndex({
                                     <li key={entry.id} className="py-3 text-sm">
                                         <div className="flex items-center justify-between">
                                             <span className="font-medium text-slate-900">{entry.action_label}</span>
-                                            <span className="text-xs text-slate-500">{new Date(entry.created_at).toLocaleString()}</span>
+                                            <span className="text-xs text-slate-500">{fmtDateTime(entry.created_at)}</span>
                                         </div>
                                         <div className="mt-1 text-xs text-slate-600">
                                             By <strong>{entry.actor_name}</strong>

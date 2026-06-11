@@ -25,6 +25,7 @@ class SettingsController extends Controller
         'week_starts_on',
         'currency',
         'desktop_app',
+        'display',
     ];
 
     public function index(): Response
@@ -69,6 +70,8 @@ class SettingsController extends Controller
             'currency_symbol' => ['required', 'string', 'max:8'],
             'desktop_auto_start' => ['required', 'boolean'],
             'desktop_force_quit_on_idle' => ['required', 'boolean'],
+            'display_timezone' => ['required', 'timezone'],
+            'time_format' => ['required', Rule::in(['12', '24'])],
         ]);
 
         $team = MonitoringSetting::current();
@@ -108,6 +111,8 @@ class SettingsController extends Controller
             'values.notify_on_screenshot' => ['nullable', 'boolean'],
             'values.desktop_auto_start' => ['nullable', 'boolean'],
             'values.desktop_force_quit_on_idle' => ['nullable', 'boolean'],
+            'values.display_timezone' => ['nullable', 'timezone'],
+            'values.time_format' => ['nullable', Rule::in(['12', '24'])],
         ]);
 
         abort_if($user->isSuperAdmin(), 422, 'Super Admins are not subject to overrides.');
@@ -148,6 +153,7 @@ class SettingsController extends Controller
             'offline_time' => 'override_offline_time',
             'notify_screenshot' => 'override_notify_screenshot',
             'desktop_app' => 'override_desktop_app',
+            'display' => 'override_display',
             'week_starts_on' => 'override_screenshots', // no per-user override
             'currency' => 'override_screenshots',        // no per-user override
         ][$category];
@@ -165,6 +171,7 @@ class SettingsController extends Controller
             'offline_time' => ['allow_offline_time'],
             'notify_screenshot' => ['notify_on_screenshot'],
             'desktop_app' => ['desktop_auto_start', 'desktop_force_quit_on_idle'],
+            'display' => ['display_timezone', 'time_format'],
             'week_starts_on' => [],
             'currency' => [],
         ][$category];
@@ -183,6 +190,7 @@ class SettingsController extends Controller
                 'override_offline_time' => false,
                 'override_notify_screenshot' => false,
                 'override_desktop_app' => false,
+                'override_display' => false,
             ];
         }
 
@@ -195,6 +203,9 @@ class SettingsController extends Controller
             'override_offline_time' => (bool) $row->override_offline_time,
             'override_notify_screenshot' => (bool) $row->override_notify_screenshot,
             'override_desktop_app' => (bool) $row->override_desktop_app,
+            'override_display' => (bool) $row->override_display,
+            'display_timezone' => $row->display_timezone,
+            'time_format' => $row->time_format,
             'screenshots_per_hour' => $row->screenshots_per_hour,
             'blur_screenshots' => $row->blur_screenshots,
             'capture_enabled' => $row->capture_enabled,

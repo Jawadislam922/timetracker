@@ -27,6 +27,8 @@ class MonitoringSetting extends Model
         'currency_symbol',
         'desktop_auto_start',
         'desktop_force_quit_on_idle',
+        'display_timezone',
+        'time_format',
     ];
 
     protected $casts = [
@@ -94,6 +96,8 @@ class MonitoringSetting extends Model
                 'currency_symbol' => '$',
                 'desktop_auto_start' => false,
                 'desktop_force_quit_on_idle' => false,
+                'display_timezone' => 'Asia/Karachi',
+                'time_format' => '12',
             ]
         );
     }
@@ -127,6 +131,7 @@ class MonitoringSetting extends Model
             'override_offline_time' => ['allow_offline_time'],
             'override_notify_screenshot' => ['notify_on_screenshot'],
             'override_desktop_app' => ['desktop_auto_start', 'desktop_force_quit_on_idle'],
+            'override_display' => ['display_timezone', 'time_format'],
         ];
 
         foreach ($groups as $flag => $fields) {
@@ -167,6 +172,8 @@ class MonitoringSetting extends Model
             'currency_symbol' => $this->currency_symbol,
             'desktop_auto_start' => $this->desktop_auto_start,
             'desktop_force_quit_on_idle' => $this->desktop_force_quit_on_idle,
+            'display_timezone' => $this->display_timezone ?: 'Asia/Karachi',
+            'time_format' => $this->time_format ?: '12',
         ];
     }
 }
