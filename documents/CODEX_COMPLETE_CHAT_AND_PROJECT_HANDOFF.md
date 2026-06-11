@@ -267,12 +267,19 @@ Therefore:
 A 500 right after a deploy was briefly blamed on `config:cache`; the real cause
 was Hostinger's git auto-deploy doing a FULL RE-CLONE minutes after each push
 (visible as `clone:` in `git reflog`), transiently wiping `bootstrap/cache` and
-`storage/` contents mid-request. `config:cache` is SAFE and is the single
-biggest perf lever on this host: server TTFB ~1.1s uncached vs ~0.13-0.21s
-cached. Keep it on. The auto-deploy wipe is self-healed by the
-`config-cache-self-heal` scheduler task in `app/Console/Kernel.php` (every 5
-minutes, rebuilds config cache if `bootstrap/cache/config.php` is missing) —
-this needs the hPanel cron `* * * * * php artisan schedule:run` to exist.
+`storage/` contents mid-request. `config:cache` is SAFE — but a controlled
+server-side A/B (3 curls each way) showed it makes NO measurable TTFB
+difference on this host (~0.08s both ways; OPcache already makes config
+parsing cheap). The ~1.1s page times users see are dominated by network
+RTT/TLS to the visitor, not server compute. A `config-cache-self-heal`
+scheduler task exists in `app/Console/Kernel.php` (harmless, rebuilds config
+cache if missing); the scheduler needs the hPanel cron
+`* * * * * php artisan schedule:run` — which matters mainly for the Slack
+digests and screenshot retention, not perf. Note: pushes to GitHub cause
+Hostinger to prune untracked files in the tree within minutes (even without a
+visible re-clone), which deletes `bootstrap/cache/config.php` and the file
+cache in `storage/framework/cache` — so the first Desktop App page view after
+each deploy re-hashes the installers once (~2s), then is warm again.
 
 Perf changes shipped (QA-measured before → prod-measured after):
 - Desktop App page 3.6s → 10ms server compute: `DesktopDownloadController` was

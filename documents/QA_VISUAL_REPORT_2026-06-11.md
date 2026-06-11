@@ -226,15 +226,15 @@ All four "Slower Areas" from the Speed/Performance Notes were addressed:
 | Desktop App page | 3.6s | SHA-256 of both ~100MB installers hashed on **every** page view | **10ms** server compute (hash cached by path+mtime) |
 | Dashboard (admin) | 2.4s | ~400 SUM queries (17 per employee) + settings query per loop iteration | **213ms / 6 queries** (one GROUP BY feeds all charts) |
 | Attendance data | 2.1s | `time_entries` had no date index (full scan) + per-cell Carbon parsing | **266ms / 3 queries** (indexed + hoisted parsing) |
-| Every page (TTFB) | ~1.1s | Laravel booting uncached config on shared hosting | **~0.13-0.21s** server-side with `config:cache` |
 
 Sitewide notes:
-- The "~1.1s Hostinger floor" was actually uncached config parsing; `config:cache` is now enabled
-  and a `config-cache-self-heal` scheduler task rebuilds it after Hostinger's auto-deploy re-clone
-  wipes `bootstrap/cache` (requires the hPanel cron `php artisan schedule:run` every minute).
+- TTFB: a controlled server-side A/B showed `config:cache` makes **no measurable difference** on
+  this host (~0.08s either way — OPcache already makes config parsing cheap). The shell's baseline
+  TTFB seen by users (~0.7-1.1s) is dominated by network RTT/TLS to the visitor's location, not
+  server time. `config:cache` is still safe (route:cache remains forbidden) and a
+  `config-cache-self-heal` scheduler task exists, but it is not a perf lever here.
 - New DB indexes: `time_entries(action_date)`, `time_entries(user_id, action_date)`,
   `work_hours(user_id, date)`.
 - Monitoring/screenshot pages already used locally-signed S3 presigned URLs and `loading="lazy"`;
   remaining image latency is S3 transfer, which doesn't block the page.
-- Login page full load measured from a real browser: 2.3s → **1.2s** (remaining ~0.6s is
-  network RTT + TLS to the user's location, not server time).
+- Login page full load measured from a real browser: 2.3s → **1.2s**.
