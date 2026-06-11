@@ -262,6 +262,37 @@ Therefore:
 - Post-deploy steps in this doc that say `optimize` should be read as the
   config/view/event trio instead.
 
+## Performance pass + config:cache clarification (2026-06-11, commits 5e6cfc2/0393b7c)
+
+A 500 right after a deploy was briefly blamed on `config:cache`; the real cause
+was Hostinger's git auto-deploy doing a FULL RE-CLONE minutes after each push
+(visible as `clone:` in `git reflog`), transiently wiping `bootstrap/cache` and
+`storage/` contents mid-request. `config:cache` is SAFE and is the single
+biggest perf lever on this host: server TTFB ~1.1s uncached vs ~0.13-0.21s
+cached. Keep it on. The auto-deploy wipe is self-healed by the
+`config-cache-self-heal` scheduler task in `app/Console/Kernel.php` (every 5
+minutes, rebuilds config cache if `bootstrap/cache/config.php` is missing) —
+this needs the hPanel cron `* * * * * php artisan schedule:run` to exist.
+
+Perf changes shipped (QA-measured before → prod-measured after):
+- Desktop App page 3.6s → 10ms server compute: `DesktopDownloadController` was
+  running `hash_file('sha256')` over both ~100MB installers on EVERY page view;
+  now `Cache::rememberForever` keyed by path+mtime (auto-invalidates when a new
+  installer is uploaded). The auto-deploy wipe also clears this file cache —
+  first hit after a deploy re-hashes once (~2s), then it's warm again.
+- Dashboard 2.4s → 213ms / 6 queries: `DashboardController` rewritten around a
+  single `GROUP BY user_id, date` query over the last 6 months
+  (`loadSums()/userHoursBetween()/teamHoursBetween()`); previously the admin
+  view issued ~17 SUM queries per employee (~400 total) plus a
+  `MonitoringSetting` firstOrCreate per `weekStartDay()` call.
+  `MonitoringSetting::current()` is now `once()`-memoized per request.
+- Attendance monthly grid 2.1s → 266ms / 3 queries: new indexes
+  `time_entries(action_date)` + `time_entries(user_id, action_date)` (the
+  whereBetween was a full table scan) + `work_hours(user_id, date)`; day
+  Carbons parsed once per day instead of per employee-day cell.
+- Monitoring/Timeline screenshots were already fine (locally-signed S3
+  presigned URLs, `loading="lazy"`); remaining latency is S3 image transfer.
+
 ## Developer page credentials manager (2026-06-11)
 
 The Developer page (super-admin only) now edits Slack + S3 `.env` settings
