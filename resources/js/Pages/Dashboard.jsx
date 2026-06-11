@@ -80,6 +80,26 @@ const calculateStats = (entries) => {
     };
 };
 
+// Falls back to initials when the avatar file 404s (deploys can prune
+// storage files), instead of showing the browser's broken-image icon.
+function EmployeeAvatar({ src, name }) {
+    const [failed, setFailed] = useState(false);
+
+    useEffect(() => {
+        setFailed(false);
+    }, [src]);
+
+    if (src && !failed) {
+        return <img src={src} alt="" onError={() => setFailed(true)} className="h-9 w-9 rounded-full object-cover" />;
+    }
+
+    return (
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700">
+            {name.charAt(0).toUpperCase()}
+        </span>
+    );
+}
+
 export default function Dashboard({ auth }) {
     const can = (permission) => auth.user?.is_super_admin || auth.user?.permissions?.includes(permission);
     const canViewTeam = can('dashboard.view_team') || can('attendance.view');
@@ -334,13 +354,7 @@ export default function Dashboard({ auth }) {
                                                 <tr key={employee.user_id} className="hover:bg-slate-50">
                                                     <td className="whitespace-nowrap px-4 py-3">
                                                         <div className="flex items-center gap-3">
-                                                            {employee.avatar ? (
-                                                                <img src={employee.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
-                                                            ) : (
-                                                                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700">
-                                                                    {employee.user_name.charAt(0).toUpperCase()}
-                                                                </span>
-                                                            )}
+                                                            <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
                                                             <div>
                                                                 <div className="text-sm font-semibold text-slate-900">{employee.user_name}</div>
                                                                 <div className="text-xs text-slate-500">{employee.designation}</div>
