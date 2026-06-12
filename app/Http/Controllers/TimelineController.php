@@ -128,9 +128,19 @@ class TimelineController extends Controller
         $monthStart = $date->copy()->startOfMonth();
         $monthEnd = $date->copy()->endOfMonth();
 
+        // Sessions that OVERLAP the day, not just those that started on it —
+        // a night shift running past midnight must show up on both calendar
+        // days, each day with only its own screenshots/activity. The 2-day
+        // started_at floor keeps an orphaned "running" session from older
+        // days out (the stale sweep closes those anyway).
+        [$rangeStart, $rangeEnd] = BusinessTime::utcRange($dayStart, $dayEnd);
         $sessions = TrackingSession::with(['client:id,name', 'upworkProfile:id,name'])
             ->where('user_id', $targetUser->id)
-            ->whereBetween('started_at', BusinessTime::utcRange($dayStart, $dayEnd))
+            ->where('started_at', '<=', $rangeEnd)
+            ->where('started_at', '>=', $rangeStart->copy()->subDays(2))
+            ->where(function ($q) use ($rangeStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $rangeStart);
+            })
             ->orderBy('started_at')
             ->get();
 
@@ -138,6 +148,7 @@ class TimelineController extends Controller
 
         $screenshots = $canViewScreenshots
             ? TrackingScreenshot::whereIn('tracking_session_id', $sessionIds)
+                ->whereBetween('captured_at', [$rangeStart, $rangeEnd])
                 ->orderBy('captured_at')
                 ->get([
                     'id', 'tracking_session_id', 'captured_at', 'thumbnail_path', 'image_path',
@@ -148,13 +159,16 @@ class TimelineController extends Controller
         $shotsBySession = $screenshots->groupBy('tracking_session_id');
 
         $samples = TrackingActivitySample::whereIn('tracking_session_id', $sessionIds)
+            ->whereBetween('captured_at', [$rangeStart, $rangeEnd])
             ->orderBy('captured_at')
             ->get(['id', 'tracking_session_id', 'captured_at', 'keyboard_count', 'mouse_count', 'idle_seconds', 'active_app', 'url_domain']);
 
         $samplesBySession = $samples->groupBy('tracking_session_id');
         $sampleIntervalSeconds = MonitoringSetting::current()->activity_sample_interval_seconds ?: 60;
 
-        $sessionPayload = $sessions->map(function (TrackingSession $session) use ($shotsBySession, $samplesBySession, $sampleIntervalSeconds, $canViewScreenshots) {
+        $dateKey = $date->toDateString();
+
+        $sessionPayload = $sessions->map(function (TrackingSession $session) use ($shotsBySession, $samplesBySession, $sampleIntervalSeconds, $canViewScreenshots, $dayStart, $dayEnd, $dateKey) {
             $rows = ($shotsBySession[$session->id] ?? collect());
             $sessionSamples = $samplesBySession[$session->id] ?? collect();
 
@@ -167,6 +181,9 @@ class TimelineController extends Controller
                 'started_at' => $session->started_at?->toIso8601String(),
                 'stopped_at' => $session->stopped_at?->toIso8601String(),
                 'total_seconds' => (int) $session->total_seconds,
+                'day_seconds' => $this->inDaySeconds($session, $dayStart, $dayEnd),
+                'started_before_day' => BusinessTime::dateKey($session->started_at) < $dateKey,
+                'continues_after_day' => $session->stopped_at !== null && BusinessTime::dateKey($session->stopped_at) > $dateKey,
                 'activity_percent' => (int) $session->activity_percent,
                 'status' => $session->status,
                 'screenshots' => $canViewScreenshots
@@ -196,7 +213,7 @@ class TimelineController extends Controller
             ->groupBy(fn (TrackingSession $s) => $s->client?->name ?: 'Unassigned')
             ->map(fn ($group, $name) => [
                 'client' => $name,
-                'total_seconds' => (int) $group->sum('total_seconds'),
+                'total_seconds' => (int) $group->sum(fn (TrackingSession $s) => $this->inDaySeconds($s, $dayStart, $dayEnd)),
             ])
             ->values();
 
@@ -205,7 +222,7 @@ class TimelineController extends Controller
             'day_label' => $date->translatedFormat('l, F j'),
             'sessions' => $sessionPayload,
             'totals' => [
-                'day' => (int) $sessions->sum('total_seconds'),
+                'day' => (int) $sessions->sum(fn (TrackingSession $s) => $this->inDaySeconds($s, $dayStart, $dayEnd)),
                 'week' => $totalsScope($weekStart, $weekEnd),
                 'month' => $totalsScope($monthStart, $monthEnd),
             ],
@@ -294,6 +311,34 @@ class TimelineController extends Controller
         return $out;
     }
 
+    /**
+     * Portion of a session's tracked seconds that falls inside the given day,
+     * allocated proportionally to the wall-clock overlap. An overnight session
+     * therefore splits cleanly at midnight: Friday gets the pre-midnight
+     * share, Saturday the rest, and the two always sum to total_seconds.
+     */
+    private function inDaySeconds(TrackingSession $session, Carbon $dayStart, Carbon $dayEnd): int
+    {
+        $start = $session->started_at;
+        $end = $session->stopped_at ?? now(BusinessTime::tz());
+
+        if (! $start || $end->lte($start)) {
+            return 0;
+        }
+
+        $overlapStart = $start->greaterThan($dayStart) ? $start : $dayStart;
+        $overlapEnd = $end->lessThan($dayEnd) ? $end : $dayEnd;
+        $overlap = max(0, $overlapStart->diffInSeconds($overlapEnd, false));
+
+        if ($overlap <= 0) {
+            return 0;
+        }
+
+        $duration = max(1, $start->diffInSeconds($end));
+
+        return (int) round((int) $session->total_seconds * ($overlap / $duration));
+    }
+
     /** @return array<int, array<string, mixed>> */
     private function monthStrip(Carbon $date, int $userId): array
     {
@@ -302,12 +347,29 @@ class TimelineController extends Controller
 
         // Bucket in PHP by business-tz date: SQL DATE() would group by the
         // stored UTC date and shift late-evening sessions onto the wrong day.
-        $perDay = TrackingSession::query()
+        // Overnight sessions are split at midnight (same allocation as the
+        // day view) so each dot reflects the work done on that calendar day.
+        [$rangeStart, $rangeEnd] = BusinessTime::utcRange($start, $end->copy()->endOfDay());
+        $rows = TrackingSession::query()
             ->where('user_id', $userId)
-            ->whereBetween('started_at', BusinessTime::utcRange($start, $end))
-            ->get(['started_at', 'total_seconds'])
-            ->groupBy(fn (TrackingSession $s) => BusinessTime::dateKey($s->started_at))
-            ->map(fn ($group) => (int) $group->sum('total_seconds'));
+            ->where('started_at', '<=', $rangeEnd)
+            ->where('started_at', '>=', $rangeStart->copy()->subDays(2))
+            ->where(function ($q) use ($rangeStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $rangeStart);
+            })
+            ->get(['started_at', 'stopped_at', 'total_seconds']);
+
+        $perDay = [];
+        foreach ($rows as $session) {
+            $firstDay = BusinessTime::dateKey($session->started_at);
+            $lastDay = BusinessTime::dateKey($session->stopped_at) ?? BusinessTime::today()->toDateString();
+            for ($day = Carbon::parse($firstDay, BusinessTime::tz()); $day->toDateString() <= $lastDay; $day->addDay()) {
+                $seconds = $this->inDaySeconds($session, $day->copy()->startOfDay(), $day->copy()->endOfDay());
+                if ($seconds > 0) {
+                    $perDay[$day->toDateString()] = ($perDay[$day->toDateString()] ?? 0) + $seconds;
+                }
+            }
+        }
 
         $today = BusinessTime::today();
 

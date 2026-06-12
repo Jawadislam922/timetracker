@@ -184,7 +184,7 @@ class User extends Authenticatable
      * starting at/after midnight (e.g. 23:50 for a 00:00 shift) lands on the
      * previous calendar day and "disappears" when the date rolls over.
      */
-    public const EARLY_CLOCK_IN_GRACE_MINUTES = 180;
+    public const EARLY_CLOCK_IN_GRACE_MINUTES = 240;
 
     public function attendanceDateFor(Carbon $timestamp): string
     {

@@ -272,15 +272,39 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged }) {
     );
 }
 
+function fmtDayTime(iso) {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleString('en-US', {
+            timeZone: DISPLAY.timezone, weekday: 'short',
+            hour: 'numeric', minute: '2-digit', hour12: String(DISPLAY.format) !== '24',
+        });
+    } catch {
+        return '';
+    }
+}
+
 function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged }) {
+    const daySeconds = session.day_seconds ?? session.total_seconds;
+    const isSplit = session.started_before_day || session.continues_after_day;
     return (
         <section className="space-y-3">
-            <header className="flex items-center gap-2 text-sm font-semibold">
+            <header className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 <span className="text-orange-400">{fmtTime(session.started_at)} - {fmtTime(session.stopped_at)}</span>
                 <span className="text-slate-200">• {sessionLabel(session)}</span>
+                {session.started_before_day && (
+                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
+                        overnight · started {fmtDayTime(session.started_at)}
+                    </span>
+                )}
+                {session.continues_after_day && (
+                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
+                        continues past midnight
+                    </span>
+                )}
                 <span className="ml-auto text-xs font-normal text-slate-400">
-                    {fmtHm(session.total_seconds)} · activity {session.activity_percent ?? 0}%
+                    {fmtHm(daySeconds)}{isSplit ? ` this day of ${fmtHm(session.total_seconds)}` : ''} · activity {session.activity_percent ?? 0}%
                 </span>
             </header>
 
