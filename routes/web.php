@@ -156,6 +156,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/ai-summary', [TimelineController::class, 'aiSummary'])->name('timeline.ai-summary');
     });
 
+    // Manager chat over aggregated team work data (last 14 days).
+    Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->middleware('permission:reports.view')->name('ai.assistant');
+    Route::post('/ai-assistant/ask', [\App\Http\Controllers\AiAssistantController::class, 'ask'])->middleware(['permission:reports.view', 'throttle:20,1'])->name('ai.assistant.ask');
+
+
     // Team day snapshot. Anyone with timeline.view_others sees the team
     // leaderboard; live "currently tracking" indicators are visible to all
     // permitted viewers regardless of monitoring.view_screenshots.

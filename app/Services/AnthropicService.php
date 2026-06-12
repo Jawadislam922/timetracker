@@ -30,6 +30,15 @@ class AnthropicService
      */
     public function complete(string $system, string $userMessage, int $maxTokens = 600): ?string
     {
+        return $this->chat([['role' => 'user', 'content' => $userMessage]], $system, $maxTokens);
+    }
+
+    /**
+     * Multi-turn conversation. $messages alternate user/assistant roles,
+     * most recent last. Returns the assistant text or null on failure.
+     */
+    public function chat(array $messages, string $system, int $maxTokens = 1000): ?string
+    {
         if (! $this->configured()) {
             return null;
         }
@@ -38,13 +47,11 @@ class AnthropicService
             $response = Http::withHeaders([
                 'x-api-key' => config('services.anthropic.api_key'),
                 'anthropic-version' => self::API_VERSION,
-            ])->timeout(30)->post(self::API_URL, [
+            ])->timeout(45)->post(self::API_URL, [
                 'model' => config('services.anthropic.model', 'claude-opus-4-8'),
                 'max_tokens' => $maxTokens,
                 'system' => $system,
-                'messages' => [
-                    ['role' => 'user', 'content' => $userMessage],
-                ],
+                'messages' => $messages,
             ]);
 
             if (! $response->successful()) {
