@@ -8,9 +8,9 @@ use Inertia\Inertia;
 
 class DesktopDownloadController extends Controller
 {
-    private const WINDOWS_INSTALLER = 'Timetracker Desktop Setup 0.2.3.exe';
+    private const WINDOWS_INSTALLER = 'Timetracker Desktop Setup 0.2.4.exe';
 
-    private const WINDOWS_VERSION = '0.2.3';
+    private const WINDOWS_VERSION = '0.2.4';
 
     private const MAC_VERSION = '0.1.0';
 

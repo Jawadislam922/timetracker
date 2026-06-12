@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MonitoringSetting;
 use App\Models\User;
 use App\Models\UserMonitoringSetting;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -54,7 +55,7 @@ class SettingsController extends Controller
         ]);
     }
 
-    public function updateTeam(Request $request): RedirectResponse
+    public function updateTeam(Request $request): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'screenshots_per_hour' => ['required', 'integer', 'min:0', 'max:60'],
@@ -91,10 +92,16 @@ class SettingsController extends Controller
         $team->update($data);
         Cache::forget('monitoring_settings.shared');
 
+        // Toggles save in the background (axios) — a tiny JSON ack keeps the
+        // page from re-rendering all settings props on every flip.
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return back()->with('success', 'Team settings updated.');
     }
 
-    public function updateUser(Request $request, User $user): RedirectResponse
+    public function updateUser(Request $request, User $user): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'category' => ['required', Rule::in(self::CATEGORIES)],
@@ -138,6 +145,10 @@ class SettingsController extends Controller
 
         $override->user_id = $user->id;
         $override->save();
+
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true]);
+        }
 
         return back()->with('success', 'Individual setting updated.');
     }

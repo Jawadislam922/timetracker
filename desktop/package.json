@@ -1,7 +1,7 @@
 {
   "name": "timetracker-desktop",
   "productName": "Timetracker Desktop",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
@@ -75,6 +75,7 @@
       }
     ],
     "win": {
+      "icon": "build/icon.png",
       "signAndEditExecutable": false,
       "target": [
         {
@@ -86,6 +87,7 @@
       ]
     },
     "mac": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -111,10 +113,9 @@
       "title": "Timetracker Desktop"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "allowElevation": true,
+      "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Timetracker Desktop"

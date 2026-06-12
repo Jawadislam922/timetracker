@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import {
     Activity,
@@ -77,16 +79,24 @@ function SectionShell({ title, blurb, children }) {
     );
 }
 
+// Saves fire in the background — the optimistic local state IS the UI, so
+// there's no Inertia visit, no progress bar, and no heavy props reload.
+// On a rare failure we resync from the server.
 function patchTeam(values) {
-    router.put(route('settings.team.update'), values, { preserveScroll: true });
+    axios.put(route('settings.team.update'), values).catch(() => {
+        toast.error('Could not save that change — reloading current settings.');
+        router.reload({ preserveScroll: true });
+    });
 }
 
 function patchUser(user, category, enabled, values) {
-    router.put(
+    axios.put(
         route('settings.user.update', { user: user.id }),
-        { category, enabled, values: values || {} },
-        { preserveScroll: true }
-    );
+        { category, enabled, values: values || {} }
+    ).catch(() => {
+        toast.error('Could not save that change — reloading current settings.');
+        router.reload({ preserveScroll: true });
+    });
 }
 
 function ScreenshotsSection({ team, users, setTeam }) {
