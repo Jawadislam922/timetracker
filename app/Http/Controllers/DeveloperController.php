@@ -65,6 +65,14 @@ class DeveloperController extends Controller
                     ['key' => 'SLACK_DAILY_DIGEST_TIME', 'label' => 'Daily digest time (HH:MM)', 'type' => 'text', 'placeholder' => '09:00'],
                 ],
             ],
+            'slack_bot' => [
+                'label' => 'Slack bot (channel posts + DMs)',
+                'fields' => [
+                    ['key' => 'SLACK_BOT_TOKEN', 'label' => 'Bot User OAuth token (xoxb-...)', 'type' => 'secret'],
+                    ['key' => 'SLACK_RESETS_CHANNEL', 'label' => 'Password-reset codes channel', 'type' => 'text', 'placeholder' => '#password-resets'],
+                    ['key' => 'SLACK_DIGEST_CHANNEL', 'label' => 'Digest channel (future use)', 'type' => 'text', 'placeholder' => '#daily-reports'],
+                ],
+            ],
             's3' => [
                 'label' => 'Screenshot storage (S3)',
                 'fields' => [
@@ -127,6 +135,10 @@ class DeveloperController extends Controller
             && ! preg_match('/^\d{1,2}:\d{2}$/', $updates['SLACK_DAILY_DIGEST_TIME'])) {
             return back()->with('error', 'Daily digest time must be HH:MM.');
         }
+        if (isset($updates['SLACK_BOT_TOKEN']) && $updates['SLACK_BOT_TOKEN'] !== ''
+            && ! str_starts_with($updates['SLACK_BOT_TOKEN'], 'xoxb-')) {
+            return back()->with('error', 'Slack bot token must start with xoxb-.');
+        }
 
         if (empty($updates)) {
             return back()->with('success', 'No changes to save.');
@@ -138,11 +150,16 @@ class DeveloperController extends Controller
             return back()->with('error', 'Could not write .env: '.$e->getMessage());
         }
 
-        // Re-apply config caching state so the new values take effect.
-        $wasCached = file_exists(base_path('bootstrap/cache/config.php'));
-        Artisan::call('config:clear');
-        if ($wasCached) {
-            Artisan::call('config:cache');
+        // Re-apply config caching state so the new values take effect. Never
+        // during tests: baking the test environment's config into the real
+        // bootstrap/cache/config.php poisons later runs (and mid-request
+        // config swaps break the response).
+        if (! app()->runningUnitTests()) {
+            $wasCached = file_exists(base_path('bootstrap/cache/config.php'));
+            Artisan::call('config:clear');
+            if ($wasCached) {
+                Artisan::call('config:cache');
+            }
         }
         Cache::forget('monitoring_settings.shared');
 
@@ -436,6 +453,12 @@ class DeveloperController extends Controller
         // cannot be route-cached — a cached route file 500s the whole site.
         // Cache only config + views + events, which are safe and give the
         // real boot-time win.
+        // Never bake caches from inside the test environment — leftover
+        // bootstrap/cache files poison later test runs.
+        if (app()->runningUnitTests()) {
+            return ['Cache building is skipped while running tests.', ''];
+        }
+
         $out = [];
         foreach (['config:cache', 'view:cache', 'event:cache'] as $cmd) {
             Artisan::call($cmd);

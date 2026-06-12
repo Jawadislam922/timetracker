@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\Auth\PasswordResetCodeController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,15 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    // Slack-code reset flow (email reset links stay available alongside).
+    Route::post('forgot-password/code', [PasswordResetCodeController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.code.request');
+
+    Route::post('reset-password/code', [PasswordResetCodeController::class, 'reset'])
+        ->middleware('throttle:6,1')
+        ->name('password.code.reset');
 });
 
 Route::middleware('auth')->group(function () {

@@ -45,4 +45,12 @@ return [
         'token' => env('SCHEDULER_HTTP_TOKEN'),
     ],
 
+    // Slack bot (chat.postMessage + DMs) — one token posts to any channel the
+    // bot is in, unlike per-channel incoming webhooks.
+    'slack_bot' => [
+        'token' => env('SLACK_BOT_TOKEN'),
+        'resets_channel' => env('SLACK_RESETS_CHANNEL'),
+        'digest_channel' => env('SLACK_DIGEST_CHANNEL'),
+    ],
+
 ];
