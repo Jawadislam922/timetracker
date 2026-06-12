@@ -40,11 +40,13 @@ Working list, worked one by one. Last updated: 2026-06-12 (late evening).
    Team Performance with member click→filtered report, client click→report.
 3. **Design revamp (Ember cinematic — picked 2026-06-13)** — phase 2 shell
    SHIPPED e912318 (dark nav + orange active pills, dark header bands,
-   dashboard hero, ember CTAs). Phase 3 PENDING: convert data-heavy pages
-   (Dashboard cards/tables, Timeline, Team Performance, Reports, Clients,
-   Settings) to authored dark. Note: color-scheme "only light" meta shipped
-   d38e813 to stop Chromium auto-dark force-inverting light panels — flip
-   it to "dark" when phase 3 lands.
+   dashboard hero, ember CTAs). Phase 3 part 1 SHIPPED ae083c6: Dashboard,
+   Team Performance (+Apps & URLs), Timeline fully dark, verified live in
+   browser. REMAINING (still light): Reports, Work Diary, Attendance,
+   Clients, Users, Profiles, Settings, Developer, Desktop App, Profile,
+   monitoring pages, create/edit forms. Note: color-scheme "only light"
+   meta shipped d38e813 to stop Chromium auto-dark force-inverting the
+   still-light pages — flip to "dark" when everything is converted.
 4. **Reports deeper lightening** — server-side pagination/filtering so the
    month view stops shipping every row to the browser (page already
    paginates client-side; heavy dropdown hydration already fixed).
