@@ -34,10 +34,10 @@ const ACTIONS = [
 const actionLabel = (type) => ACTIONS.find((action) => action.type === type)?.label || 'Not Started';
 
 const statusFromAction = (lastAction) => {
-    if (!lastAction) return { label: 'Not Started', className: 'bg-slate-100 text-slate-700', dot: 'bg-slate-400' };
-    if (lastAction === 'break_start') return { label: 'On Break', className: 'bg-amber-50 text-amber-800', dot: 'bg-amber-500' };
-    if (lastAction === 'clock_out') return { label: 'Clocked Out', className: 'bg-rose-50 text-rose-800', dot: 'bg-rose-500' };
-    return { label: 'Working', className: 'bg-emerald-50 text-emerald-800', dot: 'bg-emerald-500' };
+    if (!lastAction) return { label: 'Not Started', className: 'bg-white/10 text-slate-300', dot: 'bg-slate-400' };
+    if (lastAction === 'break_start') return { label: 'On Break', className: 'bg-amber-500/15 text-amber-300', dot: 'bg-amber-400' };
+    if (lastAction === 'clock_out') return { label: 'Clocked Out', className: 'bg-rose-500/15 text-rose-300', dot: 'bg-rose-400' };
+    return { label: 'Working', className: 'bg-emerald-500/15 text-emerald-300', dot: 'bg-emerald-400' };
 };
 
 const calculateStats = (entries) => {
@@ -94,7 +94,7 @@ function EmployeeAvatar({ src, name }) {
     }
 
     return (
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-bold text-slate-200">
             {name.charAt(0).toUpperCase()}
         </span>
     );
@@ -219,17 +219,17 @@ export default function Dashboard({ auth }) {
     };
 
     const metrics = [
-        { label: 'Worked Today', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-        { label: 'Break Time', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-700', bg: 'bg-amber-50' },
-        { label: 'Sessions', value: todayStats.sessionsCount, icon: Activity, color: 'text-blue-700', bg: 'bg-blue-50' },
-        { label: 'Actions', value: entries.length, icon: CalendarDays, color: 'text-violet-700', bg: 'bg-violet-50' },
+        { label: 'Worked Today', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+        { label: 'Break Time', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+        { label: 'Sessions', value: todayStats.sessionsCount, icon: Activity, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+        { label: 'Actions', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10' },
     ];
 
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Dashboard" />
 
-            <div className="min-h-screen bg-slate-100">
+            <div className="min-h-screen bg-slate-950">
                 <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
                     <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-6 shadow-xl shadow-slate-950/20">
                         <div className="pointer-events-none absolute -top-24 right-10 h-56 w-56 rounded-full bg-orange-500/15 blur-3xl" aria-hidden="true" />
@@ -264,14 +264,14 @@ export default function Dashboard({ auth }) {
                         {metrics.map((metric) => {
                             const Icon = metric.icon;
                             return (
-                                <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                                <div key={metric.label} className="rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-sm">
                                     <div className="flex items-center gap-3">
                                         <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${metric.bg}`}>
                                             <Icon className={`h-5 w-5 ${metric.color}`} />
                                         </span>
                                         <div>
-                                            <div className="text-xl font-bold text-slate-950">{metric.value}</div>
-                                            <div className="text-sm text-slate-600">{metric.label}</div>
+                                            <div className="text-xl font-bold text-white">{metric.value}</div>
+                                            <div className="text-sm text-slate-400">{metric.label}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -279,13 +279,13 @@ export default function Dashboard({ auth }) {
                         })}
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <section className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
+                        <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-base font-bold text-slate-950">Time Tracking</h2>
-                                <p className="text-sm text-slate-600">Last action: {actionLabel(todayStats.lastAction)}</p>
+                                <h2 className="text-base font-bold text-white">Time Tracking</h2>
+                                <p className="text-sm text-slate-400">Last action: {actionLabel(todayStats.lastAction)}</p>
                             </div>
-                            <div className="text-sm text-slate-600">Available actions follow your current status.</div>
+                            <div className="text-sm text-slate-500">Available actions follow your current status.</div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
@@ -300,14 +300,14 @@ export default function Dashboard({ auth }) {
                                         disabled={disabled}
                                         className={`flex min-h-20 items-center gap-3 rounded-lg px-4 py-3 text-left transition ${
                                             disabled
-                                                ? 'cursor-not-allowed border border-slate-200 bg-slate-50 text-slate-400'
+                                                ? 'cursor-not-allowed border border-slate-800 bg-slate-900/60 text-slate-600'
                                                 : action.activeClass
                                         }`}
                                     >
                                         <Icon className="h-6 w-6 shrink-0" />
                                         <span>
                                             <span className="block text-sm font-bold">{action.label}</span>
-                                            <span className={`block text-xs ${disabled ? 'text-slate-400' : 'opacity-80'}`}>{action.description}</span>
+                                            <span className={`block text-xs ${disabled ? 'text-slate-600' : 'opacity-80'}`}>{action.description}</span>
                                         </span>
                                     </button>
                                 );
@@ -315,19 +315,19 @@ export default function Dashboard({ auth }) {
                         </div>
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <section className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
+                        <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-base font-bold text-slate-950">
+                                <h2 className="text-base font-bold text-white">
                                     {canViewTeam ? 'Team Activity Today' : 'Your Activity Today'}
                                 </h2>
-                                <p className="text-sm text-slate-600">Work, break, and attendance status.</p>
+                                <p className="text-sm text-slate-400">Work, break, and attendance status.</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 {can('attendance.view') && (
                                     <Link
                                         href={route('employee-attendance.index')}
-                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
                                     >
                                         Open Attendance
                                     </Link>
@@ -336,7 +336,7 @@ export default function Dashboard({ auth }) {
                                     <button
                                         type="button"
                                         onClick={downloadCSV}
-                                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
                                     >
                                         <Download className="h-4 w-4" />
                                         Export
@@ -347,21 +347,21 @@ export default function Dashboard({ auth }) {
 
                         {employeesData.length === 0 ? (
                             <div className="px-5 py-12 text-center">
-                                <UserRound className="mx-auto h-10 w-10 text-slate-400" />
-                                <h3 className="mt-3 font-semibold text-slate-900">No activity recorded today</h3>
-                                <p className="mt-1 text-sm text-slate-500">Time tracking activity will appear here.</p>
+                                <UserRound className="mx-auto h-10 w-10 text-slate-600" />
+                                <h3 className="mt-3 font-semibold text-white">No activity recorded today</h3>
+                                <p className="mt-1 text-sm text-slate-400">Time tracking activity will appear here.</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-slate-200">
-                                    <thead className="bg-slate-900">
+                                <table className="min-w-full divide-y divide-slate-800">
+                                    <thead className="bg-slate-950">
                                         <tr>
                                             {['Employee', 'Status', 'Today', 'Break', 'Week', 'Month', 'Actions'].map((heading) => (
-                                                <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-white">{heading}</th>
+                                                <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-200">
+                                    <tbody className="divide-y divide-slate-800">
                                         {employeesData.map((employee) => {
                                             const status = statusFromAction(
                                                 employee.current_status === 'On Break'
@@ -371,13 +371,13 @@ export default function Dashboard({ auth }) {
                                                         : 'clock_in'
                                             );
                                             return (
-                                                <tr key={employee.user_id} className="hover:bg-slate-50">
+                                                <tr key={employee.user_id} className="hover:bg-white/5">
                                                     <td className="whitespace-nowrap px-4 py-3">
                                                         <div className="flex items-center gap-3">
                                                             <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
                                                             <div>
-                                                                <div className="text-sm font-semibold text-slate-900">{employee.user_name}</div>
-                                                                <div className="text-xs text-slate-500">{employee.designation}</div>
+                                                                <div className="text-sm font-semibold text-slate-100">{employee.user_name}</div>
+                                                                <div className="text-xs text-slate-400">{employee.designation}</div>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -387,11 +387,11 @@ export default function Dashboard({ auth }) {
                                                             {employee.current_status}
                                                         </span>
                                                     </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-900">{formatHours(employee.total_work_hours)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{formatHours(employee.total_break_hours)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{formatHours(employee.weekly_work_hours || 0)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{formatHours(employee.monthly_work_hours || 0)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.total_entries}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.weekly_work_hours || 0)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.monthly_work_hours || 0)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.total_entries}</td>
                                                 </tr>
                                             );
                                         })}

@@ -32,7 +32,7 @@ function fmtRelative(iso) {
 function activityClass(percent) {
     if (percent >= 60) return 'bg-emerald-500';
     if (percent >= 30) return 'bg-amber-400';
-    return 'bg-slate-300';
+    return 'bg-slate-600';
 }
 
 function shiftDate(iso, delta) {
@@ -72,74 +72,75 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Team Performance</h2>}>
             <Head title="Team Performance" />
 
+            <div className="min-h-screen bg-slate-950">
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
                 {flash.success && (
-                    <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+                    <div className="mb-4 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300">
                         {flash.success}
                     </div>
                 )}
                 {flash.error && (
-                    <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-800">
+                    <div className="mb-4 rounded-md border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
                         {flash.error}
                     </div>
                 )}
-                <div className="overflow-hidden rounded-lg bg-white shadow">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-1">
-                                <span className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white shadow-sm">Members</span>
+                                <span className="rounded-md bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-sm font-medium text-white shadow-sm">Members</span>
                                 <Link
                                     href={route('team.apps')}
-                                    className="rounded-md px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+                                    className="rounded-md px-3 py-1.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
                                 >
                                     Apps &amp; URLs
                                 </Link>
                             </div>
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
                                 {totals.people_live} live now
                             </span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-slate-400">
                                 {totals.people_with_time} of {totals.team_size} tracked time · {fmtHm(totals.day)} total
                             </span>
                             {slack?.daily_enabled && (
-                                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700" title={`Auto-posts daily at ${slack.daily_time}`}>
+                                <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-300" title={`Auto-posts daily at ${slack.daily_time}`}>
                                     Daily Slack digest on
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
                             {permissions?.send_slack && slack?.configured && (
                                 <button
                                     type="button"
                                     onClick={sendDigest}
                                     disabled={sending}
-                                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                    className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-60"
                                 >
                                     <Send className="h-3 w-3" />
                                     {sending ? 'Sending…' : 'Send Slack digest'}
                                 </button>
                             )}
-                            <button type="button" onClick={() => reload(shiftDate(activeDate, -1))} className="rounded p-1 hover:bg-slate-100" aria-label="Previous day">
+                            <button type="button" onClick={() => reload(shiftDate(activeDate, -1))} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Previous day">
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
                             <input
                                 type="date"
                                 value={activeDate}
                                 onChange={(e) => reload(e.target.value)}
-                                className="rounded border-slate-200 text-xs"
+                                className="rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark]"
                             />
-                            <button type="button" onClick={() => reload(shiftDate(activeDate, 1))} className="rounded p-1 hover:bg-slate-100" aria-label="Next day">
+                            <button type="button" onClick={() => reload(shiftDate(activeDate, 1))} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Next day">
                                 <ChevronRight className="h-4 w-4" />
                             </button>
-                            <button type="button" onClick={() => reload(new Date().toISOString().slice(0, 10))} className="ml-2 rounded border border-slate-200 px-2 py-1 text-xs">
+                            <button type="button" onClick={() => reload(new Date().toISOString().slice(0, 10))} className="ml-2 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">
                                 Today
                             </button>
                         </div>
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <table className="min-w-full divide-y divide-slate-800 text-sm">
+                            <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-400">
                                 <tr>
                                     <th className="px-4 py-2 text-left">Member</th>
                                     <th className="px-4 py-2 text-left">Status</th>
@@ -151,9 +152,9 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                     <th className="px-4 py-2"></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-slate-800">
                                 {rows.map((row) => (
-                                    <tr key={row.id} className="hover:bg-slate-50">
+                                    <tr key={row.id} className="hover:bg-white/5">
                                         <td className="px-4 py-3">
                                             {canViewReports ? (
                                                 <Link
@@ -163,9 +164,9 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                                 >
                                                     <Avatar user={{ name: row.name, avatar_url: row.avatar_url }} size="sm" />
                                                     <div className="min-w-0">
-                                                        <div className="truncate font-medium text-slate-900 group-hover:text-blue-600 group-hover:underline">{row.name}</div>
+                                                        <div className="truncate font-medium text-slate-100 group-hover:text-orange-400 group-hover:underline">{row.name}</div>
                                                         {row.designation && (
-                                                            <div className="truncate text-[11px] text-slate-500">{row.designation}</div>
+                                                            <div className="truncate text-[11px] text-slate-400">{row.designation}</div>
                                                         )}
                                                     </div>
                                                 </Link>
@@ -173,9 +174,9 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                                 <div className="flex items-center gap-3">
                                                     <Avatar user={{ name: row.name, avatar_url: row.avatar_url }} size="sm" />
                                                     <div className="min-w-0">
-                                                        <div className="truncate font-medium text-slate-900">{row.name}</div>
+                                                        <div className="truncate font-medium text-slate-100">{row.name}</div>
                                                         {row.designation && (
-                                                            <div className="truncate text-[11px] text-slate-500">{row.designation}</div>
+                                                            <div className="truncate text-[11px] text-slate-400">{row.designation}</div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -183,7 +184,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                         </td>
                                         <td className="px-4 py-3">
                                             {row.is_live ? (
-                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
                                                     <span className="relative flex h-2 w-2">
                                                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                                                         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -191,34 +192,34 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                                     Live
                                                 </span>
                                             ) : row.total_seconds > 0 ? (
-                                                <span className="text-xs text-slate-500">Tracked earlier</span>
+                                                <span className="text-xs text-slate-400">Tracked earlier</span>
                                             ) : (
-                                                <span className="text-xs text-slate-400">Idle</span>
+                                                <span className="text-xs text-slate-500">Idle</span>
                                             )}
                                             {row.is_live && row.live?.client && (
-                                                <div className="mt-1 text-[11px] text-slate-500 truncate max-w-[220px]">{row.live.client}</div>
+                                                <div className="mt-1 text-[11px] text-slate-400 truncate max-w-[220px]">{row.live.client}</div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-mono text-slate-900">{fmtHm(row.total_seconds)}</td>
+                                        <td className="px-4 py-3 text-right font-mono text-slate-100">{fmtHm(row.total_seconds)}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
-                                                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                                                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-800">
                                                     <div className={['h-full', activityClass(row.activity_percent)].join(' ')} style={{ width: `${Math.min(100, row.activity_percent)}%` }} />
                                                 </div>
-                                                <span className="text-xs text-slate-600">{row.activity_percent}%</span>
+                                                <span className="text-xs text-slate-300">{row.activity_percent}%</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-slate-600">
+                                        <td className="px-4 py-3 text-xs text-slate-300">
                                             {row.top_client ? (
-                                                <span>{row.top_client.name} <span className="text-slate-400">· {fmtHm(row.top_client.total_seconds)}</span></span>
+                                                <span>{row.top_client.name} <span className="text-slate-500">· {fmtHm(row.top_client.total_seconds)}</span></span>
                                             ) : '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-xs text-slate-600">{row.top_app || '—'}</td>
-                                        <td className="px-4 py-3 text-xs text-slate-500">{fmtRelative(row.last_heartbeat_at)}</td>
+                                        <td className="px-4 py-3 text-xs text-slate-300">{row.top_app || '—'}</td>
+                                        <td className="px-4 py-3 text-xs text-slate-400">{fmtRelative(row.last_heartbeat_at)}</td>
                                         <td className="px-4 py-3 text-right">
                                             <Link
                                                 href={route('timeline.index', { user_id: row.id, date: activeDate })}
-                                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                                                className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
                                             >
                                                 <Eye className="h-3 w-3" /> Timeline
                                             </Link>
@@ -227,7 +228,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                 ))}
                                 {rows.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500">
+                                        <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
                                             No team members tracked today.
                                         </td>
                                     </tr>
@@ -236,6 +237,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                         </table>
                     </div>
                 </div>
+            </div>
             </div>
         </AuthenticatedLayout>
     );
