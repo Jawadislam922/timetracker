@@ -7,6 +7,7 @@ use App\Http\Requests\Desktop\ActivityBatchRequest;
 use App\Models\TrackingActivitySample;
 use App\Models\TrackingSession;
 use App\Support\BusinessTime;
+use App\Support\WebDomain;
 use Illuminate\Http\JsonResponse;
 
 class ActivityController extends Controller
@@ -29,7 +30,7 @@ class ActivityController extends Controller
             'idle_seconds' => $sample['idle_seconds'] ?? 0,
             'active_app' => $sample['active_app'] ?? null,
             'active_window_title' => $sample['active_window_title'] ?? null,
-            'url_domain' => $sample['url_domain'] ?? null,
+            'url_domain' => WebDomain::normalize($sample['url_domain'] ?? null),
             'created_at' => $now,
             'updated_at' => $now,
         ])->all();

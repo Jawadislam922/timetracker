@@ -9,6 +9,7 @@ use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Support\BusinessTime;
+use App\Support\WebDomain;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -230,7 +231,11 @@ class TimelineController extends Controller
     {
         return $samples
             ->filter(fn ($s) => ! empty($s->{$key}))
-            ->groupBy($key)
+            // Normalize domains so www./bare variants roll up together
+            // (older samples were stored unnormalized).
+            ->groupBy(fn ($s) => $key === 'url_domain'
+                ? WebDomain::normalize($s->{$key})
+                : $s->{$key})
             ->map(fn ($group, $name) => [
                 'name' => $name,
                 'samples' => $group->count(),

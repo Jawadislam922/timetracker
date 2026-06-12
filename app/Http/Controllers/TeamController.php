@@ -8,6 +8,7 @@ use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\ActivityDigestService;
 use App\Support\BusinessTime;
+use App\Support\WebDomain;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -150,7 +151,11 @@ class TeamController extends Controller
         $rollup = function (string $key) use ($samples, $sampleInterval, $userNames) {
             return $samples
                 ->filter(fn ($s) => ! empty($s->{$key}))
-                ->groupBy($key)
+                // Normalize domains so www./bare variants roll up together
+                // (older samples were stored unnormalized).
+                ->groupBy(fn ($s) => $key === 'url_domain'
+                    ? WebDomain::normalize($s->{$key})
+                    : $s->{$key})
                 ->map(function ($group, $name) use ($sampleInterval, $userNames) {
                     $byUser = $group->groupBy('user_id')
                         ->map(fn ($g) => $g->count())

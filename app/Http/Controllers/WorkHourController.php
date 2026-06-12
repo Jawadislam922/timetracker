@@ -451,13 +451,12 @@ class WorkHourController extends Controller
             ->pluck('name')
             ->toArray();
 
-        $availableClients = WorkHour::with('client')
-            ->whereHas('client')
-            ->get()
-            ->pluck('client.name')
-            ->unique()
-            ->filter()
-            ->sort()
+        // One indexed query for the dropdown — the previous shape hydrated
+        // every work_hours row with its client just to list distinct names.
+        $availableClients = Client::query()
+            ->whereIn('id', WorkHour::whereNotNull('client_id')->select('client_id')->distinct())
+            ->orderBy('name')
+            ->pluck('name')
             ->values();
 
         // Validate perPage to prevent abuse

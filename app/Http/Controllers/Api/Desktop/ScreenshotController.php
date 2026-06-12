@@ -8,6 +8,7 @@ use App\Jobs\GenerateScreenshotThumbnail;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Support\BusinessTime;
+use App\Support\WebDomain;
 use Illuminate\Http\JsonResponse;
 
 class ScreenshotController extends Controller
@@ -44,7 +45,7 @@ class ScreenshotController extends Controller
             'mouse_count' => $data['mouse_count'] ?? 0,
             'active_app' => $data['active_app'] ?? null,
             'active_window_title' => $data['active_window_title'] ?? null,
-            'url_domain' => $data['url_domain'] ?? null,
+            'url_domain' => WebDomain::normalize($data['url_domain'] ?? null),
         ]);
 
         GenerateScreenshotThumbnail::dispatch($screenshot->id);
