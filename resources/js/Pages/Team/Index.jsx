@@ -200,7 +200,14 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                                 <div className="mt-1 text-[11px] text-slate-400 truncate max-w-[220px]">{row.live.client}</div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-mono text-slate-100">{fmtHm(row.total_seconds)}</td>
+                                        <td className="px-4 py-3 text-right font-mono text-slate-100">
+                                            {fmtHm(row.total_seconds)}
+                                            {row.manual_seconds > 0 && (
+                                                <div className="text-[10px] font-sans text-amber-300/90" title="Manually logged work-diary hours — count as time but 0% activity">
+                                                    {fmtHm(row.manual_seconds)} manual
+                                                </div>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
                                                 <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-800">

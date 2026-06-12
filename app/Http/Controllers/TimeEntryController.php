@@ -162,9 +162,10 @@ class TimeEntryController extends Controller
         if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {
             $employees = User::all();
             $entriesByUser = $this->loadSummaryEntries($employees->pluck('id')->all(), $now, $weekStart, $monthStart);
+            $trackedByUserDate = $this->loadTrackedHours($employees->pluck('id')->all(), $now);
 
-            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser) {
-                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart);
+            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser, $trackedByUserDate) {
+                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate);
             })->filter(function ($employee) {
                 // Only show employees who have entries today
                 return $employee['total_entries'] > 0;
@@ -176,11 +177,28 @@ class TimeEntryController extends Controller
         } else {
             // Regular users see only their own data
             $entriesByUser = $this->loadSummaryEntries([$user->id], $now, $weekStart, $monthStart);
+            $trackedByUserDate = $this->loadTrackedHours([$user->id], $now);
 
             return response()->json([
-                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart)],
+                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate)],
             ]);
         }
+    }
+
+    /**
+     * Work-diary hours (tracker-synced + manual) per user per date for the
+     * dashboard's "in office vs tracked work" comparison. One grouped query;
+     * yesterday is included so an overnight shift's attendance day resolves.
+     *
+     * @param  array<int>  $userIds
+     */
+    private function loadTrackedHours(array $userIds, Carbon $now): Collection
+    {
+        return \App\Models\WorkHour::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('date', '>=', $now->copy()->subDay()->toDateString())
+            ->get(['user_id', 'date', 'hours'])
+            ->groupBy(fn ($r) => $r->user_id.'|'.substr((string) $r->date, 0, 10));
     }
 
     /**
@@ -210,7 +228,7 @@ class TimeEntryController extends Controller
      * @param  Collection  $entries  this user's entries, chronological
      * @return array<string, mixed>
      */
-    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart): array
+    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart, ?Collection $trackedByUserDate = null): array
     {
         $today = $employee->attendanceDateFor($now);
         $weekStartDate = $weekStart->toDateString();
@@ -220,7 +238,16 @@ class TimeEntryController extends Controller
         $weeklyEntries = $entries->filter(fn ($e) => $e->action_date->toDateString() >= $weekStartDate)->values();
         $monthlyEntries = $entries->filter(fn ($e) => $e->action_date->toDateString() >= $monthStartDate)->values();
 
-        return $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
+        $stats = $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
+
+        // Actual work product for the same attendance day (tracker + manual
+        // work-diary entries) — shown beside the clock-based presence hours.
+        $stats['tracked_hours'] = round(
+            (float) ($trackedByUserDate?->get($employee->id.'|'.$today) ?? collect())->sum('hours'),
+            2
+        );
+
+        return $stats;
     }
 
     private function calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries)

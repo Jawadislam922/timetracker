@@ -43,20 +43,41 @@ class TeamController extends Controller
 
         $samplesByUser = $samples->groupBy('user_id');
 
+        // Manually logged work-diary hours for the day (Add Entry / edits —
+        // anything not synced from the tracker). They count as valid hours
+        // but contribute 0% activity, so a half-manual day dilutes the
+        // activity score instead of hiding the manual time entirely.
+        $manualByUser = \App\Models\WorkHour::query()
+            ->whereDate('date', $date->toDateString())
+            ->where(function ($q) {
+                $q->whereNull('source')->orWhere('source', '!=', 'tracker');
+            })
+            ->get(['user_id', 'hours'])
+            ->groupBy('user_id');
+
         // Active sessions snapshot (anyone running right now, regardless of date).
         $activeNow = TrackingSession::active()
             ->with('client:id,name')
             ->get(['id', 'user_id', 'client_id', 'task_note', 'started_at', 'last_heartbeat_at', 'activity_percent'])
             ->keyBy('user_id');
 
-        $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow) {
+        $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow, $manualByUser) {
             $userSessions = $sessionsByUser[$u->id] ?? collect();
             $userSamples = $samplesByUser[$u->id] ?? collect();
 
-            $totalSeconds = (int) $userSessions->sum('total_seconds');
+            $trackedSeconds = (int) $userSessions->sum('total_seconds');
+            $manualSeconds = (int) round((float) ($manualByUser[$u->id] ?? collect())->sum('hours') * 3600);
+            $totalSeconds = $trackedSeconds + $manualSeconds;
+
             $activitySamples = $userSamples->filter(fn ($s) => ($s->keyboard_count + $s->mouse_count) > 0 && $s->idle_seconds < $sampleIntervalSeconds);
-            $activityPercent = $userSamples->count() > 0
-                ? (int) round(($activitySamples->count() / $userSamples->count()) * 100)
+            $trackedActivity = $userSamples->count() > 0
+                ? ($activitySamples->count() / $userSamples->count()) * 100
+                : 0;
+
+            // Manual hours carry 0% activity, so they dilute the score in
+            // proportion to their share of the day.
+            $activityPercent = $totalSeconds > 0
+                ? (int) round($trackedActivity * ($trackedSeconds / $totalSeconds))
                 : 0;
 
             $topClient = $userSessions
@@ -88,6 +109,8 @@ class TeamController extends Controller
                 'designation' => $u->designation,
                 'avatar_url' => $u->avatar_url,
                 'total_seconds' => $totalSeconds,
+                'tracked_seconds' => $trackedSeconds,
+                'manual_seconds' => $manualSeconds,
                 'activity_percent' => $activityPercent,
                 'top_client' => $topClient,
                 'top_app' => $topApp ? $topApp['name'] : null,
@@ -103,7 +126,7 @@ class TeamController extends Controller
         })->sortByDesc('total_seconds')->values();
 
         $totals = [
-            'day' => (int) $sessions->sum('total_seconds'),
+            'day' => (int) $rows->sum('total_seconds'),
             'people_with_time' => $rows->filter(fn ($r) => $r['total_seconds'] > 0)->count(),
             'people_live' => $rows->filter(fn ($r) => $r['is_live'])->count(),
             'team_size' => $users->count(),

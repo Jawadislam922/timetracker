@@ -218,10 +218,14 @@ export default function Dashboard({ auth }) {
         }
     };
 
+    // Presence (clock in/out) vs actual work product (tracker + manual
+    // entries) — two different clocks, labeled honestly.
+    const myTracked = employeesData.find((e) => e.user_id === auth.user.id)?.tracked_hours;
+
     const metrics = [
-        { label: 'Worked Today', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+        { label: 'In Office', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+        { label: 'Tracked Work', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10' },
         { label: 'Break Time', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-        { label: 'Sessions', value: todayStats.sessionsCount, icon: Activity, color: 'text-blue-400', bg: 'bg-blue-500/10' },
         { label: 'Actions', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10' },
     ];
 
@@ -356,7 +360,7 @@ export default function Dashboard({ auth }) {
                                 <table className="min-w-full divide-y divide-slate-800">
                                     <thead className="bg-slate-950">
                                         <tr>
-                                            {['Employee', 'Status', 'Today', 'Break', 'Week', 'Month', 'Actions'].map((heading) => (
+                                            {['Employee', 'Status', 'In Office', 'Tracked', 'Coverage', 'Break', 'Week', 'Month'].map((heading) => (
                                                 <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
                                             ))}
                                         </tr>
@@ -388,10 +392,27 @@ export default function Dashboard({ auth }) {
                                                         </span>
                                                     </td>
                                                     <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(employee.tracked_hours || 0)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3">
+                                                        {(() => {
+                                                            const presence = Number(employee.total_work_hours) || 0;
+                                                            if (presence < 0.2) return <span className="text-xs text-slate-500">—</span>;
+                                                            const pct = Math.round(((Number(employee.tracked_hours) || 0) / presence) * 100);
+                                                            const cls = pct >= 85
+                                                                ? 'bg-emerald-500/15 text-emerald-300'
+                                                                : pct >= 60
+                                                                    ? 'bg-amber-500/15 text-amber-300'
+                                                                    : 'bg-rose-500/15 text-rose-300';
+                                                            return (
+                                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`} title="Tracked work as a share of in-office time">
+                                                                    {pct}%
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </td>
                                                     <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
                                                     <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.weekly_work_hours || 0)}</td>
                                                     <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.monthly_work_hours || 0)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.total_entries}</td>
                                                 </tr>
                                             );
                                         })}
