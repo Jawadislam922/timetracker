@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DesktopDownloadController;
@@ -58,6 +59,9 @@ Route::get('/cron/run/{token}', [SchedulerController::class, 'run'])
     ->where('token', '[A-Za-z0-9]{32,128}')
     ->middleware('throttle:12,1')
     ->name('scheduler.run');
+
+// Uploaded app logo — public because it renders on the login/welcome pages.
+Route::get('/branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
@@ -167,6 +171,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/run', [DeveloperController::class, 'run'])->name('developer.run');
         Route::put('/env', [DeveloperController::class, 'updateEnv'])->name('developer.env.update');
         Route::get('/logs', [DeveloperController::class, 'logs'])->name('developer.logs');
+        Route::post('/branding', [BrandingController::class, 'update'])->name('developer.branding.update');
     });
 
     // Tracking / monitoring settings (scrin.io-style). Super Admin only by

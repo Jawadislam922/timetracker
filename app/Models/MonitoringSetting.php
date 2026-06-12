@@ -29,6 +29,7 @@ class MonitoringSetting extends Model
         'desktop_force_quit_on_idle',
         'display_timezone',
         'time_format',
+        'branding_logo_path',
     ];
 
     protected $casts = [

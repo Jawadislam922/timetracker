@@ -7,6 +7,7 @@ import {
     CheckCircle2,
     Database,
     FileText,
+    Image as ImageIcon,
     KeyRound,
     Play,
     RefreshCw,
@@ -95,12 +96,26 @@ function buildEnvDraft(groups) {
 
 export default function DeveloperIndex({ auth, system, health, schedule, envGroups, lastOutput, lastAction }) {
     const flash = usePage().props.flash || {};
+    const branding = usePage().props.branding || {};
     const [busy, setBusy] = useState(false);
     const [logLines, setLogLines] = useState([]);
     const [logFile, setLogFile] = useState(null);
     const [logsLoading, setLogsLoading] = useState(false);
     const [envDraft, setEnvDraft] = useState(() => buildEnvDraft(envGroups));
     const [savingEnv, setSavingEnv] = useState(false);
+    const [logoFile, setLogoFile] = useState(null);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+
+    const uploadLogo = () => {
+        if (!logoFile) return;
+        setUploadingLogo(true);
+        router.post(route('developer.branding.update'), { logo: logoFile }, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => setLogoFile(null),
+            onFinish: () => setUploadingLogo(false),
+        });
+    };
 
     const runAction = (action, confirmText) => {
         if (confirmText && !confirm(confirmText)) return;
@@ -344,6 +359,40 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                             {savingEnv ? 'Saving…' : 'Save credentials'}
                         </button>
                         <span className="text-xs text-slate-400">After saving, use “Test screenshot storage” / “Test Slack webhook” above to verify.</span>
+                    </div>
+                </Card>
+
+                <Card title="Branding" icon={ImageIcon}>
+                    <div className="flex flex-wrap items-center gap-5">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-2">
+                            <img
+                                src={branding?.logo_url || '/images/sparking-asia-logo.png?v=2'}
+                                alt="Current logo"
+                                className="max-h-full max-w-full object-contain"
+                            />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="mb-2 text-xs text-slate-500">
+                                App logo shown in the navigation, login, and welcome pages. Stored on S3 so
+                                deploys can't wipe it. PNG/JPG/WebP, max 1&nbsp;MB — a square image works best.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/webp"
+                                    onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                                    className="text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={uploadLogo}
+                                    disabled={!logoFile || uploadingLogo}
+                                    className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                                >
+                                    {uploadingLogo ? 'Uploading…' : 'Upload logo'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </Card>
 

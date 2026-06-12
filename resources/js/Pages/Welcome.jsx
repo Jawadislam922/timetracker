@@ -1,6 +1,11 @@
-import { Link, Head } from "@inertiajs/react";
+import { Link, Head, usePage } from "@inertiajs/react";
+
+const BUNDLED_LOGO = "/images/sparking-asia-logo.png?v=2";
 
 export default function Welcome({ auth, laravelVersion, phpVersion }) {
+    const { branding } = usePage().props;
+    const logoSrc = branding?.logo_url || BUNDLED_LOGO;
+
     return (
         <>
             <Head title="Sparking Asia" />
@@ -10,13 +15,12 @@ export default function Welcome({ auth, laravelVersion, phpVersion }) {
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-white/20 backdrop-blur-lg rounded-xl shadow-lg">
-                            <img 
-                                src="/images/sparking-asia-logo.png?v=2" 
+                            <img
+                                src={logoSrc}
                                 className="w-10 h-10 object-contain"
                                 alt="Sparking Asia Logo"
                                 onError={(e) => {
-                                    console.error('Logo failed to load');
-                                    e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><text y="20" font-size="20">SA</text></svg>';
+                                    e.target.src = BUNDLED_LOGO;
                                 }}
                             />
                         </div>
@@ -64,13 +68,12 @@ export default function Welcome({ auth, laravelVersion, phpVersion }) {
                             <div className="relative">
                                 <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-3xl blur-xl opacity-60 animate-pulse"></div>
                                 <div className="relative glass-effect rounded-3xl p-8 shadow-2xl">
-                                    <img 
-                                        src="/images/sparking-asia-logo.png?v=2" 
-                                        className="w-32 h-32 object-contain mx-auto animate-float" 
+                                    <img
+                                        src={logoSrc}
+                                        className="w-32 h-32 object-contain mx-auto animate-float"
                                         alt="Sparking Asia Logo"
                                         onError={(e) => {
-                                            console.error('Hero logo failed to load');
-                                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><text y="70" x="20" font-size="40">SA</text></svg>';
+                                            e.target.src = BUNDLED_LOGO;
                                         }}
                                     />
                                 </div>

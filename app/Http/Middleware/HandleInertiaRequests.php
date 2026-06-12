@@ -118,6 +118,22 @@ class HandleInertiaRequests extends Middleware
             $authUser['can_create_manual_work_hour'] = $canCreateManualWorkHour;
         }
 
+        // Shared with guests too — the login/welcome pages render the logo.
+        // The ?v= cache-buster changes with the stored path so a freshly
+        // uploaded logo replaces the browser-cached one immediately.
+        $branding = ['logo_url' => null];
+        try {
+            $branding = Cache::remember('branding.shared', 300, function () {
+                $path = MonitoringSetting::current()->branding_logo_path;
+
+                return [
+                    'logo_url' => $path ? route('branding.logo').'?v='.substr(md5($path), 0, 8) : null,
+                ];
+            });
+        } catch (\Throwable $e) {
+            // Keep rendering with the bundled logo if the table is missing.
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -126,6 +142,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'teamSettings' => $teamSettings,
             'display' => $display,
+            'branding' => $branding,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
