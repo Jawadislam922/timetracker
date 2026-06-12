@@ -53,7 +53,8 @@ class HandleInertiaRequests extends Middleware
             ];
 
             try {
-                $today = Carbon::today('Asia/Karachi');
+                // Shift-anchored "today" (overnight shifts span midnight).
+                $today = $user->attendanceDateFor(Carbon::now('Asia/Karachi'));
                 $entry = TimeEntry::query()
                     ->where('user_id', $user->id)
                     ->whereDate('action_date', $today)

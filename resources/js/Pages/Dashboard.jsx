@@ -107,31 +107,47 @@ export default function Dashboard({ auth }) {
     const [employeesData, setEmployeesData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [todayStats, setTodayStats] = useState(calculateStats([]));
+    // Seed the clock state from the server-rendered page props so the action
+    // buttons are correct on first paint — no "Clock In" flash while the
+    // entries request is in flight.
+    const [todayStats, setTodayStats] = useState(() => ({
+        ...calculateStats([]),
+        lastAction: auth.lastActionToday || null,
+    }));
 
     useEffect(() => {
         const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
         return () => window.clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-        const loadDashboard = async () => {
-            try {
-                const [entriesResponse, summaryResponse] = await Promise.all([
-                    axios.get('/time-entries/today'),
-                    axios.get('/time-entries/today-summary'),
-                ]);
-                const nextEntries = entriesResponse.data.entries || [];
-                setEntries(nextEntries);
-                setTodayStats(calculateStats(nextEntries));
-                setEmployeesData(summaryResponse.data.employees || []);
-            } catch (error) {
-                console.error('Dashboard load failed:', error);
-                showError('Unable to load dashboard data.');
-            }
-        };
+    const loadDashboard = async (notifyOnError = true) => {
+        try {
+            const [entriesResponse, summaryResponse] = await Promise.all([
+                axios.get('/time-entries/today'),
+                axios.get('/time-entries/today-summary'),
+            ]);
+            const nextEntries = entriesResponse.data.entries || [];
+            setEntries(nextEntries);
+            setTodayStats(calculateStats(nextEntries));
+            setEmployeesData(summaryResponse.data.employees || []);
+        } catch (error) {
+            console.error('Dashboard load failed:', error);
+            if (notifyOnError) showError('Unable to load dashboard data.');
+        }
+    };
 
+    // Load on mount, then keep in sync with actions taken elsewhere (the
+    // desktop app's clock bar): refresh when the tab regains focus and on a
+    // slow background cadence.
+    useEffect(() => {
         loadDashboard();
+        const onFocus = () => loadDashboard(false);
+        window.addEventListener('focus', onFocus);
+        const interval = window.setInterval(() => loadDashboard(false), 45_000);
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            window.clearInterval(interval);
+        };
     }, []);
 
     const currentStatus = useMemo(() => statusFromAction(todayStats.lastAction), [todayStats.lastAction]);
