@@ -1,7 +1,7 @@
 {
   "name": "timetracker-desktop",
   "productName": "Timetracker Desktop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {

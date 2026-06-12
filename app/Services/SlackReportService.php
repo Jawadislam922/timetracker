@@ -315,6 +315,7 @@ class SlackReportService
             'tracker' => 'Tracker',
             'manual' => 'Manual Time',
             'test_task' => 'Test Task',
+            'upwork_bidding' => 'Upwork Bidding',
             'fixed' => 'Fixed Project',
             'office_work' => 'Office Work',
             'outside_of_upwork' => 'Outside of Upwork',

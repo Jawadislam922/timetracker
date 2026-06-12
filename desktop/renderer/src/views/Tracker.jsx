@@ -138,6 +138,8 @@ function workTypeOptions(client) {
       return [{ value: 'office_work', label: 'Office Work' }];
     case 'test_task':
       return [{ value: 'test_task', label: 'Test Task' }];
+    case 'upwork_bidding':
+      return [{ value: 'upwork_bidding', label: 'Upwork Bidding' }];
     default:
       return [
         { value: 'tracker', label: 'Tracker' },
@@ -152,6 +154,7 @@ function workTypeOptions(client) {
 const INTERNAL_CLIENTS = [
   { id: -1, name: 'Office Work', work_type: 'office_work', internal: true },
   { id: -2, name: 'Test Task', work_type: 'test_task', internal: true },
+  { id: -3, name: 'Upwork Bidding', work_type: 'upwork_bidding', internal: true },
 ];
 
 // Resolve a saved session with no client back to its internal pseudo-client,
@@ -347,6 +350,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     outside_of_upwork: 'Outside Upwork',
     office_work: 'Office',
     test_task: 'Test task',
+    upwork_bidding: 'Bidding',
   };
   const workTypeLabel = (value) => WORK_TYPE_LABELS[value] || value || '—';
 

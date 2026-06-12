@@ -153,6 +153,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
         { label: 'Outside of Upwork', value: 'outside_of_upwork' },
         { label: 'Office Work', value: 'office_work' },
         { label: 'Test Task', value: 'test_task' },
+        { label: 'Upwork Bidding', value: 'upwork_bidding' },
     ];
 
     const handleTrackerFocus = () => {
@@ -334,6 +335,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             {form.data.work_type === 'outside_of_upwork' && "Client Name, Description, Hours/Minutes, Tracking Date"}
                                             {form.data.work_type === 'office_work' && "Description, Hours/Minutes, Tracking Date"}
                                             {form.data.work_type === 'test_task' && "Description, Hours/Minutes, Tracking Date"}
+                                            {form.data.work_type === 'upwork_bidding' && "Description, Hours/Minutes, Tracking Date"}
                                         </p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

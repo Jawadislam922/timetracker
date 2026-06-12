@@ -212,6 +212,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         { label: 'Outside of Upwork', value: 'outside_of_upwork' },
         { label: 'Office Work', value: 'office_work' },
         { label: 'Test Task', value: 'test_task' },
+        { label: 'Upwork Bidding', value: 'upwork_bidding' },
     ];
 
     const handleTrackerFocus = () => {
@@ -391,6 +392,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                                     {form.data.work_type === 'outside_of_upwork' && "Client Name, Description, Hours/Minutes, Tracking Date"}
                                                     {form.data.work_type === 'office_work' && "Description, Hours/Minutes, Tracking Date"}
                                                     {form.data.work_type === 'test_task' && "Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'upwork_bidding' && "Description, Hours/Minutes, Tracking Date"}
                                                 </>
                                             ) : (
                                                 <span className="text-slate-500 italic">Please select a work type to see required fields</span>

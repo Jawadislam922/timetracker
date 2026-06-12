@@ -21,6 +21,7 @@ class WorkHourController extends Controller
         'outside_of_upwork',
         'office_work',
         'test_task',
+        'upwork_bidding',
     ];
 
     private function authorizeWorkHourAccess(WorkHour $workHour): void
