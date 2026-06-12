@@ -216,6 +216,19 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     refreshTimeClock();
   }, []);
 
+  // The shift can change from the web dashboard too — refetch whenever the
+  // window regains focus and on a slow background cadence so the shift bar
+  // never shows a stale state.
+  useEffect(() => {
+    const onFocus = () => refreshTimeClock();
+    window.addEventListener('focus', onFocus);
+    const interval = setInterval(refreshTimeClock, 60_000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(interval);
+    };
+  }, []);
+
   useEffect(() => {
     if (!menuOpen || typeof window.tt?.settings?.getAutoLaunch !== 'function') return;
     window.tt.settings.getAutoLaunch().then((result) => setAutoLaunch(!!result?.enabled)).catch(() => {});
