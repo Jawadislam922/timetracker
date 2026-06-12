@@ -39,14 +39,20 @@ Working list, worked one by one. Last updated: 2026-06-12 (late evening).
    groups, Attendance top-level, Desktop App in avatar menu, Team renamed
    Team Performance with member click→filtered report, client click→report.
 3. **Design revamp (Ember cinematic — picked 2026-06-13)** — phase 2 shell
-   SHIPPED e912318 (dark nav + orange active pills, dark header bands,
-   dashboard hero, ember CTAs). Phase 3 part 1 SHIPPED ae083c6: Dashboard,
-   Team Performance (+Apps & URLs), Timeline fully dark, verified live in
-   browser. REMAINING (still light): Reports, Work Diary, Attendance,
-   Clients, Users, Profiles, Settings, Developer, Desktop App, Profile,
-   monitoring pages, create/edit forms. Note: color-scheme "only light"
-   meta shipped d38e813 to stop Chromium auto-dark force-inverting the
-   still-light pages — flip to "dark" when everything is converted.
+   SHIPPED e912318; phase 3 part 1 SHIPPED ae083c6 (Dashboard, Team
+   Performance, Timeline fully dark); part 2 SHIPPED 59c399d: dark canvas
+   + ember headers on every remaining page (Reports, Work Diary,
+   Attendance, Clients, Users, Settings, Developer, Desktop App, forms via
+   PageShell/PageHeader + layout root). Content cards inside those pages
+   stay light ("cards on dark") — optional final polish: convert each
+   page's tables/cards to full dark. All verified live in browser.
+   Note: color-scheme "only light" meta (d38e813) — flip to "dark" when
+   the card interiors go dark too.
+
+3b. **Timeline overnight split — SHIPPED 2d80aa7, verified on real night
+   shift data**: sessions show on every day they overlap, screenshots/
+   activity under the correct calendar date, totals split at midnight
+   (Fri 3h24m + Sat 1h55m = 5h19m week ✓). Early clock-in grace now 4h.
 4. **Reports deeper lightening** — server-side pagination/filtering so the
    month view stops shipping every row to the browser (page already
    paginates client-side; heavy dropdown hydration already fixed).
