@@ -23,6 +23,7 @@ function Toast({ message, onClose, type = 'success' }) {
 export default function ClientsList({ auth, clients, flash, filters = {}, workTypes = {} }) {
     const canManage = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.manage');
     const canImportExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.import_export');
+    const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
     const [deleteId, setDeleteId] = useState(null);
     const [toast, setToast] = useState(flash?.success || flash?.error || '');
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
@@ -382,7 +383,19 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                     />
                                                 </td>}
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600">{client.id}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-900 font-medium">{client.name}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-900 font-medium">
+                                                    {canViewReports ? (
+                                                        <Link
+                                                            href={route('work-hours.report', { clients: [client.name] })}
+                                                            className="hover:text-blue-600 hover:underline"
+                                                            title={`View ${client.name}'s report`}
+                                                        >
+                                                            {client.name}
+                                                        </Link>
+                                                    ) : (
+                                                        client.name
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 text-sm">
                                                     {client.work_type && (
                                                         <span className="inline-flex px-2 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded-lg border border-orange-200">

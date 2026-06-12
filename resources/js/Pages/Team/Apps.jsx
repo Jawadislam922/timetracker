@@ -56,7 +56,7 @@ export default function TeamApps({ auth, range, start, end, userId, users, apps,
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Team</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Team Performance</h2>}>
             <Head title="Team Apps & URLs" />
 
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">

@@ -53,4 +53,10 @@ return [
         'digest_channel' => env('SLACK_DIGEST_CHANNEL'),
     ],
 
+    // Claude API for AI summaries/digests. Key is managed from the Developer
+    // page; AI features stay dormant while it is unset.
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+    ],
+
 ];

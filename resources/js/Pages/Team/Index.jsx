@@ -46,6 +46,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
     const [activeDate, setActiveDate] = useState(date);
     const [sending, setSending] = useState(false);
     const flash = usePage().props.flash || {};
+    const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
 
     const reload = (nextDate) => {
         router.get(route('team.index'), { date: nextDate }, {
@@ -68,8 +69,8 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Team</h2>}>
-            <Head title="Team" />
+        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Team Performance</h2>}>
+            <Head title="Team Performance" />
 
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
                 {flash.success && (
@@ -154,15 +155,31 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                 {rows.map((row) => (
                                     <tr key={row.id} className="hover:bg-slate-50">
                                         <td className="px-4 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar user={{ name: row.name, avatar_url: row.avatar_url }} size="sm" />
-                                                <div className="min-w-0">
-                                                    <div className="truncate font-medium text-slate-900">{row.name}</div>
-                                                    {row.designation && (
-                                                        <div className="truncate text-[11px] text-slate-500">{row.designation}</div>
-                                                    )}
+                                            {canViewReports ? (
+                                                <Link
+                                                    href={route('work-hours.report', { userIds: [row.id] })}
+                                                    className="group flex items-center gap-3"
+                                                    title={`View ${row.name}'s report`}
+                                                >
+                                                    <Avatar user={{ name: row.name, avatar_url: row.avatar_url }} size="sm" />
+                                                    <div className="min-w-0">
+                                                        <div className="truncate font-medium text-slate-900 group-hover:text-blue-600 group-hover:underline">{row.name}</div>
+                                                        {row.designation && (
+                                                            <div className="truncate text-[11px] text-slate-500">{row.designation}</div>
+                                                        )}
+                                                    </div>
+                                                </Link>
+                                            ) : (
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar user={{ name: row.name, avatar_url: row.avatar_url }} size="sm" />
+                                                    <div className="min-w-0">
+                                                        <div className="truncate font-medium text-slate-900">{row.name}</div>
+                                                        {row.designation && (
+                                                            <div className="truncate text-[11px] text-slate-500">{row.designation}</div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">
                                             {row.is_live ? (

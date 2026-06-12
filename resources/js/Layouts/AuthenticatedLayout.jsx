@@ -95,27 +95,32 @@ export default function Authenticated({ user, header, children }) {
     const can = (permission) => user?.is_super_admin || user?.permissions?.includes(permission);
     const canCreateManualWorkHour = user?.can_create_manual_work_hour ?? true;
 
-    // Primary, always-visible personal links.
+    // Primary, always-visible links. Attendance is its own thing — not a
+    // sub-page of reporting — so it sits top-level for those who can see it.
     const primaryItems = useMemo(() => [
         { label: 'Dashboard', href: route('dashboard'), icon: LayoutDashboard, active: ['dashboard'] },
         { label: 'Timeline', href: route('timeline.index'), icon: Film, active: ['timeline.index'] },
         { label: 'Work Diary', href: route('work-hours.index'), icon: Clock, active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'] },
-    ], []);
-
-    // Management / reporting — grouped under a "Manage" dropdown.
-    const manageItems = useMemo(() => [
-        can('reports.view') && { label: 'Reports', href: route('work-hours.report'), icon: BarChart3, active: ['work-hours.report'] },
-        can('timeline.view_others') && { label: 'Team', href: route('team.index'), icon: Activity, active: ['team.index'] },
         can('attendance.view') && { label: 'Attendance', href: route('employee-attendance.index'), icon: CalendarDays, active: ['employee-attendance.index'] },
+    ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
+
+    // Reporting & analytics.
+    const performanceItems = useMemo(() => [
+        can('reports.view') && { label: 'Reports', href: route('work-hours.report'), icon: BarChart3, active: ['work-hours.report'] },
+        can('timeline.view_others') && { label: 'Team Performance', href: route('team.index'), icon: Activity, active: ['team.index'] },
+    ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
+
+    // Internal management — people and client records.
+    const managementItems = useMemo(() => [
         can('users.view') && { label: 'Users', href: route('users.index'), icon: Users, active: ['users.index', 'users.create', 'users.edit'] },
         can('clients.view') && { label: 'Clients', href: route('clients.index'), icon: Briefcase, active: ['clients.index', 'clients.create', 'clients.edit'] },
         can('profiles.view') && { label: 'Profiles', href: route('upwork-profiles.index'), icon: UserCircle, active: ['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
-    // System / configuration — grouped under a "System" dropdown.
+    // System configuration — admins only. The Desktop App download lives in
+    // the avatar menu so every employee can reach it.
     const systemItems = useMemo(() => [
         can('monitoring.settings') && { label: 'Settings', href: route('settings.index'), icon: SettingsIcon, active: ['settings.index'] },
-        { label: 'Desktop App', href: route('desktop-downloads.index'), icon: MonitorDown, active: ['desktop-downloads.index'] },
         user?.is_super_admin && { label: 'Developer', href: route('developer.index'), icon: Wrench, active: ['developer.index'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
@@ -139,7 +144,8 @@ export default function Authenticated({ user, header, children }) {
                                 {primaryItems.map((item) => (
                                     <NavItem key={item.label} item={item} />
                                 ))}
-                                {manageItems.length > 0 && <NavGroup label="Manage" icon={LayoutGrid} items={manageItems} />}
+                                {performanceItems.length > 0 && <NavGroup label="Performance" icon={BarChart3} items={performanceItems} />}
+                                {managementItems.length > 0 && <NavGroup label="Management" icon={LayoutGrid} items={managementItems} />}
                                 {systemItems.length > 0 && <NavGroup label="System" icon={SettingsIcon} items={systemItems} />}
                             </div>
                         </div>
@@ -170,6 +176,12 @@ export default function Authenticated({ user, header, children }) {
                                             Profile
                                         </span>
                                     </Dropdown.Link>
+                                    <Dropdown.Link href={route('desktop-downloads.index')}>
+                                        <span className="flex items-center gap-2">
+                                            <MonitorDown className="h-4 w-4" />
+                                            Desktop App
+                                        </span>
+                                    </Dropdown.Link>
                                     <Dropdown.Link href={route('logout')} method="post" as="button">
                                         <span className="flex items-center gap-2">
                                             <LogOut className="h-4 w-4" />
@@ -197,10 +209,19 @@ export default function Authenticated({ user, header, children }) {
                                 <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
                             ))}
 
-                            {manageItems.length > 0 && (
+                            {performanceItems.length > 0 && (
                                 <div className="pt-3">
-                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Manage</div>
-                                    {manageItems.map((item) => (
+                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Performance</div>
+                                    {performanceItems.map((item) => (
+                                        <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
+                                    ))}
+                                </div>
+                            )}
+
+                            {managementItems.length > 0 && (
+                                <div className="pt-3">
+                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Management</div>
+                                    {managementItems.map((item) => (
                                         <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
                                     ))}
                                 </div>
@@ -242,6 +263,14 @@ export default function Authenticated({ user, header, children }) {
                                 >
                                     <UserCircle className="h-4 w-4" />
                                     Profile Settings
+                                </Link>
+                                <Link
+                                    href={route('desktop-downloads.index')}
+                                    onClick={() => setShowingNavigationDropdown(false)}
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                >
+                                    <MonitorDown className="h-4 w-4" />
+                                    Desktop App
                                 </Link>
                                 <Link
                                     href={route('logout')}

@@ -73,6 +73,12 @@ class DeveloperController extends Controller
                     ['key' => 'SLACK_DIGEST_CHANNEL', 'label' => 'Digest channel (future use)', 'type' => 'text', 'placeholder' => '#daily-reports'],
                 ],
             ],
+            'ai' => [
+                'label' => 'AI (Claude API — summaries & digests)',
+                'fields' => [
+                    ['key' => 'ANTHROPIC_API_KEY', 'label' => 'Anthropic API key (sk-ant-...)', 'type' => 'secret'],
+                ],
+            ],
             's3' => [
                 'label' => 'Screenshot storage (S3)',
                 'fields' => [
@@ -138,6 +144,10 @@ class DeveloperController extends Controller
         if (isset($updates['SLACK_BOT_TOKEN']) && $updates['SLACK_BOT_TOKEN'] !== ''
             && ! str_starts_with($updates['SLACK_BOT_TOKEN'], 'xoxb-')) {
             return back()->with('error', 'Slack bot token must start with xoxb-.');
+        }
+        if (isset($updates['ANTHROPIC_API_KEY']) && $updates['ANTHROPIC_API_KEY'] !== ''
+            && ! str_starts_with($updates['ANTHROPIC_API_KEY'], 'sk-ant-')) {
+            return back()->with('error', 'Anthropic API key must start with sk-ant-.');
         }
 
         if (empty($updates)) {
