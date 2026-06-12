@@ -39,8 +39,8 @@ function NavItem({ item, onClick }) {
             className={[
                 'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition xl:px-3',
                 active
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white',
             ].join(' ')}
         >
             <Icon className="h-4 w-4" />
@@ -60,7 +60,7 @@ function NavGroup({ label, icon: Icon, items }) {
                     type="button"
                     className={[
                         'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition xl:px-3',
-                        active ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
+                        active ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25' : 'text-slate-300 hover:bg-white/10 hover:text-white',
                     ].join(' ')}
                 >
                     <Icon className="h-4 w-4" />
@@ -126,17 +126,17 @@ export default function Authenticated({ user, header, children }) {
 
     return (
         <div className="min-h-screen bg-slate-100 text-slate-900">
-            <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+            <nav className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 shadow-lg shadow-slate-950/30 backdrop-blur">
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 items-center justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-3 xl:gap-5">
                             <Link href={route('dashboard')} className="flex shrink-0 items-center gap-3">
-                                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm">
+                                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 shadow-md shadow-orange-500/20 ring-1 ring-orange-500/40">
                                     <ApplicationLogo size="9" />
                                 </span>
                                 <span className="hidden leading-tight 2xl:block">
-                                    <span className="block text-base font-bold text-slate-900">Sparking Asia</span>
-                                    <span className="block text-xs font-medium text-slate-500">Time Tracker</span>
+                                    <span className="block text-base font-bold text-white">Sparking Asia</span>
+                                    <span className="block text-xs font-medium text-slate-400">Time Tracker</span>
                                 </span>
                             </Link>
 
@@ -154,7 +154,7 @@ export default function Authenticated({ user, header, children }) {
                             {canCreateManualWorkHour && (
                                 <Link
                                     href={route('work-hours.create')}
-                                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                    className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:from-orange-600 hover:to-amber-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-950"
                                 >
                                     <Plus className="h-4 w-4" />
                                     <span className="hidden md:inline">Add Entry</span>
@@ -163,7 +163,7 @@ export default function Authenticated({ user, header, children }) {
 
                             <Dropdown>
                                 <Dropdown.Trigger>
-                                    <button className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                    <button className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-950">
                                         <Avatar user={user} size="sm" />
                                         <span className="hidden max-w-40 truncate xl:block">{user?.name}</span>
                                         <ChevronDown className="h-4 w-4 text-slate-400" />
@@ -194,7 +194,7 @@ export default function Authenticated({ user, header, children }) {
 
                         <button
                             onClick={() => setShowingNavigationDropdown((previousState) => !previousState)}
-                            className="inline-flex items-center justify-center rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 lg:hidden"
+                            className="inline-flex items-center justify-center rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white lg:hidden"
                             aria-label="Toggle navigation"
                         >
                             {showingNavigationDropdown ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -203,7 +203,7 @@ export default function Authenticated({ user, header, children }) {
                 </div>
 
                 {showingNavigationDropdown && (
-                    <div className="border-t border-slate-200 bg-white lg:hidden">
+                    <div className="border-t border-slate-800 bg-slate-950 lg:hidden">
                         <div className="space-y-1 px-4 py-3">
                             {primaryItems.map((item) => (
                                 <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
@@ -240,7 +240,7 @@ export default function Authenticated({ user, header, children }) {
                                 <Link
                                     href={route('work-hours.create')}
                                     onClick={() => setShowingNavigationDropdown(false)}
-                                    className="mt-3 flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
+                                    className="mt-3 flex items-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25"
                                 >
                                     <Plus className="h-4 w-4" />
                                     Add Entry
@@ -248,18 +248,18 @@ export default function Authenticated({ user, header, children }) {
                             )}
                         </div>
 
-                        <div className="border-t border-slate-200 px-4 py-4">
+                        <div className="border-t border-slate-800 px-4 py-4">
                             <div className="mb-3 flex items-center gap-3">
                                 <Avatar user={user} size="lg" />
                                 <div className="min-w-0">
-                                    <div className="truncate font-semibold text-slate-900">{user?.name ?? ''}</div>
-                                    <div className="truncate text-sm text-slate-500">{user?.email ?? ''}</div>
+                                    <div className="truncate font-semibold text-white">{user?.name ?? ''}</div>
+                                    <div className="truncate text-sm text-slate-400">{user?.email ?? ''}</div>
                                 </div>
                             </div>
                             <div className="grid gap-2">
                                 <Link
                                     href={route('profile.edit')}
-                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white"
                                 >
                                     <UserCircle className="h-4 w-4" />
                                     Profile Settings
@@ -267,7 +267,7 @@ export default function Authenticated({ user, header, children }) {
                                 <Link
                                     href={route('desktop-downloads.index')}
                                     onClick={() => setShowingNavigationDropdown(false)}
-                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white"
                                 >
                                     <MonitorDown className="h-4 w-4" />
                                     Desktop App
@@ -276,7 +276,7 @@ export default function Authenticated({ user, header, children }) {
                                     href={route('logout')}
                                     method="post"
                                     as="button"
-                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white"
                                 >
                                     <LogOut className="h-4 w-4" />
                                     Log Out
@@ -288,9 +288,14 @@ export default function Authenticated({ user, header, children }) {
             </nav>
 
             {header && (
-                <header className="border-b border-slate-200 bg-white">
-                    <div className="w-full px-4 py-4 sm:px-6 lg:px-8">
-                        <h1 className="text-xl font-semibold text-slate-900">
+                <header className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950">
+                    <div
+                        className="pointer-events-none absolute -top-16 right-0 h-40 w-96 rounded-full bg-orange-500/10 blur-3xl"
+                        aria-hidden="true"
+                    />
+                    <div className="relative w-full px-4 py-4 sm:px-6 lg:px-8">
+                        <h1 className="flex items-center gap-3 text-xl font-semibold text-white">
+                            <span className="h-5 w-1 rounded-full bg-gradient-to-b from-orange-400 to-amber-500" aria-hidden="true" />
                             {typeof header === 'string' ? header : (header?.props?.children || 'Page')}
                         </h1>
                     </div>

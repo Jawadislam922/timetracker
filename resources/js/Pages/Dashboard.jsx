@@ -231,27 +231,31 @@ export default function Dashboard({ auth }) {
 
             <div className="min-h-screen bg-slate-100">
                 <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-                    <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-                        <div>
-                            <p className="text-sm font-semibold text-blue-700">{getTimeBasedGreeting()}</p>
-                            <h1 className="mt-1 text-2xl font-bold text-slate-950">{auth.user.name}</h1>
-                            <p className="mt-1 text-sm text-slate-600">Track today&apos;s work and review current team activity.</p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                            <div className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${currentStatus.className}`}>
-                                <span className={`h-2 w-2 rounded-full ${currentStatus.dot}`} />
-                                {currentStatus.label}
+                    <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-6 shadow-xl shadow-slate-950/20">
+                        <div className="pointer-events-none absolute -top-24 right-10 h-56 w-56 rounded-full bg-orange-500/15 blur-3xl" aria-hidden="true" />
+                        <div className="pointer-events-none absolute -bottom-32 left-1/3 h-56 w-72 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />
+                        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-orange-400">{getTimeBasedGreeting()}</p>
+                                <h1 className="mt-1 text-2xl font-bold text-white">{auth.user.name}</h1>
+                                <p className="mt-1 text-sm text-slate-400">Track today&apos;s work and review current team activity.</p>
                             </div>
-                            <div className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-right shadow-sm">
-                                <div className="text-lg font-bold text-slate-950">
-                                    {currentTime.toLocaleTimeString('en-US', {
-                                        timeZone: 'Asia/Karachi',
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                    })}
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${currentStatus.className}`}>
+                                    <span className={`h-2 w-2 rounded-full ${currentStatus.dot}`} />
+                                    {currentStatus.label}
                                 </div>
-                                <div className="text-xs font-medium text-slate-500">Pakistan Time</div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-right backdrop-blur">
+                                    <div className="text-lg font-bold text-white">
+                                        {currentTime.toLocaleTimeString('en-US', {
+                                            timeZone: 'Asia/Karachi',
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                        })}
+                                    </div>
+                                    <div className="text-xs font-medium text-slate-400">Pakistan Time</div>
+                                </div>
                             </div>
                         </div>
                     </section>
