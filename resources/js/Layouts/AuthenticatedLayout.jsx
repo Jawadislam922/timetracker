@@ -135,8 +135,8 @@ export default function Authenticated({ user, header, children }) {
                                     <ApplicationLogo size="9" />
                                 </span>
                                 <span className="hidden leading-tight 2xl:block">
-                                    <span className="block text-base font-bold text-white">Sparking Asia</span>
-                                    <span className="block text-xs font-medium text-slate-400">Time Tracker</span>
+                                    <span className="block text-base font-bold text-white">SA Track</span>
+                                    <span className="block text-xs font-medium text-slate-400">by Sparking Asia</span>
                                 </span>
                             </Link>
 

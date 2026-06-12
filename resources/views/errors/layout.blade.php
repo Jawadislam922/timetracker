@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="only light">
-    <title>@yield('code') — Sparking Asia Time Tracker</title>
+    <title>@yield('code') — SA Track</title>
     {{-- Fully self-contained: error pages must render even when the asset
          pipeline or app is mid-deploy, so no Vite, no external fonts. --}}
     <style>
@@ -77,7 +77,7 @@
         <h1>@yield('title')</h1>
         <p>@yield('message')</p>
         <a class="btn" href="{{ url('/dashboard') }}">Back to Dashboard</a>
-        <div class="brand">Sparking Asia · Time Tracker</div>
+        <div class="brand">SA Track · Sparking Asia</div>
     </div>
 </body>
 </html>

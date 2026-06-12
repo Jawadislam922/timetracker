@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Sparkles, Trash2, X } from 'lucide-react';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOTS_PER_HOUR = 10;
@@ -358,6 +358,7 @@ export default function TimelineIndex({
     permissions,
     initialData,
     weekStartsOn,
+    aiEnabled = false,
 }) {
     // Keep the module-level display config current for fmtTime/fmtDateTime.
     DISPLAY = usePage().props.display || DISPLAY;
@@ -371,6 +372,25 @@ export default function TimelineIndex({
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [showDownloadHint, setShowDownloadHint] = useState(false);
+    const [aiSummary, setAiSummary] = useState(null);
+    const [aiLoading, setAiLoading] = useState(false);
+
+    const summarizeDay = async () => {
+        if (aiLoading) return;
+        setAiLoading(true);
+        try {
+            const res = await fetch(route('timeline.ai-summary', { user_id: activeUserId, date: activeDate }), {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+            const json = await res.json();
+            setAiSummary(res.ok ? json.summary : (json.message || 'Could not generate the summary.'));
+        } catch {
+            setAiSummary('Could not generate the summary — check your connection and try again.');
+        } finally {
+            setAiLoading(false);
+        }
+    };
 
     // Try to launch the desktop tracker via its custom protocol. If nothing
     // handles it within ~1.6s (window never lost focus), the app isn't
@@ -401,6 +421,7 @@ export default function TimelineIndex({
                     setActiveDate(props.date);
                     setActiveUserId(props.targetUser.id);
                     setData(props.initialData);
+                    setAiSummary(null);
                 },
                 onFinish: () => setLoading(false),
             }
@@ -495,6 +516,24 @@ export default function TimelineIndex({
                                 </div>
                             </div>
                             <p className="text-xs text-slate-500">Week starts on {weekStartsOn === 'sunday' ? 'Sunday' : 'Monday'}</p>
+                            {aiEnabled && (
+                                <div className="space-y-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={summarizeDay}
+                                        disabled={aiLoading}
+                                        className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-60"
+                                    >
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                        {aiLoading ? 'Summarizing…' : 'Summarize this day'}
+                                    </button>
+                                    {aiSummary && (
+                                        <p className="max-w-xl rounded-md border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-xs leading-5 text-slate-200">
+                                            {aiSummary}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/60 p-3">
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tasks</p>

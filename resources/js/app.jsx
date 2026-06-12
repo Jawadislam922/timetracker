@@ -7,7 +7,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { Toaster } from 'react-hot-toast';
 import ErrorBoundary from '@/Components/ErrorBoundary';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Sparking Asia';
+const appName = import.meta.env.VITE_APP_NAME || 'SA Track';
 
 createInertiaApp({
     title: (title) => title ? `${title} - ${appName}` : appName,

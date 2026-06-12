@@ -49,6 +49,7 @@ class TimelineController extends Controller
             ],
             'initialData' => $this->buildDayPayload($targetUser, $date, $authUser),
             'weekStartsOn' => MonitoringSetting::current()->week_starts_on,
+            'aiEnabled' => app(\App\Services\AnthropicService::class)->configured(),
         ]);
     }
 
@@ -61,6 +62,41 @@ class TimelineController extends Controller
         $date = $this->resolveDate($request);
 
         return response()->json($this->buildDayPayload($targetUser, $date, $authUser));
+    }
+
+    /**
+     * AI summary of one person's day. Cached per user+date so repeat clicks
+     * (and several admins viewing the same day) cost one API call.
+     */
+    public function aiSummary(Request $request): JsonResponse
+    {
+        $authUser = $request->user();
+        $canViewOthers = $authUser->hasPermission('timeline.view_others');
+
+        $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);
+        $date = $this->resolveDate($request);
+
+        $ai = app(\App\Services\AnthropicService::class);
+        if (! $ai->configured()) {
+            return response()->json(['message' => 'AI is not configured.'], 422);
+        }
+
+        $summary = \Illuminate\Support\Facades\Cache::remember(
+            "ai-day-summary:{$targetUser->id}:{$date->toDateString()}",
+            now()->addHours(6),
+            function () use ($ai, $targetUser, $date, $authUser) {
+                $payload = $this->buildDayPayload($targetUser, $date, $authUser);
+
+                if (($payload['totals']['day'] ?? 0) <= 0 && empty($payload['sessions'])) {
+                    return 'No tracked work on this day.';
+                }
+
+                return $ai->daySummary($targetUser->name, $payload)
+                    ?? 'The AI summary could not be generated right now — try again in a minute.';
+            }
+        );
+
+        return response()->json(['summary' => $summary]);
     }
 
     public function history(Request $request): JsonResponse

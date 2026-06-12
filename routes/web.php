@@ -153,6 +153,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [TimelineController::class, 'index'])->name('timeline.index');
         Route::get('/data', [TimelineController::class, 'data'])->name('timeline.data');
         Route::get('/history', [TimelineController::class, 'history'])->name('timeline.history');
+        Route::get('/ai-summary', [TimelineController::class, 'aiSummary'])->name('timeline.ai-summary');
     });
 
     // Team day snapshot. Anyone with timeline.view_others sees the team

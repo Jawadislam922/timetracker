@@ -100,6 +100,47 @@ class AnthropicService
     }
 
     /**
+     * Manager-style summary of one person's tracked day for the Timeline
+     * "Summarize this day" button. Null when AI is unconfigured or the call
+     * fails.
+     */
+    public function daySummary(string $userName, array $payload): ?string
+    {
+        if (! $this->configured()) {
+            return null;
+        }
+
+        $sessions = collect($payload['sessions'] ?? [])->map(fn (array $s) => sprintf(
+            '%s to %s: %s (%s, activity %d%%)',
+            substr((string) $s['started_at'], 11, 5),
+            $s['stopped_at'] ? substr((string) $s['stopped_at'], 11, 5) : 'ongoing',
+            $s['client_name'] ?: ($s['task_note'] ?: 'untracked work'),
+            $this->hoursLabel((int) ($s['day_seconds'] ?? $s['total_seconds'])),
+            (int) ($s['activity_percent'] ?? 0),
+        ))->implode("\n");
+
+        $apps = collect($payload['day_apps'] ?? [])->take(6)
+            ->map(fn (array $a) => $a['name'].' ('.$this->hoursLabel((int) $a['total_seconds']).')')
+            ->implode(', ');
+        $urls = collect($payload['day_urls'] ?? [])->take(6)
+            ->map(fn (array $u) => $u['name'].' ('.$this->hoursLabel((int) $u['total_seconds']).')')
+            ->implode(', ');
+
+        $system = 'You summarize one employee\'s tracked work day for their manager in 3-4 plain sentences. '
+            .'Factual and neutral: what they worked on, when, where the time went (apps/sites), and anything '
+            .'unusual such as very low activity or long idle stretches. No markdown, no bullet lists, '
+            .'never invent information that is not in the data.';
+
+        $user = "Employee: {$userName}\nDay: {$payload['day_label']}\n"
+            .'Total tracked: '.$this->hoursLabel((int) ($payload['totals']['day'] ?? 0))."\n"
+            ."Sessions:\n".($sessions !== '' ? $sessions : 'none')."\n"
+            .'Top apps: '.($apps !== '' ? $apps : 'none')."\n"
+            .'Top sites: '.($urls !== '' ? $urls : 'none');
+
+        return $this->complete($system, $user, 400);
+    }
+
+    /**
      * "109h 50m" — gmdate() wraps at 24h, which silently understated team
      * totals in the prompt (109h became 13h).
      */
