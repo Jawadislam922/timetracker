@@ -58,6 +58,9 @@ class AiAssistantController extends Controller
             ."Answer questions about the team's tracked work using ONLY the data below (the last 14 days, "
             ."hours from the work diary). If asked about anything outside this window or data, say so plainly. "
             ."Times are written as decimal hours; present them as e.g. '7h 30m'. Dates are Y-m-d in Asia/Karachi. "
+            ."Each person line reads: Name (designation, shift): total over the range | days: MM-DD=hours for every "
+            ."day they worked (e.g. '06-12=8.2' is 8.2h on June 12 — use these to compute any sub-range like the "
+            ."last 7 days) | top: their biggest clients/work types. "
             ."Plain text only — short paragraphs or simple dash lists, no markdown headers or tables. Be concise "
             ."and factual; never invent people, clients, or numbers.\n\n".$pack;
     }
