@@ -1,16 +1,26 @@
 'use strict';
 
-const { app, dialog } = require('electron');
+const { app, BrowserWindow } = require('electron');
 
 // Auto-update via electron-updater against the generic feed on the web app
 // (https://timetracker.sparkingasia.com/desktop-updates — configured in
 // package.json build.publish, baked into app-update.yml at package time).
 // Windows installs updates in place; unsigned macOS builds cannot auto-update
 // (Squirrel.Mac requires code signing), so this no-ops there.
+//
+// UX lives in the renderer: we broadcast progress/downloaded events and the
+// Tracker view shows a progress banner with a "Restart now" action.
 
 let autoUpdater = null;
 let downloadedVersion = null;
+let pendingVersion = null;
 let checking = false;
+
+function broadcast(payload) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('updates:event', payload);
+  }
+}
 
 function available() {
   if (!app.isPackaged) return false;
@@ -29,19 +39,27 @@ function init() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
+  autoUpdater.on('update-available', (info) => {
+    pendingVersion = info?.version || null;
+    broadcast({ type: 'available', version: pendingVersion });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    broadcast({
+      type: 'progress',
+      version: pendingVersion,
+      percent: Math.max(0, Math.min(100, Math.round(progress?.percent || 0))),
+      bytesPerSecond: Math.round(progress?.bytesPerSecond || 0),
+    });
+  });
+
   autoUpdater.on('update-downloaded', (info) => {
-    downloadedVersion = info?.version || null;
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Update ready',
-      message: `Timetracker Desktop ${downloadedVersion || ''} has been downloaded.`,
-      detail: 'Restart now to apply it, or it installs automatically next time you quit.',
-      buttons: ['Restart now', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall();
-    }).catch(() => {});
+    downloadedVersion = info?.version || pendingVersion;
+    broadcast({ type: 'downloaded', version: downloadedVersion });
+  });
+
+  autoUpdater.on('error', () => {
+    broadcast({ type: 'error' });
   });
 
   const check = () => {
@@ -58,7 +76,7 @@ function init() {
 
 /**
  * Manual "Check for updates": resolves with a small status object the
- * renderer can show as a toast.
+ * renderer can show as a toast. Download progress arrives via events.
  */
 async function checkNow() {
   if (!app.isPackaged) return { status: 'dev', message: 'Updates are disabled in development.' };
@@ -74,7 +92,7 @@ async function checkNow() {
     const result = await autoUpdater.checkForUpdates();
     const next = result?.updateInfo?.version;
     if (next && next !== app.getVersion()) {
-      return { status: 'downloading', message: `Version ${next} found — downloading in the background.` };
+      return { status: 'downloading', message: `Version ${next} found — downloading now.` };
     }
     return { status: 'latest', message: `You are on the latest version (v${app.getVersion()}).` };
   } catch (err) {
@@ -82,4 +100,11 @@ async function checkNow() {
   }
 }
 
-module.exports = { init, checkNow };
+/** Apply a downloaded update immediately (renderer "Restart now" button). */
+function installNow() {
+  if (!downloadedVersion || !autoUpdater) return { ok: false };
+  setImmediate(() => autoUpdater.quitAndInstall());
+  return { ok: true };
+}
+
+module.exports = { init, checkNow, installNow };

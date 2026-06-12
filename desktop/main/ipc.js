@@ -79,6 +79,7 @@ function register() {
 
   // ---- Updates ----
   ipcMain.handle('updates:check', () => updater.checkNow());
+  ipcMain.handle('updates:install', () => updater.installNow());
 
   // ---- Settings (server-driven + local override) ----
   ipcMain.handle('settings:apiBaseUrl:set', (_evt, url) => {

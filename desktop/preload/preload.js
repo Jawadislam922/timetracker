@@ -17,6 +17,12 @@ const api = {
   },
   updates: {
     check: () => ipcRenderer.invoke('updates:check'),
+    install: () => ipcRenderer.invoke('updates:install'),
+    onEvent: (cb) => {
+      const listener = (_e, payload) => cb(payload);
+      ipcRenderer.on('updates:event', listener);
+      return () => ipcRenderer.removeListener('updates:event', listener);
+    },
   },
   settings: {
     setApiBaseUrl: (url) => ipcRenderer.invoke('settings:apiBaseUrl:set', url),

@@ -154,6 +154,13 @@ const INTERNAL_CLIENTS = [
   { id: -2, name: 'Test Task', work_type: 'test_task', internal: true },
 ];
 
+// Resolve a saved session with no client back to its internal pseudo-client,
+// so Office Work / Test Task rows behave like client rows (title + resume).
+function internalClientFor(session) {
+  if (session?.client_id) return null;
+  return INTERNAL_CLIENTS.find((c) => c.work_type === session?.work_type) || null;
+}
+
 // What actually goes to the server: internal pseudo-clients have no real row.
 function payloadClientId(client) {
   return client?.internal ? null : Number(client.id);
@@ -181,7 +188,22 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   const [appVersion, setAppVersion] = useState('');
   const [timeClock, setTimeClock] = useState({ last_action: null, available: [] });
   const [clockBusy, setClockBusy] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
   const autoStartedRef = useRef(false);
+
+  // Auto-update lifecycle: progress + ready states render as an in-app
+  // banner (bottom of the window) instead of OS dialogs.
+  useEffect(() => {
+    if (typeof window.tt?.updates?.onEvent !== 'function') return undefined;
+    const off = window.tt.updates.onEvent((event) => {
+      if (!event || event.type === 'error') {
+        setUpdateInfo(null);
+        return;
+      }
+      setUpdateInfo(event);
+    });
+    return () => off?.();
+  }, []);
 
   const refreshTimeClock = async () => {
     if (typeof window.tt?.timeclock?.status !== 'function') return;
@@ -312,7 +334,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   });
 
   const restartFromSession = (session) => switchTo({
-    client_id: session.client_id,
+    client_id: session.client_id ?? internalClientFor(session)?.id,
     work_type: session.work_type,
     task_note: session.task_note,
   });
@@ -901,9 +923,10 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
               {todayRows.map((session) => {
                 const isActive = session.status === 'active' || (status.running && Number(session.id) === Number(status.session?.id));
                 const matchingClient = clients.find((c) => Number(c.id) === Number(session.client_id));
-                const clientName = session.client_name || matchingClient?.name;
+                const internalClient = internalClientFor(session);
+                const clientName = session.client_name || matchingClient?.name || internalClient?.name;
                 const trackerName = session.upwork_profile_name || matchingClient?.upwork_profile_name;
-                const canResume = !!session.client_id && !isActive && !busy;
+                const canResume = (!!session.client_id || !!internalClient) && !isActive && !busy;
                 return (
                   <button
                     type="button"
@@ -941,6 +964,35 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
           <div><span>Pending samples</span><strong>{pendingSamples}</strong></div>
         </section>
       </main>
+
+      {updateInfo && (
+        <div className="update-banner" role="status">
+          {updateInfo.type === 'downloaded' ? (
+            <>
+              <span className="update-banner-text">
+                <strong>Update v{updateInfo.version} is ready.</strong> Restart to apply — or it installs next time you quit.
+              </span>
+              <span className="update-banner-actions">
+                <button type="button" className="update-banner-btn" onClick={() => window.tt.updates.install()}>
+                  Restart now
+                </button>
+                <button type="button" className="update-banner-later" onClick={() => setUpdateInfo(null)}>
+                  Later
+                </button>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="update-banner-text">
+                Downloading update{updateInfo.version ? ` v${updateInfo.version}` : ''}… {updateInfo.percent ?? 0}%
+              </span>
+              <span className="update-progress" aria-hidden="true">
+                <i style={{ width: `${updateInfo.percent ?? 0}%` }} />
+              </span>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
