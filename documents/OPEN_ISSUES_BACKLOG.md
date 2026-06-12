@@ -1,7 +1,17 @@
 # Open Issues Backlog
 
 Working list of reported issues, one entry each, worked one by one.
-Last updated: 2026-06-12.
+Last updated: 2026-06-12 (evening).
+
+## SHIPPED in Desktop v0.2.0 (commit d1d9a5f) — pending team rollout
+
+Issues #1 (Office Work/Test Task), #2 (401 re-login UX), #4 (login screen
+revamp) and queue item 7 (auto-update) are all built into **Desktop v0.2.0**,
+live on the downloads page. Issue #3 (slow clock in/out) was fixed
+server-side (commit 2fb28be: 165 queries → 3) and needs no app update.
+Remaining rollout steps: every Windows user installs v0.2.0 once (last
+manual install ever — auto-update takes over after); Mac build via
+documents/MAC_BUILD_PROMPT_0.2.0.md on the Mac.
 
 ## 1. Desktop app cannot track client-less "Office Work" — OPEN (priority)
 
