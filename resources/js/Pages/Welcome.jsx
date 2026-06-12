@@ -2,190 +2,240 @@ import { Link, Head, usePage } from "@inertiajs/react";
 
 const BUNDLED_LOGO = "/images/sparking-asia-logo.png?v=2";
 
-export default function Welcome({ auth, laravelVersion, phpVersion }) {
+const FEATURES = [
+    {
+        icon: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" d="M12 7v5l3.2 2" />
+            </svg>
+        ),
+        title: "One-click time tracking",
+        text: "Pick a client, hit start. Idle time pauses itself, overnight shifts stay on the right day, and hours flow into reports automatically.",
+    },
+    {
+        icon: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="13" rx="2" />
+                <path strokeLinecap="round" d="M8 21h8" />
+            </svg>
+        ),
+        title: "Screenshots & activity",
+        text: "Periodic screenshots with live activity levels, securely stored in the cloud with automatic retention cleanup.",
+    },
+    {
+        icon: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="17" rx="2" />
+                <path strokeLinecap="round" d="M3 9h18M8 2v4M16 2v4" />
+            </svg>
+        ),
+        title: "Attendance & shifts",
+        text: "Clock in/out with breaks, three-shift support around the clock, late-coming detection, and a monthly grid your HR will love.",
+    },
+    {
+        icon: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3" />
+            </svg>
+        ),
+        title: "Reports & exports",
+        text: "Work-hours reports per client, tracker, and work type — filter anything, export CSV in one click.",
+    },
+    {
+        icon: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h8M8 8h8M8 16h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+            </svg>
+        ),
+        title: "Slack digests",
+        text: "Daily activity digests and weekly summaries delivered straight to your Slack channels — no need to open a browser.",
+    },
+    {
+        icon: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <rect x="2" y="4" width="20" height="13" rx="2" />
+                <path strokeLinecap="round" d="M8 21h8m-4-4v4" />
+            </svg>
+        ),
+        title: "Desktop apps",
+        text: "Native Windows and macOS trackers with auto-updates, offline queueing, and tray controls.",
+    },
+];
+
+const STEPS = [
+    { n: "1", title: "Install the tracker", text: "Grab the desktop app for Windows or Mac from your dashboard." },
+    { n: "2", title: "Track with one click", text: "Pick a client — or Office Work — and start. Everything else is automatic." },
+    { n: "3", title: "Reports flow in", text: "Hours, screenshots, attendance, and Slack digests, all without manual entry." },
+];
+
+function AppPreview() {
+    // A lightweight, pure-CSS impression of the dashboard — no image weight.
+    return (
+        <div className="relative mx-auto max-w-4xl" aria-hidden="true">
+            <div className="absolute -inset-4 bg-gradient-to-r from-orange-500/30 to-yellow-400/30 rounded-3xl blur-2xl" />
+            <div className="relative rounded-2xl border border-gray-600/40 bg-[#1d1f1f]/95 shadow-2xl overflow-hidden">
+                <div className="flex items-center gap-1.5 border-b border-gray-700/60 px-4 py-3">
+                    <span className="h-3 w-3 rounded-full bg-rose-400/80" />
+                    <span className="h-3 w-3 rounded-full bg-yellow-400/80" />
+                    <span className="h-3 w-3 rounded-full bg-emerald-400/80" />
+                    <span className="ml-3 text-xs text-gray-500">timetracker.sparkingasia.com/dashboard</span>
+                </div>
+                <div className="grid gap-4 p-6 sm:grid-cols-3">
+                    {[
+                        { label: "Worked today", value: "6h 42m", accent: "from-orange-400 to-yellow-400" },
+                        { label: "Team active now", value: "14", accent: "from-emerald-400 to-teal-400" },
+                        { label: "This week", value: "31h 05m", accent: "from-sky-400 to-indigo-400" },
+                    ].map((card) => (
+                        <div key={card.label} className="rounded-xl border border-gray-700/60 bg-gray-800/40 p-4">
+                            <div className="text-xs uppercase tracking-wide text-gray-500">{card.label}</div>
+                            <div className={`mt-1 bg-gradient-to-r ${card.accent} bg-clip-text text-2xl font-bold text-transparent`}>
+                                {card.value}
+                            </div>
+                        </div>
+                    ))}
+                    <div className="sm:col-span-3 rounded-xl border border-gray-700/60 bg-gray-800/40 p-4">
+                        <div className="mb-3 flex items-center justify-between text-xs text-gray-500">
+                            <span className="uppercase tracking-wide">This week</span>
+                            <span>Mon – Fri</span>
+                        </div>
+                        <div className="flex items-end gap-3" style={{ height: 90 }}>
+                            {[55, 80, 65, 95, 45].map((h, i) => (
+                                <div key={i} className="flex-1 rounded-t-md bg-gradient-to-t from-orange-500/70 to-yellow-400/80" style={{ height: `${h}%` }} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function Welcome({ auth }) {
     const { branding } = usePage().props;
     const logoSrc = branding?.logo_url || BUNDLED_LOGO;
+    const primaryCta = auth.user
+        ? { href: route("dashboard"), label: "Go to Dashboard" }
+        : { href: route("login"), label: "Sign In" };
 
     return (
         <>
-            <Head title="Sparking Asia" />
-            
-            {/* Navigation - Outside the main container */}
-            <nav className="sticky top-0 z-30 p-6 bg-black/20 backdrop-blur-xl border-b border-gray-600/20">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-white/20 backdrop-blur-lg rounded-xl shadow-lg">
-                            <img
-                                src={logoSrc}
-                                className="w-10 h-10 object-contain"
-                                alt="Sparking Asia Logo"
-                                onError={(e) => {
-                                    e.target.src = BUNDLED_LOGO;
-                                }}
-                            />
+            <Head title="Sparking Asia TimeTracker" />
+
+            <div className="min-h-screen text-gray-100" style={{ background: "linear-gradient(135deg, #282a2a 0%, #1f2020 50%, #161717 100%)" }}>
+                {/* Nav */}
+                <nav className="sticky top-0 z-30 border-b border-gray-600/20 bg-black/30 backdrop-blur-xl">
+                    <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+                        <div className="flex items-center gap-3">
+                            <div className="rounded-xl bg-white/15 p-1.5 backdrop-blur-lg">
+                                <img
+                                    src={logoSrc}
+                                    className="h-9 w-9 object-contain"
+                                    alt="Sparking Asia Logo"
+                                    onError={(e) => { e.target.src = BUNDLED_LOGO; }}
+                                />
+                            </div>
+                            <div className="leading-tight">
+                                <span className="block font-bold">Sparking Asia</span>
+                                <span className="block text-xs text-gray-400">TimeTracker</span>
+                            </div>
                         </div>
-                        <span className="text-gray-100 font-bold text-xl hidden sm:block">
-                            TimeTracker
+                        <Link
+                            href={primaryCta.href}
+                            className="rounded-xl bg-gradient-to-r from-orange-400 to-yellow-500 px-5 py-2.5 font-semibold text-gray-900 shadow-lg transition hover:from-orange-500 hover:to-yellow-600"
+                        >
+                            {primaryCta.label}
+                        </Link>
+                    </div>
+                </nav>
+
+                {/* Subtle background orbs */}
+                <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+                    <div className="absolute -top-1/3 -left-1/4 h-2/3 w-2/3 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 opacity-10 blur-3xl" />
+                    <div className="absolute -bottom-1/3 -right-1/4 h-2/3 w-2/3 rounded-full bg-gradient-to-r from-orange-400 to-rose-400 opacity-10 blur-3xl" />
+                </div>
+
+                <main className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8">
+                    {/* Hero */}
+                    <section className="pb-16 pt-20 text-center">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-1.5 text-sm font-medium text-orange-300">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                            Built for the Sparking Asia team
                         </span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-4">
-                        {auth.user ? (
+                        <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-extrabold leading-tight sm:text-6xl">
+                            Every hour, tracked.
+                            <span className="block bg-gradient-to-r from-orange-400 to-yellow-400 bg-clip-text text-transparent">
+                                Zero busywork.
+                            </span>
+                        </h1>
+                        <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-400">
+                            Time tracking, screenshots, attendance, and reports — connected in one place,
+                            from desktop tracker to Slack digest.
+                        </p>
+                        <div className="mt-10 flex justify-center">
                             <Link
-                                href={route("dashboard")}
-                                className="bg-orange-500/90 backdrop-blur-lg text-white font-semibold px-6 py-3 rounded-xl hover:bg-orange-600/90 transition-all duration-200 shadow-lg border border-orange-400/50"
+                                href={primaryCta.href}
+                                className="btn-primary rounded-2xl bg-gradient-to-r from-orange-400 to-yellow-500 px-8 py-4 text-lg font-bold text-gray-900 shadow-2xl transition hover:scale-105 hover:from-orange-500 hover:to-yellow-600"
                             >
-                                Dashboard
+                                {primaryCta.label} →
                             </Link>
-                        ) : (
-                            <Link
-                                href={route("login")}
-                                className="bg-orange-500/90 backdrop-blur-lg text-white font-semibold px-6 py-3 rounded-xl hover:bg-orange-600/90 transition-all duration-200 shadow-lg border border-orange-400/50"
-                            >
-                                Sign In
-                            </Link>
-                        )}
-                    </div>
-                </div>
-            </nav>
-
-            <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 relative overflow-hidden" style={{background: 'linear-gradient(135deg, #282a2a 0%, #1f2020 50%, #161717 100%)'}}>
-                {/* Animated Background Elements */}
-                <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full opacity-20 animate-float"></div>
-                    <div className="absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full opacity-30 animate-float-delayed" style={{background: 'linear-gradient(45deg, #282a2a, #1f2020)'}}></div>
-                    <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-r from-yellow-300 to-orange-400 rounded-full opacity-10 animate-bounce"></div>
-                    <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-15 animate-bounce delay-500" style={{background: 'linear-gradient(135deg, #282a2a, #404343)'}}></div>
-                    <div className="absolute top-3/4 left-1/2 w-64 h-64 bg-gradient-to-r from-orange-300 to-yellow-400 rounded-full opacity-20 animate-pulse"></div>
-                </div>
-
-                {/* Main Content */}
-                <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 pt-12 pb-20">
-                    {/* Hero Section */}
-                    <div className="text-center mb-16">
-                        {/* Logo Section */}
-                        <div className="flex justify-center mb-8">
-                            <div className="relative">
-                                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-3xl blur-xl opacity-60 animate-pulse"></div>
-                                <div className="relative glass-effect rounded-3xl p-8 shadow-2xl">
-                                    <img
-                                        src={logoSrc}
-                                        className="w-32 h-32 object-contain mx-auto animate-float"
-                                        alt="Sparking Asia Logo"
-                                        onError={(e) => {
-                                            e.target.src = BUNDLED_LOGO;
-                                        }}
-                                    />
-                                </div>
-                            </div>
                         </div>
-
-                        {/* Title and Description */}
-                        <div className="space-y-6">
-                            <h1 className="text-5xl md:text-7xl font-bold text-gray-100 mb-6 leading-tight">
-                                <span className="block">Welcome to</span>
-                                <span className="block bg-gradient-to-r from-yellow-300 to-orange-400 bg-clip-text text-transparent">
-                                    Sparking Asia
-                                </span>
-                                <span className="block text-4xl md:text-5xl mt-2 text-gray-100">
-                                    TimeTracker
-                                </span>
-                            </h1>
-                            
-                            <p className="text-xl md:text-2xl text-gray-200 max-w-3xl mx-auto leading-relaxed">
-                                Revolutionize your productivity with our cutting-edge time tracking solution, 
-                                designed specifically for the dynamic Sparking Asia team.
-                            </p>
+                        <div className="mt-16">
+                            <AppPreview />
                         </div>
+                    </section>
 
-                        {/* Call-to-Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-6 justify-center mt-12">
-                            {!auth.user && (
-                                <>
-                                    <Link
-                                        href={route("login")}
-                                        className="btn-primary bg-gradient-to-r from-orange-400 to-yellow-500 hover:from-orange-500 hover:to-yellow-600 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-2xl text-lg"
-                                    >
-                                        <div className="flex items-center justify-center space-x-2">
-                                            <span>Sign In</span>
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                            </svg>
-                                        </div>
-                                    </Link>
-                                </>
-                            )}
-                            {auth.user && (
-                                <Link
-                                    href={route("dashboard")}
-                                    className="btn-primary bg-gradient-to-r from-orange-400 to-yellow-500 hover:from-orange-500 hover:to-yellow-600 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-2xl text-lg"
+                    {/* Features */}
+                    <section className="py-16">
+                        <h2 className="text-center text-3xl font-bold">Everything the team needs</h2>
+                        <p className="mt-3 text-center text-gray-400">From clock-in to client report, without leaving the flow.</p>
+                        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                            {FEATURES.map((feature) => (
+                                <div
+                                    key={feature.title}
+                                    className="group rounded-2xl border border-gray-700/50 bg-gray-800/30 p-6 backdrop-blur transition hover:-translate-y-1 hover:border-orange-400/40 hover:bg-gray-800/50"
                                 >
-                                    <div className="flex items-center justify-center space-x-2">
-                                        <span>Go to Dashboard</span>
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                        </svg>
+                                    <div className="mb-4 inline-flex rounded-xl bg-gradient-to-br from-orange-400 to-yellow-500 p-3 text-gray-900 shadow-lg">
+                                        {feature.icon}
                                     </div>
-                                </Link>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Features Section */}
-                    <div className="grid md:grid-cols-3 gap-8 mt-20">
-                        {/* Feature 1 */}
-                        <div className="bg-gray-800/70 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-gray-600/30 hover:bg-gray-700/70 transition-all duration-300 transform hover:scale-105">
-                            <div className="text-center">
-                                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg" style={{background: 'linear-gradient(135deg, #282a2a, #404343)'}}>
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
+                                    <h3 className="text-lg font-semibold">{feature.title}</h3>
+                                    <p className="mt-2 text-sm leading-relaxed text-gray-400">{feature.text}</p>
                                 </div>
-                                <h3 className="text-xl font-bold text-gray-100 mb-3">Smart Time Tracking</h3>
-                                <p className="text-gray-300">
-                                    Effortlessly track your work hours with our intelligent timing system that adapts to your workflow.
-                                </p>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* How it works */}
+                    <section className="py-16">
+                        <div className="rounded-3xl border border-gray-700/50 bg-gray-800/30 px-8 py-12 backdrop-blur">
+                            <h2 className="text-center text-3xl font-bold">Up and running in minutes</h2>
+                            <div className="mt-10 grid gap-8 sm:grid-cols-3">
+                                {STEPS.map((step) => (
+                                    <div key={step.n} className="text-center">
+                                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-yellow-500 text-xl font-extrabold text-gray-900 shadow-lg">
+                                            {step.n}
+                                        </div>
+                                        <h3 className="mt-4 font-semibold">{step.title}</h3>
+                                        <p className="mt-2 text-sm text-gray-400">{step.text}</p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-
-                        {/* Feature 2 */}
-                        <div className="bg-gray-800/70 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-gray-600/30 hover:bg-gray-700/70 transition-all duration-300 transform hover:scale-105">
-                            <div className="text-center">
-                                <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                </div>
-                                <h3 className="text-xl font-bold text-gray-100 mb-3">Analytics & Reports</h3>
-                                <p className="text-gray-300">
-                                    Get detailed insights into your productivity with comprehensive analytics and beautiful reports.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Feature 3 */}
-                        <div className="bg-gray-800/70 backdrop-blur-lg rounded-2xl p-6 shadow-xl border border-gray-600/30 hover:bg-gray-700/70 transition-all duration-300 transform hover:scale-105">
-                            <div className="text-center">
-                                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg" style={{background: 'linear-gradient(135deg, #282a2a, #3a3d3d)'}}>
-                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                </div>
-                                <h3 className="text-xl font-bold text-gray-100 mb-3">Team Collaboration</h3>
-                                <p className="text-gray-300">
-                                    Seamlessly collaborate with your team members and manage projects with ease and efficiency.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    </section>
 
                     {/* Footer */}
-                    <div className="text-center mt-20">
-                        <p className="text-gray-400 text-sm">
-                            © {new Date().getFullYear()} Sparking Asia. Crafted with ❤️ for productivity.
-                        </p>
-                    </div>
-                </div>
+                    <footer className="flex flex-col items-center gap-2 border-t border-gray-700/40 py-10 text-sm text-gray-500">
+                        <div className="flex items-center gap-2">
+                            <img
+                                src={logoSrc}
+                                className="h-6 w-6 object-contain opacity-80"
+                                alt=""
+                                onError={(e) => { e.target.src = BUNDLED_LOGO; }}
+                            />
+                            <span>© 2026 Sparking Asia. Crafted with ❤️ for productivity.</span>
+                        </div>
+                    </footer>
+                </main>
             </div>
         </>
     );

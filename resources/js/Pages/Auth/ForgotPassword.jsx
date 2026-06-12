@@ -90,8 +90,7 @@ export default function ForgotPassword({ status }) {
                             <button
                                 type="submit"
                                 disabled={requestForm.processing}
-                                className="w-full py-3 rounded-xl text-white font-semibold shadow-lg transition hover:opacity-90 disabled:opacity-50"
-                                style={{ background: 'linear-gradient(135deg, #282a2a, #404343)' }}
+                                className="btn-primary w-full rounded-xl bg-gradient-to-r from-orange-400 to-yellow-500 py-3 font-bold text-gray-900 shadow-lg transition hover:scale-105 hover:from-orange-500 hover:to-yellow-600 disabled:opacity-50"
                             >
                                 Send Code to Slack
                             </button>
@@ -177,8 +176,7 @@ export default function ForgotPassword({ status }) {
                             <button
                                 type="submit"
                                 disabled={resetForm.processing}
-                                className="w-full py-3 rounded-xl text-white font-semibold shadow-lg transition hover:opacity-90 disabled:opacity-50"
-                                style={{ background: 'linear-gradient(135deg, #282a2a, #404343)' }}
+                                className="btn-primary w-full rounded-xl bg-gradient-to-r from-orange-400 to-yellow-500 py-3 font-bold text-gray-900 shadow-lg transition hover:scale-105 hover:from-orange-500 hover:to-yellow-600 disabled:opacity-50"
                             >
                                 Set New Password
                             </button>
