@@ -1,7 +1,7 @@
 {
   "name": "timetracker-desktop",
-  "productName": "Timetracker Desktop",
-  "version": "0.2.5",
+  "productName": "SA Track",
+  "version": "0.3.0",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
@@ -45,7 +45,7 @@
   },
   "build": {
     "appId": "com.spark.timetracker.desktop",
-    "productName": "Timetracker Desktop",
+    "productName": "SA Track",
     "publish": [
       {
         "provider": "generic",
@@ -109,7 +109,7 @@
       }
     },
     "dmg": {
-      "title": "Timetracker Desktop"
+      "title": "SA Track"
     },
     "nsis": {
       "oneClick": true,
@@ -117,7 +117,7 @@
       "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Timetracker Desktop"
+      "shortcutName": "SA Track"
     }
   }
 }
