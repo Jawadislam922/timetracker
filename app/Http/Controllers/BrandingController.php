@@ -36,7 +36,7 @@ class BrandingController extends Controller
         abort_unless($request->user()?->isSuperAdmin(), 403);
 
         $request->validate([
-            'logo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:1024'],
+            'logo' => ['required', 'image', 'mimes:png,jpg,jpeg,webp', 'max:8192'],
         ]);
 
         $settings = MonitoringSetting::current();
