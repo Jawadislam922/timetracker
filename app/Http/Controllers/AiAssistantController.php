@@ -84,7 +84,7 @@ class AiAssistantController extends Controller
             }
 
             $total = round($rows->sum('hours'), 1);
-            $days = $rows->groupBy(fn ($r) => $r->date->toDateString())
+            $days = $rows->groupBy(fn ($r) => substr((string) $r->date, 0, 10))
                 ->map(fn ($g) => round($g->sum('hours'), 1))
                 ->sortKeys()
                 ->map(fn ($h, $d) => substr($d, 5).'='.$h)
