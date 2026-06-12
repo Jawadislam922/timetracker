@@ -137,13 +137,13 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Users" />
-            <div className="min-h-screen bg-slate-100">
+            <div className="min-h-screen bg-slate-950">
                 <div className="mx-auto max-w-[1600px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-                    <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+                    <section className="flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-end sm:justify-between">
                         <div>
-                            <p className="text-sm font-semibold text-blue-700">Team management</p>
-                            <h1 className="mt-1 text-2xl font-bold text-slate-950">Users</h1>
-                            <p className="mt-1 text-sm text-slate-600">Manage accounts, roles, designations, and selected access.</p>
+                            <p className="text-sm font-semibold text-orange-400">Team management</p>
+                            <h1 className="mt-1 text-2xl font-bold text-white">Users</h1>
+                            <p className="mt-1 text-sm text-slate-400">Manage accounts, roles, designations, and selected access.</p>
                         </div>
                         {can('users.manage') && (
                             <div className="flex flex-col gap-2 sm:flex-row">

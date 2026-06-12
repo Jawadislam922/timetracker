@@ -164,6 +164,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Developer</h2>}>
             <Head title="Developer" />
 
+            <div className="min-h-screen bg-slate-950">
             <div className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
                 {(flash.success || flash.error) && (
                     <div
@@ -413,6 +414,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                         {logLines.length ? logLines.join('\n') : (logsLoading ? 'Loading…' : 'No log entries.')}
                     </pre>
                 </Card>
+            </div>
             </div>
         </AuthenticatedLayout>
     );

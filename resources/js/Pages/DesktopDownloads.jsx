@@ -151,6 +151,7 @@ export default function DesktopDownloads({ auth, downloads }) {
         <AuthenticatedLayout user={auth.user} header="Desktop App">
             <Head title="Desktop App" />
 
+            <div className="min-h-screen bg-slate-950">
             <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
                 <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -208,6 +209,7 @@ export default function DesktopDownloads({ auth, downloads }) {
                         <p className="leading-6">For managed installs, distribute the Windows installer through your IT tool.</p>
                     </div>
                 </div>
+            </div>
             </div>
         </AuthenticatedLayout>
     );

@@ -125,7 +125,7 @@ export default function Authenticated({ user, header, children }) {
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
     return (
-        <div className="min-h-screen bg-slate-100 text-slate-900">
+        <div className="min-h-screen bg-slate-950 text-slate-900">
             <nav className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 shadow-lg shadow-slate-950/30 backdrop-blur">
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 items-center justify-between gap-4">

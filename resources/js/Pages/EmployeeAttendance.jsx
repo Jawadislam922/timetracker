@@ -456,15 +456,15 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
         <AuthenticatedLayout user={auth.user}>
             <Head title="Attendance" />
 
-            <div className="min-h-screen bg-slate-100">
+            <div className="min-h-screen bg-slate-950">
                 <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-                    <section className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+                    <section className="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
                         <div>
-                            <p className="text-sm font-semibold text-blue-700">Team operations</p>
-                            <h1 className="mt-1 text-2xl font-bold text-slate-950">Attendance</h1>
-                            <p className="mt-1 text-sm text-slate-600">Monitor current status, work time, breaks, and daily activity.</p>
+                            <p className="text-sm font-semibold text-orange-400">Team operations</p>
+                            <h1 className="mt-1 text-2xl font-bold text-white">Attendance</h1>
+                            <p className="mt-1 text-sm text-slate-400">Monitor current status, work time, breaks, and daily activity.</p>
                             {lastRefreshTime && (
-                                <p className="mt-1 text-xs text-slate-500">Updated {lastRefreshTime.toLocaleTimeString()}</p>
+                                <p className="mt-1 text-xs text-slate-400">Updated {lastRefreshTime.toLocaleTimeString()}</p>
                             )}
                         </div>
 

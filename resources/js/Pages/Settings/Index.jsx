@@ -718,6 +718,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
             <Head title="Settings" />
 
             <OverridesDispatchContext.Provider value={updateOverrides}>
+            <div className="min-h-screen bg-slate-950">
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
                 <div className="overflow-hidden rounded-lg bg-white shadow">
                     <div className="border-b border-slate-200 bg-slate-100 px-6 py-4">
@@ -810,6 +811,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
             </OverridesDispatchContext.Provider>
         </AuthenticatedLayout>
