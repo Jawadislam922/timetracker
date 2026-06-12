@@ -74,5 +74,14 @@ Also confirm the desktop clock bar isn't calling the same heavy endpoint.
    real 22:00.
 6. **Saved design:** 8AM→8AM business-day attendance bucketing —
    documents/ATTENDANCE_DAY_BUCKETING.md.
-7. **Desktop (from earlier):** macOS app is unsigned (Gatekeeper friction) —
-   needs Apple Developer ID; auto-update flow for the desktop app.
+7. **Desktop auto-update (approved 2026-06-12)** — electron-updater with the
+   "generic" provider: serve `latest.yml` + installers from the existing
+   deploy-proof installers folder via a public route on
+   timetracker.sparkingasia.com. Check on launch + periodic + a manual
+   "Check for updates" control; background download; install-on-restart (no
+   uninstall/reinstall). Windows works unsigned. macOS auto-update REQUIRES
+   Apple code signing — Apple Developer ID ($99/yr) also removes the
+   Gatekeeper "could not verify" friction, one purchase fixes both. Plan:
+   ship the NEXT desktop build as the one-final-manual-install bundle =
+   auto-updater + Office Work picker (#1) + 401 re-auth UX (#2); everything
+   after arrives via auto-update.
