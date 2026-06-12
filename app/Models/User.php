@@ -178,6 +178,14 @@ class User extends Authenticatable
         return $this->hasMany(TimeEntry::class);
     }
 
+    /**
+     * Clocking in up to this many minutes before a shift starts counts toward
+     * that shift's attendance day. Without it, an early arrival for a shift
+     * starting at/after midnight (e.g. 23:50 for a 00:00 shift) lands on the
+     * previous calendar day and "disappears" when the date rolls over.
+     */
+    public const EARLY_CLOCK_IN_GRACE_MINUTES = 180;
+
     public function attendanceDateFor(Carbon $timestamp): string
     {
         $localTimestamp = $timestamp->copy()->setTimezone('Asia/Karachi');
@@ -188,6 +196,16 @@ class User extends Authenticatable
 
         $shiftTime = $this->shift_start_time->format('H:i:s');
         $todayShiftStart = $localTimestamp->copy()->startOfDay()->setTimeFromTimeString($shiftTime);
+
+        // Early arrival for the NEXT day's shift. Only reachable late in the
+        // evening for shifts that start around midnight; day shifts never get
+        // within the grace window of tomorrow's start.
+        $tomorrowShiftStart = $todayShiftStart->copy()->addDay();
+        $minutesUntilTomorrowStart = $localTimestamp->diffInMinutes($tomorrowShiftStart, false);
+
+        if ($minutesUntilTomorrowStart >= 0 && $minutesUntilTomorrowStart <= self::EARLY_CLOCK_IN_GRACE_MINUTES) {
+            return $tomorrowShiftStart->toDateString();
+        }
 
         if ($localTimestamp->greaterThanOrEqualTo($todayShiftStart)) {
             return $localTimestamp->toDateString();
