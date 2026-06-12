@@ -436,11 +436,10 @@ class EmployeeAttendanceController extends Controller
     {
         $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
-        $employees = User::all()->map(function ($employee) use ($date) {
-            $entries = $employee->timeEntries()
-                ->whereDate('action_date', $date)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
+        $entriesByUser = $this->entriesForDateByUser($date);
+
+        $employees = User::orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+            $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
                 return null;
@@ -480,11 +479,10 @@ class EmployeeAttendanceController extends Controller
     {
         $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
-        $activities = User::all()->map(function ($employee) use ($date) {
-            $entries = $employee->timeEntries()
-                ->whereDate('action_date', $date)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
+        $entriesByUser = $this->entriesForDateByUser($date);
+
+        $activities = User::orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+            $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
                 return null;
@@ -518,11 +516,10 @@ class EmployeeAttendanceController extends Controller
     {
         $date = Carbon::parse($request->input('date', Carbon::today('Asia/Karachi')->toDateString()), 'Asia/Karachi')->toDateString();
 
-        $timelines = User::all()->map(function ($employee) use ($date) {
-            $entries = $employee->timeEntries()
-                ->whereDate('action_date', $date)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
+        $entriesByUser = $this->entriesForDateByUser($date);
+
+        $timelines = User::orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+            $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
                 return null;
@@ -556,13 +553,11 @@ class EmployeeAttendanceController extends Controller
 
         $csv = "Employee,Designation,Status,Work Hours,Break Hours,First Clock In,Last Action,Total Actions\n";
 
-        $employees = User::all();
+        $entriesByUser = $this->entriesForDateByUser($date);
+        $employees = User::orderBy('name')->get();
 
         foreach ($employees as $employee) {
-            $entries = $employee->timeEntries()
-                ->whereDate('action_date', $date)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
+            $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
                 continue;
@@ -599,6 +594,23 @@ class EmployeeAttendanceController extends Controller
         return response($csv)
             ->header('Content-Type', 'text/csv')
             ->header('Content-Disposition', 'attachment; filename="employee-attendance-'.$date.'.csv"');
+    }
+
+    /**
+     * One whereIn fetch for every employee's entries on an attendance day,
+     * keyed by user — the per-employee lazy queries were a 55-query N+1 on
+     * each tab switch. action_date is stamped by attendanceDateFor() at
+     * clock time, so all tabs share the same shift-anchored bucketing.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    private function entriesForDateByUser(string $date)
+    {
+        return TimeEntry::query()
+            ->whereDate('action_date', $date)
+            ->orderBy('action_timestamp')
+            ->get()
+            ->groupBy('user_id');
     }
 
     /**
@@ -724,25 +736,32 @@ class EmployeeAttendanceController extends Controller
 
         $now = Carbon::now('Asia/Karachi');
 
-        // Add ongoing session if it belongs to today.
-        if ($currentWorkStart && $currentWorkStart->isSameDay($now)) {
+        // Show the ongoing session unless it's a stale orphaned clock-in.
+        // The old same-calendar-day check made a night shift's running
+        // session vanish from this tab at midnight; the 18h cap mirrors
+        // calculateTimeStats so the visible session matches the hours.
+        if ($currentWorkStart) {
             $durationMinutes = $this->positiveMinutesBetween($currentWorkStart, $now);
-            $sessions[] = [
-                'type' => 'work',
-                'start_time' => $currentWorkStart->format('g:i A'),
-                'end_time' => null,
-                'duration' => $this->formatDuration($durationMinutes).' (ongoing)',
-            ];
+            if ($durationMinutes <= 18 * 60) {
+                $sessions[] = [
+                    'type' => 'work',
+                    'start_time' => $currentWorkStart->format('g:i A'),
+                    'end_time' => null,
+                    'duration' => $this->formatDuration($durationMinutes).' (ongoing)',
+                ];
+            }
         }
 
-        if ($currentBreakStart && $currentBreakStart->isSameDay($now)) {
+        if ($currentBreakStart) {
             $durationMinutes = $this->positiveMinutesBetween($currentBreakStart, $now);
-            $sessions[] = [
-                'type' => 'break',
-                'start_time' => $currentBreakStart->format('g:i A'),
-                'end_time' => null,
-                'duration' => $this->formatDuration($durationMinutes).' (ongoing)',
-            ];
+            if ($durationMinutes <= 18 * 60) {
+                $sessions[] = [
+                    'type' => 'break',
+                    'start_time' => $currentBreakStart->format('g:i A'),
+                    'end_time' => null,
+                    'duration' => $this->formatDuration($durationMinutes).' (ongoing)',
+                ];
+            }
         }
 
         return $sessions;
