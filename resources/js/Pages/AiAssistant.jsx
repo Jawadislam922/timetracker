@@ -11,7 +11,7 @@ const SUGGESTIONS = [
     'Anyone with unusually low hours recently?',
 ];
 
-export default function AiAssistant({ auth, aiEnabled = false }) {
+export default function AiAssistant({ auth, aiEnabled = false, questions = SUGGESTIONS }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -59,7 +59,7 @@ export default function AiAssistant({ auth, aiEnabled = false }) {
                                     <p className="mt-1 text-sm text-slate-400">I can see the last 14 days of tracked hours, clients, and shifts.</p>
                                 </div>
                                 <div className="flex flex-wrap justify-center gap-2">
-                                    {SUGGESTIONS.map((s) => (
+                                    {(questions || []).map((s) => (
                                         <button
                                             key={s}
                                             type="button"

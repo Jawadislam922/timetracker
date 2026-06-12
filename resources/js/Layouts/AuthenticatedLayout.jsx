@@ -21,6 +21,7 @@ import {
     Wrench,
     X,
 } from 'lucide-react';
+import AiChatWidget from '@/Components/AiChatWidget';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Avatar from '@/Components/Avatar';
 import Dropdown from '@/Components/Dropdown';
@@ -109,7 +110,6 @@ export default function Authenticated({ user, header, children }) {
     const performanceItems = useMemo(() => [
         can('reports.view') && { label: 'Reports', href: route('work-hours.report'), icon: BarChart3, active: ['work-hours.report'] },
         can('timeline.view_others') && { label: 'Team Performance', href: route('team.index'), icon: Activity, active: ['team.index'] },
-        can('reports.view') && { label: 'AI Assistant', href: route('ai.assistant'), icon: Sparkles, active: ['ai.assistant'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
     // Internal management — people and client records.
@@ -305,6 +305,9 @@ export default function Authenticated({ user, header, children }) {
             )}
 
             <main>{children}</main>
+
+            {/* Floating AI chat — reachable from every page for report viewers. */}
+            {can('reports.view') && <AiChatWidget />}
         </div>
     );
 }

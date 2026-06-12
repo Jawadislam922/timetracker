@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class MonitoringSetting extends Model
 {
     protected $fillable = [
+        'ai_suggested_questions',
         'screenshots_per_hour',
         'screenshot_interval_min_seconds',
         'screenshot_interval_max_seconds',
@@ -33,6 +34,7 @@ class MonitoringSetting extends Model
     ];
 
     protected $casts = [
+        'ai_suggested_questions' => 'array',
         'screenshots_per_hour' => 'integer',
         'screenshot_interval_min_seconds' => 'integer',
         'screenshot_interval_max_seconds' => 'integer',

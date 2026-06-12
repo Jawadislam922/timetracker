@@ -20,11 +20,66 @@ use Inertia\Response;
  */
 class AiAssistantController extends Controller
 {
+    private const DEFAULT_QUESTIONS = [
+        'Give me a report for the night team this week',
+        'Who tracked the most hours in the last 7 days?',
+        'Which clients took the most time this week?',
+        'Anyone with unusually low hours recently?',
+    ];
+
     public function index(Request $request): Response
     {
         return Inertia::render('AiAssistant', [
             'aiEnabled' => app(AnthropicService::class)->configured(),
+            'questions' => $this->questions(),
+            'canManageQuestions' => $this->canManageQuestions($request->user()),
         ]);
+    }
+
+    /** Widget bootstrap: enabled flag + suggested questions. */
+    public function config(Request $request): JsonResponse
+    {
+        return response()->json([
+            'enabled' => app(AnthropicService::class)->configured(),
+            'questions' => $this->questions(),
+            'canManageQuestions' => $this->canManageQuestions($request->user()),
+        ]);
+    }
+
+    public function saveQuestions(Request $request): JsonResponse
+    {
+        abort_unless($this->canManageQuestions($request->user()), 403);
+
+        $data = $request->validate([
+            'questions' => ['present', 'array', 'max:12'],
+            'questions.*' => ['string', 'max:200'],
+        ]);
+
+        $questions = collect($data['questions'])
+            ->map(fn ($q) => trim($q))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $settings = \App\Models\MonitoringSetting::current();
+        $settings->update(['ai_suggested_questions' => $questions ?: null]);
+        Cache::forget('monitoring_settings.shared');
+
+        return response()->json(['questions' => $questions ?: self::DEFAULT_QUESTIONS]);
+    }
+
+    /** @return array<int, string> */
+    private function questions(): array
+    {
+        $saved = \App\Models\MonitoringSetting::current()->ai_suggested_questions;
+
+        return is_array($saved) && $saved !== [] ? array_values($saved) : self::DEFAULT_QUESTIONS;
+    }
+
+    private function canManageQuestions(?User $user): bool
+    {
+        return (bool) $user && ($user->isSuperAdmin() || $user->hasPermission('monitoring.settings'));
     }
 
     public function ask(Request $request): JsonResponse
