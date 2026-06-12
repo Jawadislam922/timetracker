@@ -5,6 +5,7 @@ import Tracker from './views/Tracker.jsx';
 export default function App() {
   const [authState, setAuthState] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -15,6 +16,17 @@ export default function App() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  // Server rejected our token (e.g. it was revoked): drop to the login
+  // screen with a clear message instead of surfacing raw 401 errors.
+  useEffect(() => {
+    if (typeof window.tt?.auth?.onExpired !== 'function') return undefined;
+    const off = window.tt.auth.onExpired(() => {
+      setNotice('Your session expired — please sign in again.');
+      setAuthState((prev) => ({ ...(prev || {}), hasToken: false, user: null }));
+    });
+    return () => off?.();
   }, []);
 
   if (loading) {
@@ -28,7 +40,16 @@ export default function App() {
   }
 
   if (!authState?.hasToken) {
-    return <Login initial={authState} onLoggedIn={(s) => setAuthState({ ...authState, ...s, hasToken: true })} />;
+    return (
+      <Login
+        initial={authState}
+        notice={notice}
+        onLoggedIn={(s) => {
+          setNotice('');
+          setAuthState({ ...authState, ...s, hasToken: true });
+        }}
+      />
+    );
   }
 
   return (

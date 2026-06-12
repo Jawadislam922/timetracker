@@ -7,6 +7,7 @@ const queue = require('./queue');
 const ipc = require('./ipc');
 const store = require('./store');
 const tray = require('./tray');
+const updater = require('./updater');
 
 const PROTOCOL = 'timetracker';
 
@@ -39,6 +40,7 @@ if (!gotLock) {
     queue.init();
     ipc.register();
     createWindow();
+    updater.init();
 
     tray.init(() => mainWindow, !!(store.get('prefs') || {}).minimizeToTray);
 

@@ -1,10 +1,12 @@
 'use strict';
 
-const { ipcMain, BrowserWindow, app } = require('electron');
+const os = require('node:os');
+const { ipcMain, BrowserWindow, app, safeStorage } = require('electron');
 const api = require('./api');
 const store = require('./store');
 const tracker = require('./trackerService');
 const tray = require('./tray');
+const updater = require('./updater');
 
 const PREF_DEFAULTS = {
   autoStartTracking: false,
@@ -19,10 +21,36 @@ function broadcast(channel, payload) {
   }
 }
 
+// Saved sign-in credentials ("Remember me"): email in plain config, password
+// encrypted with the OS keychain via safeStorage — never written in plaintext.
+function saveCredentials(email, password) {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return;
+    store.set('savedLogin', {
+      email,
+      passwordEnc: safeStorage.encryptString(password).toString('base64'),
+    });
+  } catch { /* remembering is best-effort */ }
+}
+
+function readCredentials() {
+  const saved = store.get('savedLogin');
+  if (!saved?.email || !saved?.passwordEnc) return null;
+  try {
+    const password = safeStorage.decryptString(Buffer.from(saved.passwordEnc, 'base64'));
+    return { email: saved.email, password };
+  } catch {
+    return null;
+  }
+}
+
 function register() {
   // ---- Auth ----
   ipcMain.handle('auth:login', async (_evt, payload) => {
-    return api.login(payload);
+    const user = await api.login(payload);
+    if (payload?.remember) saveCredentials(payload.email, payload.password);
+    else store.delete('savedLogin');
+    return user;
   });
   ipcMain.handle('auth:logout', async () => {
     await api.logout();
@@ -39,10 +67,18 @@ function register() {
   });
   ipcMain.handle('auth:state', () => ({
     user: store.get('user'),
-    apiBaseUrl: store.get('apiBaseUrl'),
+    apiBaseUrl: store.get('apiBaseUrl') || require('./config').DEFAULTS.apiBaseUrl,
     deviceName: store.get('deviceName'),
+    hostname: os.hostname(),
     hasToken: !!store.get('token'),
   }));
+  ipcMain.handle('auth:saved', () => readCredentials());
+
+  // Token rejected by the server → renderer drops to the login screen.
+  api.authEvents.on('expired', () => broadcast('auth:expired'));
+
+  // ---- Updates ----
+  ipcMain.handle('updates:check', () => updater.checkNow());
 
   // ---- Settings (server-driven + local override) ----
   ipcMain.handle('settings:apiBaseUrl:set', (_evt, url) => {

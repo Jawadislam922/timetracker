@@ -8,6 +8,15 @@ const api = {
     logout: () => ipcRenderer.invoke('auth:logout'),
     me: () => ipcRenderer.invoke('auth:me'),
     state: () => ipcRenderer.invoke('auth:state'),
+    saved: () => ipcRenderer.invoke('auth:saved'),
+    onExpired: (cb) => {
+      const listener = () => cb();
+      ipcRenderer.on('auth:expired', listener);
+      return () => ipcRenderer.removeListener('auth:expired', listener);
+    },
+  },
+  updates: {
+    check: () => ipcRenderer.invoke('updates:check'),
   },
   settings: {
     setApiBaseUrl: (url) => ipcRenderer.invoke('settings:apiBaseUrl:set', url),

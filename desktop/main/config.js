@@ -6,8 +6,10 @@ const { app } = require('electron');
 const isDev = !app.isPackaged;
 
 const DEFAULTS = {
-  // Where the Laravel app lives. Override via Settings UI (stored in electron-store).
-  apiBaseUrl: 'http://timetracker.test',
+  // Where the Laravel app lives. Packaged builds default to production so
+  // employees never have to type a server URL; dev keeps the local site.
+  // Still overridable from the login screen's Advanced section.
+  apiBaseUrl: isDev ? 'http://timetracker.test' : 'https://timetracker.sparkingasia.com',
   // Fallback monitoring config until the server responds with /api/desktop/settings.
   defaultSettings: {
     screenshot_interval_min_seconds: 300,

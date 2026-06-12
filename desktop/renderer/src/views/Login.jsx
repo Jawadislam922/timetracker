@@ -1,16 +1,29 @@
 import React, { useEffect, useState } from 'react';
 
-export default function Login({ initial, onLoggedIn }) {
-  const [apiBaseUrl, setApiBaseUrl] = useState(initial?.apiBaseUrl || 'http://timetracker.test');
+export default function Login({ initial, notice, onLoggedIn }) {
+  const [apiBaseUrl, setApiBaseUrl] = useState(initial?.apiBaseUrl || 'https://timetracker.sparkingasia.com');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [deviceName, setDeviceName] = useState(initial?.deviceName || '');
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [deviceName, setDeviceName] = useState(initial?.deviceName || initial?.hostname || '');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!deviceName) {
-      setDeviceName(`${navigator.platform || 'Desktop'}`);
+      setDeviceName(initial?.hostname || navigator.platform || 'Desktop');
+    }
+    // Prefill remembered credentials so returning users just hit Sign in.
+    if (typeof window.tt?.auth?.saved === 'function') {
+      window.tt.auth.saved().then((saved) => {
+        if (saved?.email) {
+          setEmail(saved.email);
+          setPassword(saved.password || '');
+          setRemember(true);
+        }
+      }).catch(() => {});
     }
   }, []);
 
@@ -20,7 +33,7 @@ export default function Login({ initial, onLoggedIn }) {
     setBusy(true);
 
     try {
-      const user = await window.tt.auth.login({ email, password, deviceName, apiBaseUrl });
+      const user = await window.tt.auth.login({ email, password, deviceName, apiBaseUrl, remember });
       onLoggedIn({ user, apiBaseUrl });
     } catch (err) {
       const msg = err?.message || 'Login failed.';
@@ -36,16 +49,7 @@ export default function Login({ initial, onLoggedIn }) {
         <h1>Timetracker Desktop</h1>
         <p className="subtitle">Sign in with your Timetracker account.</p>
 
-        <div className="field">
-          <label>Server URL</label>
-          <input
-            type="url"
-            value={apiBaseUrl}
-            onChange={(e) => setApiBaseUrl(e.target.value)}
-            placeholder="https://timetracker.example.com"
-            required
-          />
-        </div>
+        {notice && <div className="warning" style={{ marginBottom: 12 }}>{notice}</div>}
 
         <div className="field">
           <label>Email</label>
@@ -60,24 +64,90 @@ export default function Login({ initial, onLoggedIn }) {
 
         <div className="field">
           <label>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{ width: '100%', paddingRight: 44, boxSizing: 'border-box' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+              style={{
+                position: 'absolute',
+                right: 6,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 16,
+                lineHeight: 1,
+                padding: 6,
+                opacity: 0.75,
+              }}
+            >
+              {showPassword ? '🙈' : '👁'}
+            </button>
+          </div>
         </div>
 
-        <div className="field">
-          <label>Device name</label>
+        <label className="field" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
           <input
-            type="text"
-            value={deviceName}
-            onChange={(e) => setDeviceName(e.target.value)}
-            placeholder="e.g. Spark Laptop"
-            required
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            style={{ width: 'auto', margin: 0 }}
           />
-        </div>
+          <span>Remember me on this device</span>
+        </label>
+
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            marginBottom: showAdvanced ? 8 : 0,
+            fontSize: 12,
+            opacity: 0.7,
+            textAlign: 'left',
+          }}
+        >
+          {showAdvanced ? '▾ Advanced' : '▸ Advanced'}
+        </button>
+
+        {showAdvanced && (
+          <>
+            <div className="field">
+              <label>Server URL</label>
+              <input
+                type="url"
+                value={apiBaseUrl}
+                onChange={(e) => setApiBaseUrl(e.target.value)}
+                placeholder="https://timetracker.sparkingasia.com"
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label>Device name</label>
+              <input
+                type="text"
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                placeholder="e.g. Spark Laptop"
+                required
+              />
+            </div>
+          </>
+        )}
 
         {error && <div className="error">{error}</div>}
 

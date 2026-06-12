@@ -2,9 +2,27 @@
 
 const axios = require('axios');
 const fs = require('node:fs');
+const { EventEmitter } = require('node:events');
 const FormData = require('form-data');
 const store = require('./store');
 const { DEFAULTS } = require('./config');
+
+// Emits 'expired' once when the server rejects our token, so the UI can drop
+// to the login screen instead of showing raw 401 errors forever.
+const authEvents = new EventEmitter();
+let expiredNotified = false;
+
+function handleAuthError(error) {
+  if (error?.response?.status === 401 && store.get('token')) {
+    store.delete('token');
+    store.delete('user');
+    if (!expiredNotified) {
+      expiredNotified = true;
+      authEvents.emit('expired');
+    }
+  }
+  return Promise.reject(error);
+}
 
 function baseUrl() {
   return (store.get('apiBaseUrl') || DEFAULTS.apiBaseUrl).replace(/\/+$/, '');
@@ -12,7 +30,7 @@ function baseUrl() {
 
 function client() {
   const token = store.get('token');
-  return axios.create({
+  const instance = axios.create({
     baseURL: baseUrl() + '/api/desktop',
     timeout: 20000,
     headers: {
@@ -20,6 +38,8 @@ function client() {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  instance.interceptors.response.use((res) => res, handleAuthError);
+  return instance;
 }
 
 async function login({ email, password, deviceName, apiBaseUrl }) {
@@ -36,6 +56,7 @@ async function login({ email, password, deviceName, apiBaseUrl }) {
   store.set('token', res.data.token);
   store.set('user', res.data.user);
   store.set('deviceName', deviceName);
+  expiredNotified = false;
   return res.data.user;
 }
 
@@ -156,6 +177,7 @@ function isOnline(error) {
 }
 
 module.exports = {
+  authEvents,
   baseUrl,
   login,
   logout,

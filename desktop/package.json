@@ -1,7 +1,7 @@
 {
   "name": "timetracker-desktop",
   "productName": "Timetracker Desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
@@ -26,6 +26,7 @@
     "axios": "^1.7.7",
     "better-sqlite3": "^11.3.0",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.9",
     "form-data": "^4.0.0",
     "screenshot-desktop": "^1.15.0",
     "uiohook-napi": "^1.5.4",
@@ -45,6 +46,12 @@
   "build": {
     "appId": "com.spark.timetracker.desktop",
     "productName": "Timetracker Desktop",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://timetracker.sparkingasia.com/desktop-updates"
+      }
+    ],
     "directories": {
       "output": "dist-app"
     },
@@ -62,19 +69,36 @@
     "protocols": [
       {
         "name": "Timetracker",
-        "schemes": ["timetracker"]
+        "schemes": [
+          "timetracker"
+        ]
       }
     ],
     "win": {
       "signAndEditExecutable": false,
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64"] },
-        { "target": "zip", "arch": ["arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "identity": null,

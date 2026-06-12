@@ -85,7 +85,9 @@ function ClientPicker({ clients, value, onChange, disabled }) {
                 onClick={() => pick(client)}
               >
                 <span className="cp-item-name">{client.name}</span>
-                {client.upwork_profile_name && <span className="cp-item-meta">{client.upwork_profile_name}</span>}
+                {client.internal
+                  ? <span className="cp-item-meta">Internal — no client</span>
+                  : client.upwork_profile_name && <span className="cp-item-meta">{client.upwork_profile_name}</span>}
               </button>
             ))}
           </div>
@@ -132,12 +134,29 @@ function workTypeOptions(client) {
       return [{ value: 'fixed', label: 'Fixed' }];
     case 'outside_of_upwork':
       return [{ value: 'outside_of_upwork', label: 'Outside Upwork' }];
+    case 'office_work':
+      return [{ value: 'office_work', label: 'Office Work' }];
+    case 'test_task':
+      return [{ value: 'test_task', label: 'Test Task' }];
     default:
       return [
         { value: 'tracker', label: 'Tracker' },
         { value: 'manual', label: 'Manual' },
       ];
   }
+}
+
+// Internal (no-client) work the team can track: sessions start with no
+// client_id and the hours land in Reports under the matching work type.
+// Negative ids keep all the Number(id) comparisons in this file safe.
+const INTERNAL_CLIENTS = [
+  { id: -1, name: 'Office Work', work_type: 'office_work', internal: true },
+  { id: -2, name: 'Test Task', work_type: 'test_task', internal: true },
+];
+
+// What actually goes to the server: internal pseudo-clients have no real row.
+function payloadClientId(client) {
+  return client?.internal ? null : Number(client.id);
 }
 
 function defaultWorkType(client) {
@@ -254,7 +273,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
         await window.tt.tracker.stop({});
       }
       const next = await window.tt.tracker.start({
-        client_id: Number(client.id),
+        client_id: payloadClientId(client),
         upwork_profile_id: client.upwork_profile_id || null,
         work_type: wt,
         task_note: note,
@@ -395,7 +414,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
       const [clientsRes, statusRes, todayRes] = results;
 
       if (clientsRes.status === 'fulfilled') {
-        setClients(clientsRes.value || []);
+        setClients([...INTERNAL_CLIENTS, ...(clientsRes.value || [])]);
       }
       if (statusRes.status === 'fulfilled') {
         setStatus(statusRes.value);
@@ -455,7 +474,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     (async () => {
       try {
         const next = await window.tt.tracker.start({
-          client_id: Number(client.id),
+          client_id: payloadClientId(client),
           upwork_profile_id: client.upwork_profile_id || null,
           work_type: workType,
           task_note: note,
@@ -518,7 +537,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
       }
 
       const next = await window.tt.tracker.start({
-        client_id: Number(selectedClient.id),
+        client_id: payloadClientId(selectedClient),
         upwork_profile_id: selectedClient.upwork_profile_id || null,
         work_type: effectiveWorkType || null,
         task_note: picker.task_note.trim(),
@@ -676,6 +695,23 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
           </div>
         </div>
         <p className="settings-note">Team settings are managed by your administrator in the web app.</p>
+
+        {typeof window.tt?.updates?.check === 'function' && (
+          <button
+            type="button"
+            className="setting-toggle-row"
+            onClick={async () => {
+              const result = await window.tt.updates.check();
+              setWarning(result?.message || 'Update check finished.');
+              setMenuOpen(false);
+            }}
+          >
+            <span className="setting-toggle-text">
+              <strong>Check for updates</strong>
+              <small>Updates download in the background and apply on restart.</small>
+            </span>
+          </button>
+        )}
 
         <div className="drawer-footer">
           <button className="logout-button" onClick={handleLogout}>Log out</button>

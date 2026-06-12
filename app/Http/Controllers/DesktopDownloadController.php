@@ -8,9 +8,9 @@ use Inertia\Inertia;
 
 class DesktopDownloadController extends Controller
 {
-    private const WINDOWS_INSTALLER = 'Timetracker Desktop Setup 0.1.0.exe';
+    private const WINDOWS_INSTALLER = 'Timetracker Desktop Setup 0.2.0.exe';
 
-    private const WINDOWS_VERSION = '0.1.0';
+    private const WINDOWS_VERSION = '0.2.0';
 
     private const MAC_VERSION = '0.1.0';
 
@@ -20,6 +20,9 @@ class DesktopDownloadController extends Controller
      * unzip, drag to Applications).
      */
     private const MAC_INSTALLERS = [
+        'Timetracker Desktop-0.2.0-universal.dmg',
+        'Timetracker Desktop-0.2.0-arm64.dmg',
+        'Timetracker Desktop-0.2.0.dmg',
         'Timetracker Desktop-0.1.0-universal.dmg',
         'Timetracker Desktop-0.1.0-arm64.dmg',
         'Timetracker Desktop-0.1.0.dmg',
@@ -45,7 +48,7 @@ class DesktopDownloadController extends Controller
                 ],
                 'mac' => [
                     'available' => $mac !== null,
-                    'version' => $mac ? self::MAC_VERSION : null,
+                    'version' => $mac ? ($this->versionFromFilename(basename($mac['path'])) ?? self::MAC_VERSION) : null,
                     'filename' => $mac ? basename($mac['path']) : null,
                     'size' => $mac['size'] ?? null,
                     'sha256' => $mac['sha256'] ?? null,
@@ -91,6 +94,29 @@ class DesktopDownloadController extends Controller
         ]);
     }
 
+    /**
+     * electron-updater feed: latest.yml plus the artifacts it references.
+     * Public — the desktop updater has no web session. Single path segment
+     * only; the patterns below block traversal and non-update files.
+     */
+    public function updates(string $file)
+    {
+        abort_unless(preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._-]*$/', $file) === 1, 404);
+        abort_unless(preg_match('/\.(yml|exe|blockmap|dmg|zip)$/i', $file) === 1, 404);
+
+        foreach ($this->searchDirs() as $dir) {
+            $path = rtrim($dir, '/').'/'.$file;
+            if (File::isFile($path)) {
+                return response()->file($path, [
+                    'Cache-Control' => 'no-cache',
+                    'X-Content-Type-Options' => 'nosniff',
+                ]);
+            }
+        }
+
+        abort(404);
+    }
+
     public function mac()
     {
         $path = $this->macInstaller();
@@ -123,6 +149,11 @@ class DesktopDownloadController extends Controller
             storage_path('app/desktop-installers'),
             base_path('desktop/dist-app'),
         ]);
+    }
+
+    private function versionFromFilename(string $name): ?string
+    {
+        return preg_match('/(\d+\.\d+\.\d+)/', $name, $m) ? $m[1] : null;
     }
 
     private function windowsInstaller(): ?string

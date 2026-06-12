@@ -63,6 +63,10 @@ Route::get('/cron/run/{token}', [SchedulerController::class, 'run'])
 // Uploaded app logo — public because it renders on the login/welcome pages.
 Route::get('/branding/logo', [BrandingController::class, 'logo'])->name('branding.logo');
 
+// Desktop auto-update feed (latest.yml + artifacts) — public, the updater
+// has no web session. File safety is enforced inside the controller.
+Route::get('/desktop-updates/{file}', [DesktopDownloadController::class, 'updates'])->name('desktop-updates.file');
+
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
