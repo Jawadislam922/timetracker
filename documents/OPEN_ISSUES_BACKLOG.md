@@ -31,17 +31,20 @@ Working list, worked one by one. Last updated: 2026-06-12 (late evening).
 
 1. **AI integration phase 1** — AI-written daily Slack digest narrative +
    "Summarize this day" button on Timeline. Laravel + official PHP SDK
-   (anthropic-ai/sdk), key managed on the Developer page (new "AI" group).
+   (anthropic-ai/sdk). The Developer page "AI" group + ANTHROPIC_API_KEY
+   slot + services.anthropic config SHIPPED (d173be6).
    **Blocked on:** user creating an Anthropic API key (console.anthropic.com).
-2. **Navigation reorganization + clickable rows** (proposed & endorsed):
-   Dashboard / Timeline / Work Diary top-level; Performance ▾ = Reports +
-   Team Performance (renamed from Team, rows clickable → member report);
-   Attendance top-level; Management ▾ = Users / Clients / Profiles (clients
-   clickable → client report); System ▾ = Settings / Developer (super-admin);
-   Desktop App moves to the avatar menu.
-3. **Design revamp** — direction pick pending (Ember dark recommended /
-   Polar light / Dusk hybrid), then phase 2 app shell, phase 3 data-heavy
-   pages. No performance regressions allowed.
+2. ~~Navigation reorganization + clickable rows~~ **SHIPPED d173be6**,
+   QA'd in browser 2026-06-13: Performance ▾ / Management ▾ / System ▾
+   groups, Attendance top-level, Desktop App in avatar menu, Team renamed
+   Team Performance with member click→filtered report, client click→report.
+3. **Design revamp (Ember cinematic — picked 2026-06-13)** — phase 2 shell
+   SHIPPED e912318 (dark nav + orange active pills, dark header bands,
+   dashboard hero, ember CTAs). Phase 3 PENDING: convert data-heavy pages
+   (Dashboard cards/tables, Timeline, Team Performance, Reports, Clients,
+   Settings) to authored dark. Note: color-scheme "only light" meta shipped
+   d38e813 to stop Chromium auto-dark force-inverting light panels — flip
+   it to "dark" when phase 3 lands.
 4. **Reports deeper lightening** — server-side pagination/filtering so the
    month view stops shipping every row to the browser (page already
    paginates client-side; heavy dropdown hydration already fixed).
