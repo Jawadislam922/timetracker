@@ -16,14 +16,14 @@ tracker requires picking a client to start. The owner's workaround idea
   type (`workTypeOptions()` in `desktop/renderer/src/views/Tracker.jsx`), so
   a fake client would still record Tracker/Manual, not Office Work.
 
-**Agreed fix:** clientless sessions are already supported by the API
-(`StartSessionRequest.client_id` is nullable; `SessionController::start`
-stores null). Add a pinned **"Office Work (no client)"** option to the
-desktop client picker that starts a session with `client_id = null`,
-`work_type = 'office_work'`. The work-hour sync then produces rows identical
-to manual Office Work entries (Reports already render "No Client" +
-Office Work chip). Verify Timeline/Team aggregations render null-client
-sessions cleanly.
+**Agreed fix (updated 2026-06-12):** clientless sessions are already
+supported by the API (`StartSessionRequest.client_id` is nullable;
+`SessionController::start` stores null). Add TWO pinned no-client options to
+the desktop picker: **"Office Work"** (`work_type = 'office_work'`) and
+**"Test Task"** (`work_type = 'test_task'`) — both values already pass the
+server whitelist and render with chips in Reports/Slack. The work-hour sync
+then produces rows identical to manual entries ("No Client" + the work-type
+chip). Verify Timeline/Team aggregations render null-client sessions cleanly.
 
 **Touches:** desktop renderer (picker + quick-start chips + workTypeOptions),
 light server checks. **Requires a new desktop installer build** (Windows NSIS
@@ -60,6 +60,22 @@ whereIn queries (or one range query bucketed in PHP), mirroring the
 DashboardController::loadSums() approach. Server-side; no desktop rebuild.
 Also confirm the desktop clock bar isn't calling the same heavy endpoint.
 
+## 4. Desktop login screen revamp — OPEN
+
+**Reported 2026-06-12.** The login screen exposes Server URL and Device name
+fields (`desktop/renderer/src/views/Login.jsx`) — confusing for employees.
+
+- **Server URL**: default to https://timetracker.sparkingasia.com baked in;
+  hide the field behind a small "Advanced" toggle (kept for local dev).
+- **Device name**: auto-fill from the machine hostname (`os.hostname()` in
+  the main process); editable but never required.
+- **Remember me**: persist email + password locally so reopening the app
+  signs in without retyping. Password encrypted at rest with Electron
+  `safeStorage` (OS keychain-backed), never plaintext in the store file.
+- **Show/hide password** eye toggle so typos are visible.
+
+Desktop-only → part of the next installer bundle.
+
 ## Next in queue (carried from earlier sessions)
 
 2. **Design revamp** — phase 1 welcome+login (approved, awaiting "go"),
@@ -79,9 +95,10 @@ Also confirm the desktop clock bar isn't calling the same heavy endpoint.
    deploy-proof installers folder via a public route on
    timetracker.sparkingasia.com. Check on launch + periodic + a manual
    "Check for updates" control; background download; install-on-restart (no
-   uninstall/reinstall). Windows works unsigned. macOS auto-update REQUIRES
-   Apple code signing — Apple Developer ID ($99/yr) also removes the
-   Gatekeeper "could not verify" friction, one purchase fixes both. Plan:
-   ship the NEXT desktop build as the one-final-manual-install bundle =
-   auto-updater + Office Work picker (#1) + 401 re-auth UX (#2); everything
-   after arrives via auto-update.
+   uninstall/reinstall). Windows works unsigned. **Apple Developer ID
+   DECLINED (2026-06-12)** — too expensive for now, only 2 Macs in the team:
+   Mac users stay on manual updates with the documented Gatekeeper unblock
+   steps. Plan: ship the NEXT desktop build as the one-final-manual-install
+   bundle = auto-updater + Office Work/Test Task pickers (#1) + 401 re-auth
+   UX (#2) + login screen revamp (#4); everything after arrives via
+   auto-update on Windows.
