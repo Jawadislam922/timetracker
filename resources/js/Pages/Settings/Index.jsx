@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -81,23 +81,28 @@ function SectionShell({ title, blurb, children }) {
 
 // Saves fire in the background — the optimistic local state IS the UI, so
 // there's no Inertia visit, no progress bar, and no heavy props reload.
-// On a rare failure we resync from the server.
+// On a rare failure a hard reload resyncs everything from the server
+// (router.reload only refreshes props, which local state ignores).
+function resyncAfterFailure() {
+    toast.error('Could not save that change — reloading current settings.');
+    setTimeout(() => window.location.reload(), 1200);
+}
+
 function patchTeam(values) {
-    axios.put(route('settings.team.update'), values).catch(() => {
-        toast.error('Could not save that change — reloading current settings.');
-        router.reload({ preserveScroll: true });
-    });
+    axios.put(route('settings.team.update'), values).catch(resyncAfterFailure);
 }
 
 function patchUser(user, category, enabled, values) {
     axios.put(
         route('settings.user.update', { user: user.id }),
         { category, enabled, values: values || {} }
-    ).catch(() => {
-        toast.error('Could not save that change — reloading current settings.');
-        router.reload({ preserveScroll: true });
-    });
+    ).catch(resyncAfterFailure);
 }
+
+// The override rows render deep inside each section, but the users list
+// lives in page state — this dispatch lets a row flip its toggle in that
+// state so the UI shows the save (the axios call never refreshes props).
+const OverridesDispatchContext = createContext(() => {});
 
 function ScreenshotsSection({ team, users, setTeam }) {
     const captureOff = !team.capture_enabled || team.screenshots_per_hour === 0;
@@ -654,6 +659,7 @@ function DesktopAppSection({ team, users, setTeam }) {
 }
 
 function IndividualSettings({ category, users, flagKey, defaultValues, editor }) {
+    const updateOverrides = useContext(OverridesDispatchContext);
     return (
         <div className="space-y-3 pt-6">
             <h3 className="text-base font-semibold text-slate-900">Individual settings</h3>
@@ -664,8 +670,14 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                 )}
                 {users.map((user) => {
                     const enabled = !!user.overrides?.[flagKey];
-                    const setEnabled = (en) => patchUser(user, category, en, en ? defaultValues : {});
-                    const setValues = (values) => patchUser(user, category, true, values);
+                    const setEnabled = (en) => {
+                        updateOverrides(user.id, { [flagKey]: en, ...(en ? defaultValues : {}) });
+                        patchUser(user, category, en, en ? defaultValues : {});
+                    };
+                    const setValues = (values) => {
+                        updateOverrides(user.id, values);
+                        patchUser(user, category, true, values);
+                    };
                     return (
                         <div key={user.id} className="space-y-2 py-3">
                             <div className="flex items-center gap-3">
@@ -685,9 +697,16 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
     );
 }
 
-export default function SettingsIndex({ auth, team: initialTeam, users }) {
+export default function SettingsIndex({ auth, team: initialTeam, users: initialUsers }) {
     const [team, setTeam] = useState(initialTeam);
+    const [users, setUsers] = useState(initialUsers);
     const [active, setActive] = useState('screenshots');
+
+    const updateOverrides = useCallback((userId, patch) => {
+        setUsers((prev) => prev.map((u) => (
+            u.id === userId ? { ...u, overrides: { ...(u.overrides || {}), ...patch } } : u
+        )));
+    }, []);
 
     const items = useMemo(() => CATEGORIES.map((cat) => ({
         ...cat,
@@ -698,6 +717,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users }) {
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Settings</h2>}>
             <Head title="Settings" />
 
+            <OverridesDispatchContext.Provider value={updateOverrides}>
             <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
                 <div className="overflow-hidden rounded-lg bg-white shadow">
                     <div className="border-b border-slate-200 bg-slate-100 px-6 py-4">
@@ -791,6 +811,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users }) {
                     </div>
                 </div>
             </div>
+            </OverridesDispatchContext.Provider>
         </AuthenticatedLayout>
     );
 }
