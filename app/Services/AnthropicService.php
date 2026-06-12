@@ -79,7 +79,7 @@ class AnthropicService
         $lines = collect($payload['rows'])->map(fn (array $row) => sprintf(
             '%s: %s tracked, %d%% activity, top client: %s, top app: %s',
             $row['name'],
-            gmdate('G\h i\m', (int) $row['total_seconds']),
+            $this->hoursLabel((int) $row['total_seconds']),
             $row['activity_percent'],
             $row['top_client'] ?: 'none',
             $row['top_app'] ?: 'none',
@@ -92,10 +92,19 @@ class AnthropicService
 
         $user = "Date: {$payload['range']['label']}\n"
             ."Team totals: {$payload['totals']['people']} people, "
-            .gmdate('G\h i\m', (int) $payload['totals']['total_seconds'])." tracked, "
+            .$this->hoursLabel((int) $payload['totals']['total_seconds'])." tracked, "
             ."{$payload['totals']['avg_activity']}% average activity.\n\n"
             ."Per person:\n{$lines}";
 
         return $this->complete($system, $user, 400);
+    }
+
+    /**
+     * "109h 50m" — gmdate() wraps at 24h, which silently understated team
+     * totals in the prompt (109h became 13h).
+     */
+    private function hoursLabel(int $seconds): string
+    {
+        return intdiv($seconds, 3600).'h '.intdiv($seconds % 3600, 60).'m';
     }
 }
