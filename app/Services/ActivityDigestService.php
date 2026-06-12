@@ -116,6 +116,15 @@ class ActivityDigestService
             $this->humanSeconds($totals['total_seconds']),
             $totals['avg_activity'],
         );
+
+        // AI narrative — only when an Anthropic key is configured on the
+        // Developer page; without it the digest sends exactly as before.
+        $narrative = app(AnthropicService::class)->digestNarrative($payload);
+        if ($narrative) {
+            $lines[] = '';
+            $lines[] = ':sparkles: '.$narrative;
+        }
+
         $lines[] = '';
         $lines[] = '```';
         $lines[] = sprintf('%-22s %8s %5s  %-22s %-22s', 'Member', 'Time', 'Act%', 'Top client', 'Top app');

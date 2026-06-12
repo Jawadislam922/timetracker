@@ -479,6 +479,19 @@ class WorkHourController extends Controller
             'clients' => $selectedClients,
         ]);
 
+        // Server-side search across all pages — the search box previously
+        // only filtered the rows already on screen, silently hiding matches
+        // that lived on other pages.
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('tracker', 'like', "%{$search}%")
+                    ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('client', fn ($c) => $c->where('name', 'like', "%{$search}%"));
+            });
+        }
+
         // Implement pagination with dynamic per page
         $workHours = $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
 
@@ -488,6 +501,7 @@ class WorkHourController extends Controller
         $users = User::orderBy('name')->get(['id', 'name', 'include_in_slack_reports']);
 
         return Inertia::render('WorkHoursReport', [
+            'search' => $search,
             'workHours' => $workHours,
             'users' => $users,
             'filter' => $filter,

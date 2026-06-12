@@ -96,6 +96,7 @@ export default function WorkHoursReport({
     filterOptions = {},
     slackConfigured = false,
     slackWeeklyEnabled = false,
+    search = '',
 }) {
     const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.export');
     const canSendSlack = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.send_slack');
@@ -109,7 +110,7 @@ export default function WorkHoursReport({
     const [selectedClients, setSelectedClients] = useState(selectedFilters.clients || (client !== 'all' ? [client] : []));
     const [selectedTrackers, setSelectedTrackers] = useState(selectedFilters.trackers || []);
     const [selectedDesignations, setSelectedDesignations] = useState(selectedFilters.designations || []);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(search);
     const [isExporting, setIsExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showSlackDialog, setShowSlackDialog] = useState(false);
@@ -165,10 +166,13 @@ export default function WorkHoursReport({
         const currentClients = overrides.selectedClients !== undefined ? overrides.selectedClients : selectedClients;
         const currentTrackers = overrides.selectedTrackers !== undefined ? overrides.selectedTrackers : selectedTrackers;
         const currentDesignations = overrides.selectedDesignations !== undefined ? overrides.selectedDesignations : selectedDesignations;
-        
+        const currentSearch = overrides.searchTerm !== undefined ? overrides.searchTerm : searchTerm;
+
         const params = {
             filter: currentDateFilter,
         };
+
+        if (currentSearch && currentSearch.trim() !== '') params.search = currentSearch.trim();
 
         if (currentUsers.length) params.userIds = currentUsers;
         if (currentWorkTypes.length) params.workTypes = currentWorkTypes;
@@ -465,12 +469,12 @@ export default function WorkHoursReport({
                     />
 
                     {/* Filters & Actions Card */}
-                    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={() => setShowFilters(!showFilters)}
-                                    className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold transition ${showFilters ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                    className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold transition ${showFilters ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
                                 >
                                     <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -497,8 +501,17 @@ export default function WorkHoursReport({
                                     type="text"
                                     placeholder="Search report..."
                                     value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setSearchTerm(value);
+                                        // Debounced server-side search so matches on
+                                        // other pages are found, not just this page.
+                                        clearTimeout(window.reportSearchTimeout);
+                                        window.reportSearchTimeout = setTimeout(() => {
+                                            applyFilters({ searchTerm: value });
+                                        }, 400);
+                                    }}
+                                    className="w-full pl-10 pr-4 py-2 border border-slate-700 bg-slate-900 rounded-lg text-slate-200 placeholder-slate-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                 />
                                 <svg className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -508,7 +521,7 @@ export default function WorkHoursReport({
 
                         {/* Filters Panel */}
                         {showFilters && (
-                            <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+                            <div className="mt-3 space-y-3 border-t border-slate-800 pt-3">
                                 {/* Date Range */}
                                 <div>
                                     <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-600">Date Range</label>
@@ -526,8 +539,8 @@ export default function WorkHoursReport({
                                                 }}
                                                 className={`rounded-lg px-3 py-2 text-sm font-medium capitalize transition ${
                                                     dateFilter === filter
-                                                        ? 'bg-slate-900 text-white'
-                                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                                                        : 'bg-white/10 text-slate-300 hover:bg-white/20'
                                                 }`}
                                             >
                                                 {filter === 'all' ? 'All Dates' : filter === 'week' ? 'This Week' : filter === 'month' ? 'This Month' : filter}
@@ -538,7 +551,7 @@ export default function WorkHoursReport({
                                     {dateFilter === 'custom' && (
                                         <div className="flex flex-wrap gap-4 mt-4">
                                             <div>
-                                                <label className="block text-sm text-slate-600 mb-1">Start Date</label>
+                                                <label className="block text-sm text-slate-400 mb-1">Start Date</label>
                                                 <DatePicker
                                                     selected={customStartDate}
                                                     onChange={(date) => setCustomStartDate(date)}
@@ -548,7 +561,7 @@ export default function WorkHoursReport({
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm text-slate-600 mb-1">End Date</label>
+                                                <label className="block text-sm text-slate-400 mb-1">End Date</label>
                                                 <DatePicker
                                                     selected={customEndDate}
                                                     onChange={(date) => setCustomEndDate(date)}
@@ -637,12 +650,12 @@ export default function WorkHoursReport({
                     </div>
 
                     {/* Data Table */}
-                    <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-slate-200">
-                                <thead className="bg-slate-900">
+                            <table className="min-w-full divide-y divide-slate-800">
+                                <thead className="bg-slate-950">
                                     <tr>
-                                        <th className="sticky left-0 z-10 whitespace-nowrap bg-slate-900 px-4 py-3 text-left text-xs font-bold uppercase text-white">Date</th>
+                                        <th className="sticky left-0 z-10 whitespace-nowrap bg-slate-950 px-4 py-3 text-left text-xs font-bold uppercase text-white">Date</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">User</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Client</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Work Type</th>
@@ -652,7 +665,7 @@ export default function WorkHoursReport({
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase">Description</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-200">
+                                <tbody className="divide-y divide-slate-800">
                                     {filteredData.length === 0 ? (
                                         <tr>
                                             <td colSpan="8" className="px-0 py-12 text-center">
@@ -660,41 +673,41 @@ export default function WorkHoursReport({
                                                     <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                                     </svg>
-                                                    <h3 className="text-lg font-medium text-slate-900 mb-2">No data found</h3>
-                                                    <p className="text-slate-600">Try adjusting your filters</p>
+                                                    <h3 className="text-lg font-medium text-white mb-2">No data found</h3>
+                                                    <p className="text-slate-400">Try adjusting your filters</p>
                                                 </div>
                                             </td>
                                         </tr>
                                     ) : (
                                         filteredData.map((entry, index) => (
-                                            <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-emerald-50 transition-colors`}>
-                                                <td className="sticky left-0 z-[1] whitespace-nowrap bg-inherit px-4 py-3 text-sm font-medium text-slate-900">{entry.date}</td>
-                                                <td className="px-4 py-3 text-sm text-slate-900">{entry.user?.name || 'N/A'}</td>
-                                                <td className="px-4 py-3 text-sm text-slate-900">{entry.client?.name || 'No Client'}</td>
+                                            <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950/50'} hover:bg-white/5 transition-colors`}>
+                                                <td className="sticky left-0 z-[1] whitespace-nowrap bg-inherit px-4 py-3 text-sm font-medium text-slate-100">{entry.date}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-100">{entry.user?.name || 'N/A'}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-300">{entry.client?.name || 'No Client'}</td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-500/15 text-purple-300 rounded-full">
                                                         {formatWorkType(entry.work_type)}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full capitalize">
+                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-500/15 text-teal-300 rounded-full capitalize">
                                                         {entry.tracker}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
                                                     {entry.source === 'tracker' ? (
-                                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700" title="Auto-captured from the desktop tracker">
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-300" title="Auto-captured from the desktop tracker">
                                                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                                             Auto
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700" title="Logged by hand in the web app (Add Entry)">
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300" title="Logged by hand in the web app (Add Entry)">
                                                             Logged
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-bold text-green-700">{timeFormat(entry.hours)}</td>
-                                                <td className="px-4 py-3 text-sm text-slate-700">
+                                                <td className="px-4 py-3 text-sm font-bold text-emerald-400">{timeFormat(entry.hours)}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-300">
                                                     <div className="max-w-xs truncate" title={entry.description}>
                                                         {entry.description || '-'}
                                                     </div>
@@ -704,10 +717,10 @@ export default function WorkHoursReport({
                                     )}
                                 </tbody>
                                 {filteredData.length > 0 && (
-                                    <tfoot className="bg-gradient-to-r from-emerald-50 to-teal-50">
+                                    <tfoot className="bg-slate-950">
                                         <tr>
-                                            <td colSpan="6" className="px-4 py-3 text-right font-bold text-slate-900">Total:</td>
-                                            <td className="px-4 py-3 font-bold text-green-700 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
+                                            <td colSpan="6" className="px-4 py-3 text-right font-bold text-slate-100">Total:</td>
+                                            <td className="px-4 py-3 font-bold text-emerald-400 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
                                             <td></td>
                                         </tr>
                                     </tfoot>
@@ -717,9 +730,9 @@ export default function WorkHoursReport({
 
                         {/* Pagination */}
                         {workHours?.data && workHours.data.length > 0 && (
-                            <div className="p-6 border-t border-slate-200">
+                            <div className="p-6 border-t border-slate-800">
                                 <div className="flex justify-between items-center mb-4">
-                                    <div className="text-slate-700 text-sm font-medium">
+                                    <div className="text-slate-300 text-sm font-medium">
                                         Showing {workHours.from || 0} to {workHours.to || 0} of {workHours.total || 0} entries
                                     </div>
                                 </div>

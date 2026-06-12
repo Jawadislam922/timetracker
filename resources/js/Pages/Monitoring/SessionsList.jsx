@@ -1,6 +1,6 @@
 import React from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 
 function fmtDuration(seconds) {
     if (!seconds) return '0m';
@@ -9,16 +9,26 @@ function fmtDuration(seconds) {
     return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Honors the company display settings (timezone + 12/24h) instead of the
+// viewer's machine locale.
+let DISPLAY = { timezone: 'Asia/Karachi', format: '12' };
+
 function fmtDate(iso) {
     if (!iso) return '—';
     try {
-        return new Date(iso).toLocaleString();
+        return new Date(iso).toLocaleString('en-US', {
+            timeZone: DISPLAY.timezone,
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit',
+            hour12: String(DISPLAY.format) !== '24',
+        });
     } catch {
         return iso;
     }
 }
 
 export default function SessionsList({ auth, sessions, users = [], filters = {}, permissions = {} }) {
+    DISPLAY = usePage().props.display || DISPLAY;
     const onUserChange = (e) => {
         const userId = e.target.value;
         router.get(route('monitoring.sessions'), userId ? { user_id: userId } : {}, { preserveState: true });

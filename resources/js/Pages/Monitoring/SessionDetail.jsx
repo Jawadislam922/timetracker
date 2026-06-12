@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 
 function fmtDuration(seconds) {
     if (!seconds) return '0m';
@@ -9,16 +9,25 @@ function fmtDuration(seconds) {
     return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+// Honors the company display settings (timezone + 12/24h) instead of the
+// viewer's machine locale.
+let DISPLAY = { timezone: 'Asia/Karachi', format: '12' };
+
 function fmtTime(iso) {
     if (!iso) return '—';
     try {
-        return new Date(iso).toLocaleTimeString();
+        return new Date(iso).toLocaleTimeString('en-US', {
+            timeZone: DISPLAY.timezone,
+            hour: 'numeric', minute: '2-digit',
+            hour12: String(DISPLAY.format) !== '24',
+        });
     } catch {
         return iso;
     }
 }
 
 export default function SessionDetail({ auth, session, screenshots = [], permissions = {} }) {
+    DISPLAY = usePage().props.display || DISPLAY;
     const [lightbox, setLightbox] = useState(null);
 
     return (
