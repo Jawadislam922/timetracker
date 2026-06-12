@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\TimeClockRules;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 class TimeEntryController extends Controller
@@ -159,28 +160,11 @@ class TimeEntryController extends Controller
         $monthStart = Carbon::now('Asia/Karachi')->startOfMonth();
 
         if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {
-            $employeesData = User::all()->map(function ($employee) use ($now, $weekStart, $monthStart) {
-                $today = $employee->attendanceDateFor($now);
+            $employees = User::all();
+            $entriesByUser = $this->loadSummaryEntries($employees->pluck('id')->all(), $now, $weekStart, $monthStart);
 
-                // Load today's entries
-                $todayEntries = $employee->timeEntries()
-                    ->whereDate('action_date', $today)
-                    ->orderBy('action_timestamp', 'asc')
-                    ->get();
-
-                // Load weekly entries
-                $weeklyEntries = $employee->timeEntries()
-                    ->where('action_date', '>=', $weekStart)
-                    ->orderBy('action_timestamp', 'asc')
-                    ->get();
-
-                // Load monthly entries
-                $monthlyEntries = $employee->timeEntries()
-                    ->where('action_date', '>=', $monthStart)
-                    ->orderBy('action_timestamp', 'asc')
-                    ->get();
-
-                return $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
+            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser) {
+                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart);
             })->filter(function ($employee) {
                 // Only show employees who have entries today
                 return $employee['total_entries'] > 0;
@@ -191,31 +175,52 @@ class TimeEntryController extends Controller
             ]);
         } else {
             // Regular users see only their own data
-            $employee = $user;
-            $today = $employee->attendanceDateFor($now);
-
-            // Load today's entries
-            $todayEntries = $employee->timeEntries()
-                ->whereDate('action_date', $today)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
-
-            // Load weekly entries
-            $weeklyEntries = $employee->timeEntries()
-                ->where('action_date', '>=', $weekStart)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
-
-            // Load monthly entries
-            $monthlyEntries = $employee->timeEntries()
-                ->where('action_date', '>=', $monthStart)
-                ->orderBy('action_timestamp', 'asc')
-                ->get();
+            $entriesByUser = $this->loadSummaryEntries([$user->id], $now, $weekStart, $monthStart);
 
             return response()->json([
-                'employees' => [$this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries)],
+                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart)],
             ]);
         }
+    }
+
+    /**
+     * One grouped fetch instead of three queries per employee — the previous
+     * shape ran ~165 queries for a full team and made every clock action feel
+     * 5+ seconds slow (the dashboard refetches this summary after each one).
+     *
+     * @param  array<int>  $userIds
+     * @return Collection keyed by user_id, entries ordered chronologically
+     */
+    private function loadSummaryEntries(array $userIds, Carbon $now, Carbon $weekStart, Carbon $monthStart): Collection
+    {
+        // An overnight shift's "today" can resolve to yesterday's date, which
+        // on the 1st of a month falls before monthStart — widen the range so
+        // the today-bucket never loses entries.
+        $rangeStart = min($monthStart->toDateString(), $weekStart->toDateString(), $now->copy()->subDay()->toDateString());
+
+        return TimeEntry::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('action_date', '>=', $rangeStart)
+            ->orderBy('action_timestamp', 'asc')
+            ->get()
+            ->groupBy('user_id');
+    }
+
+    /**
+     * @param  Collection  $entries  this user's entries, chronological
+     * @return array<string, mixed>
+     */
+    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart): array
+    {
+        $today = $employee->attendanceDateFor($now);
+        $weekStartDate = $weekStart->toDateString();
+        $monthStartDate = $monthStart->toDateString();
+
+        $todayEntries = $entries->filter(fn ($e) => $e->action_date->toDateString() === $today)->values();
+        $weeklyEntries = $entries->filter(fn ($e) => $e->action_date->toDateString() >= $weekStartDate)->values();
+        $monthlyEntries = $entries->filter(fn ($e) => $e->action_date->toDateString() >= $monthStartDate)->values();
+
+        return $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
     }
 
     private function calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries)
