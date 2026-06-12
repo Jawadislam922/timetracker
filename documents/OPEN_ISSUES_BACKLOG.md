@@ -30,6 +30,36 @@ light server checks. **Requires a new desktop installer build** (Windows NSIS
 + macOS via the Mac session) and users updating — batch with other pending
 desktop changes.
 
+## 2. Desktop tracker 401 — "Could not load tracker data" — OPEN
+
+**Reported 2026-06-12** (screenshot of the desktop app error banner):
+`meta:clients` and `meta:todaySessions` both fail with 401. This is the
+desktop app (Electron IPC `meta:*` methods): its stored Sanctum API token is
+no longer valid. Immediate user workaround: log out and back in inside the
+desktop app.
+
+To investigate/fix:
+- Why the token became invalid (revoked? deleted? never refreshed after a
+  password change/reset? — the new Slack reset flow rotates remember_token
+  but does not touch Sanctum tokens, so identify the actual revocation path).
+- UX: on any 401 the desktop app should drop to the login screen with a
+  "session expired, please sign in again" message instead of a raw Axios
+  error banner. (Desktop change → needs installer rebuild; batch with #1.)
+
+## 3. Clock In/Out actions take 5-6 seconds — OPEN (performance)
+
+**Reported 2026-06-12**, channel unknown (web dashboard or desktop).
+Likely root cause found on inspection: after each clock action the dashboard
+refetches `time-entries/today-summary`, and for users with team visibility
+`TimeEntryController::getTodaysSummary()` loads **3 separate entry queries
+per employee × ~55 users ≈ 165 queries** per refresh. Same N+1 family as the
+old DashboardController (fixed 2026-06-11 by batching into grouped queries).
+
+Fix sketch: batch the per-user today/week/month entry loads into 3 grouped
+whereIn queries (or one range query bucketed in PHP), mirroring the
+DashboardController::loadSums() approach. Server-side; no desktop rebuild.
+Also confirm the desktop clock bar isn't calling the same heavy endpoint.
+
 ## Next in queue (carried from earlier sessions)
 
 2. **Design revamp** — phase 1 welcome+login (approved, awaiting "go"),
