@@ -34,20 +34,25 @@ class AvatarController extends Controller
             return response('', 304, ['ETag' => $etag, 'Cache-Control' => 'public, max-age=604800']);
         }
 
-        $bytes = Cache::remember('avatar-bytes:'.md5($path), now()->addDays(7), function () use ($path) {
-            return Storage::disk('avatars')->exists($path)
-                ? Storage::disk('avatars')->get($path)
-                : false;
+        // Cache the downscaled bytes (most uploads are multi-MB phone photos
+        // shown at 32–80 px). 160 px covers retina at the largest display.
+        $cacheKey = 'avatar-thumb:'.md5($path);
+        $cached = Cache::remember($cacheKey, now()->addDays(7), function () use ($path) {
+            if (! Storage::disk('avatars')->exists($path)) {
+                return false;
+            }
+            $resized = \App\Support\ImageResizer::fit(Storage::disk('avatars')->get($path), 160);
+
+            return ['bytes' => $resized['bytes'], 'mime' => $resized['mime'] ?? $this->mimeFor($path)];
         });
 
-        if ($bytes === false) {
-            // Don't cache the miss permanently — file may appear after upload.
-            Cache::forget('avatar-bytes:'.md5($path));
+        if ($cached === false) {
+            Cache::forget($cacheKey); // file may appear after a re-upload
             abort(404);
         }
 
-        return response($bytes, 200, [
-            'Content-Type' => $this->mimeFor($path),
+        return response($cached['bytes'], 200, [
+            'Content-Type' => $cached['mime'],
             'Cache-Control' => 'public, max-age=604800',
             'ETag' => $etag,
             'X-Content-Type-Options' => 'nosniff',

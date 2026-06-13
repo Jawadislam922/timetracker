@@ -30,27 +30,31 @@ class BrandingController extends Controller
             return response('', 304, ['ETag' => $etag, 'Cache-Control' => 'public, max-age=604800']);
         }
 
-        // Cache the bytes on the app server so we don't re-stream the logo
-        // from S3 (Stockholm) on every page — that round-trip was ~2.7s.
-        $bytes = Cache::remember('branding-logo-bytes:'.md5($path), now()->addDays(7), function () use ($path) {
-            return Storage::disk('avatars')->exists($path)
-                ? Storage::disk('avatars')->get($path)
-                : false;
+        // Cache a downscaled copy on the app server: the uploaded cinematic
+        // logo is ~1 MB at 1024 px but the nav/login show it under ~80 px, so
+        // a 320 px version (retina-safe) loads instantly instead of ~2.7s.
+        $cacheKey = 'branding-logo-thumb:'.md5($path);
+        $cached = Cache::remember($cacheKey, now()->addDays(7), function () use ($path) {
+            if (! Storage::disk('avatars')->exists($path)) {
+                return false;
+            }
+            $fallbackMime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+                'png' => 'image/png',
+                'webp' => 'image/webp',
+                default => 'image/jpeg',
+            };
+            $resized = \App\Support\ImageResizer::fit(Storage::disk('avatars')->get($path), 320);
+
+            return ['bytes' => $resized['bytes'], 'mime' => $resized['mime'] ?? $fallbackMime];
         });
 
-        if ($bytes === false) {
-            Cache::forget('branding-logo-bytes:'.md5($path));
+        if ($cached === false) {
+            Cache::forget($cacheKey);
             abort(404);
         }
 
-        $mime = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
-            'png' => 'image/png',
-            'webp' => 'image/webp',
-            default => 'image/jpeg',
-        };
-
-        return response($bytes, 200, [
-            'Content-Type' => $mime,
+        return response($cached['bytes'], 200, [
+            'Content-Type' => $cached['mime'],
             'Cache-Control' => 'public, max-age=604800',
             'ETag' => $etag,
             'X-Content-Type-Options' => 'nosniff',
