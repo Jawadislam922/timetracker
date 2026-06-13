@@ -32,7 +32,7 @@ class BrandingTest extends TestCase
 
         $this->get(route('branding.logo'))
             ->assertOk()
-            ->assertHeader('Cache-Control', 'max-age=86400, public');
+            ->assertHeader('Cache-Control', 'max-age=604800, public');
     }
 
     public function test_member_cannot_upload_a_logo(): void

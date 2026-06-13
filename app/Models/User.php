@@ -155,11 +155,11 @@ class User extends Authenticatable
             return null;
         }
 
-        if (config('filesystems.disks.avatars.driver') === 's3') {
-            return Storage::disk('avatars')->temporaryUrl($this->avatar, now()->addMinutes(30));
-        }
-
-        return asset('storage/'.$this->avatar);
+        // Stable, cacheable proxy route (see AvatarController). The ?v hash
+        // changes only when the avatar file changes, so the browser caches
+        // each image for a week instead of re-fetching a fresh presigned S3
+        // URL on every page render.
+        return route('avatar.show', ['user' => $this->id, 'v' => substr(md5($this->avatar), 0, 8)]);
     }
 
     /**

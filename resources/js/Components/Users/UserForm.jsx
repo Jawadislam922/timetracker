@@ -15,6 +15,7 @@ export default function UserForm({
     permissionGroups = {},
     canManageAccess = false,
     designationOptions = [],
+    returnTo = '',
 }) {
     const editing = Boolean(user);
     const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
@@ -36,7 +37,7 @@ export default function UserForm({
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
         avatar: null,
-        return_to: user?.return_to || '',
+        return_to: returnTo || user?.return_to || '',
     });
 
     const togglePermission = (permission) => {
