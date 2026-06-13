@@ -75,3 +75,28 @@ Working list, worked one by one. Last updated: 2026-06-12 (late evening).
   code so it builds the current version).
 - Team avatar re-uploads (originals were wiped by deploys pre-S3).
 - Audit night-shift users stored 21:00 vs real 22:00 shift start.
+
+## NEXT SESSION QUEUE (noted 2026-06-13 morning, before Jawad logged off)
+
+1. **Screenshot lightbox (first thing)** — clicking a screenshot must open
+   an in-page popup, NOT a new tab. Next/Prev arrows (+ arrow keys) to
+   flip through a session's screenshots fast; show time/app/activity; put
+   Flag and Delete inside the lightbox. Applies to Timeline and the
+   monitoring SessionDetail page.
+2. **Inertia v1 -> v2 upgrade** — hover prefetch + deferred props for
+   instant-feeling nav (measured floor ~0.7s, first visits ~2s).
+3. **Full-system page audit WITH Jawad** — walk every page together and
+   write documents/PAGE_AUDIT.md: per page (a) what it is for, (b) what
+   can be improved, (c) what looks bad, (d) performance notes. This is
+   the agreed page-per-page optimization plan.
+4. AI phase 2: act-through-chat (permissions/shifts/attendance changes
+   with confirmation cards) — awaiting explicit go.
+5. Dark interiors final polish (Clients/Users/Settings/Attendance/forms
+   card interiors) + flip the color-scheme meta to dark when complete.
+6. Coverage chip in Attendance Summary tab + teach the AI assistant
+   coverage questions.
+
+USER-SIDE (Jawad): bulk-set night team shifts (Users -> sort by Shift ->
+bulk edit); grant "Use the AI Assistant" to managers; verify Haris
+Junaid's 41h manual entry on 06-07; security batch (DB password, old AWS
+key, test crons); Mac build via the Mac prompt doc (builds v0.3.0).
