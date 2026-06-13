@@ -118,3 +118,23 @@ C. INDUSTRY-LEVEL FULL INSPECTION (CEO-ready): thorough joint pass over
    (Timeline = Reports = Team = Dashboard = Attendance), deletion cascades
    verified end to end, visual polish, empty states, error states, perf.
    Output: documents/PAGE_AUDIT.md with per-page findings + fix list.
+
+## SHIPPED 2026-06-13 (continued session, opus fast)
+- Deletion residue (gap A) FIXED e49f6c2: screenshot deletion that guts a
+  session <60s with no shots purges the whole session; Timeline totals/
+  Tasks/month-dots, week/month totals, and Team Performance ignore
+  sub-minute sessions. One-time prod cleanup removed 52 existing ghost
+  sessions (438s) + 33 orphan samples. Verified user 2 Fri Jun12 = 0m.
+- Work Diary reverse cascade (gap B) FIXED e49f6c2: deleting a tracker
+  entry (single+bulk) tears down its session, screenshots, samples;
+  manual entries unaffected; audit logged. Shared
+  TrackingSessionService::purge(). Tests: DeletionCascadeTest (3).
+- Screenshot lightbox (queue #1) SHIPPED 83ae935: in-page viewer, Prev/
+  Next + arrow keys across the day's shots, Esc close, header shows
+  time/app/activity/flag/position, Flag + Delete inside. NOT YET applied
+  to monitoring SessionDetail page — do in the joint audit.
+- 116 tests green.
+
+STILL NEXT: Inertia v2 speed upgrade (queue #2); full CEO-ready page
+audit WITH Jawad -> documents/PAGE_AUDIT.md (queue #3, gap C); apply
+lightbox to SessionDetail; dark card interiors; AI phase 2.
