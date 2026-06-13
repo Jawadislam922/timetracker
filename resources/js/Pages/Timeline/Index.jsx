@@ -175,7 +175,7 @@ function RollupList({ items, icon: Icon, emptyLabel }) {
     );
 }
 
-function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = false, onToggleSelect = null, onRequestDelete = null }) {
+function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = false, onToggleSelect = null, onRequestDelete = null, onOpen = null }) {
     const [busy, setBusy] = useState(false);
 
     const toggleFlag = () => {
@@ -221,14 +221,14 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = fals
                 </div>
             </div>
             {shot.thumbnail_url ? (
-                <a href={shot.image_url || shot.thumbnail_url} target="_blank" rel="noreferrer">
+                <button type="button" onClick={() => onOpen?.(shot.id)} className="block w-full cursor-zoom-in" title="Open viewer">
                     <img
                         src={shot.thumbnail_url}
                         alt={shot.active_window_title || 'Screenshot'}
                         loading="lazy"
                         className="block h-32 w-full object-cover"
                     />
-                </a>
+                </button>
             ) : (
                 <div className="flex h-32 w-full items-center justify-center text-xs text-slate-500">Image unavailable</div>
             )}
@@ -282,7 +282,7 @@ function fmtDayTime(iso) {
     }
 }
 
-function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete, onRequestDeleteSession }) {
+function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete, onRequestDeleteSession, onOpenShot }) {
     const daySeconds = session.day_seconds ?? session.total_seconds;
     const isSplit = session.started_before_day || session.continues_after_day;
     return (
@@ -365,6 +365,7 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                                     selected={selectedShots?.has(shot.id)}
                                     onToggleSelect={onToggleSelect}
                                     onRequestDelete={onRequestDelete}
+                                    onOpen={onOpenShot}
                                 />
                             ))}
                         </div>
@@ -403,6 +404,7 @@ export default function TimelineIndex({
     // Screenshot deletion: select tiles, then one modal collects the reason.
     // Deleting removes the tracked minutes those screenshots represent.
     const [selectedShots, setSelectedShots] = useState(new Set());
+    const [lightboxId, setLightboxId] = useState(null);
     const [deleteIds, setDeleteIds] = useState(null); // array => modal open (screenshots)
     const [deleteSession, setDeleteSession] = useState(null); // {id, label, seconds} => modal open (whole session)
     const [deleteReason, setDeleteReason] = useState('');
@@ -544,6 +546,42 @@ export default function TimelineIndex({
 
     const userOptions = users || [];
     const showUserPicker = permissions.view_others && userOptions.length > 1;
+
+    // Flat chronological list of the day's screenshots so the lightbox can
+    // step Prev/Next across every session without leaving the page.
+    const allShots = useMemo(
+        () => (data.sessions || []).flatMap((s) => (s.screenshots || []).map((shot) => ({ ...shot, sessionLabel: sessionLabel(s) }))),
+        [data.sessions]
+    );
+    const lightboxIndex = lightboxId == null ? -1 : allShots.findIndex((s) => s.id === lightboxId);
+    const lightboxShot = lightboxIndex >= 0 ? allShots[lightboxIndex] : null;
+    const stepLightbox = (delta) => {
+        if (lightboxIndex < 0) return;
+        const next = lightboxIndex + delta;
+        if (next >= 0 && next < allShots.length) setLightboxId(allShots[next].id);
+    };
+
+    useEffect(() => {
+        if (!lightboxShot) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightboxId(null);
+            else if (e.key === 'ArrowRight') stepLightbox(1);
+            else if (e.key === 'ArrowLeft') stepLightbox(-1);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [lightboxShot, lightboxIndex, allShots]);
+
+    const flagFromLightbox = () => {
+        if (!lightboxShot) return;
+        const next = !lightboxShot.is_flagged;
+        const reason = next ? prompt('Reason for flagging? (optional)') ?? '' : '';
+        router.patch(route('monitoring.screenshots.flag', { screenshot: lightboxShot.id }), { is_flagged: next, reason }, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => reload(activeDate, activeUserId),
+        });
+    };
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Timeline</h2>}>
@@ -706,6 +744,7 @@ export default function TimelineIndex({
                                 onSelectSession={selectSession}
                                 onRequestDelete={(ids) => setDeleteIds(ids)}
                                 onRequestDeleteSession={(info) => setDeleteSession(info)}
+                                onOpenShot={(id) => setLightboxId(id)}
                             />
                         ))}
                     </div>
@@ -738,6 +777,69 @@ export default function TimelineIndex({
                 </div>
             </div>
             </div>
+
+            {lightboxShot && (
+                <div className="fixed inset-0 z-[45] flex flex-col bg-black/90" onClick={() => setLightboxId(null)}>
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-slate-200" onClick={(e) => e.stopPropagation()}>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 font-semibold text-white">
+                                <span className={['inline-block h-2.5 w-2.5 rounded-full', activityDot(lightboxShot.activity_percent)].join(' ')} />
+                                {fmtTime(lightboxShot.captured_at)}
+                                <span className="font-normal text-slate-400">· activity {lightboxShot.activity_percent ?? 0}%</span>
+                                {lightboxShot.is_flagged && <Flag className="h-4 w-4 text-rose-400" />}
+                            </div>
+                            <div className="truncate text-xs text-slate-400">
+                                {(lightboxShot.url_domain || lightboxShot.active_app || 'Unknown')}
+                                {lightboxShot.active_window_title ? ` — ${lightboxShot.active_window_title}` : ''}
+                                <span className="ml-2 text-slate-500">{lightboxIndex + 1} / {allShots.length}</span>
+                            </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            {permissions.manage_screenshots && (
+                                <button type="button" onClick={flagFromLightbox} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                                    <Flag className="h-3.5 w-3.5" /> {lightboxShot.is_flagged ? 'Unflag' : 'Flag'}
+                                </button>
+                            )}
+                            {permissions.delete_screenshots && (
+                                <button type="button" onClick={() => { const id = lightboxShot.id; setLightboxId(null); setDeleteIds([id]); }} className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">
+                                    <Trash2 className="h-3.5 w-3.5" /> Delete &amp; remove time
+                                </button>
+                            )}
+                            <button type="button" onClick={() => setLightboxId(null)} className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Close">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+                        <button
+                            type="button"
+                            onClick={() => stepLightbox(-1)}
+                            disabled={lightboxIndex <= 0}
+                            className="absolute left-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/80 text-white hover:bg-slate-800 disabled:opacity-30"
+                            aria-label="Previous"
+                        >
+                            <ChevronLeft className="h-6 w-6" />
+                        </button>
+                        <img
+                            src={lightboxShot.image_url || lightboxShot.thumbnail_url}
+                            alt={lightboxShot.active_window_title || 'Screenshot'}
+                            className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => stepLightbox(1)}
+                            disabled={lightboxIndex >= allShots.length - 1}
+                            className="absolute right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/80 text-white hover:bg-slate-800 disabled:opacity-30"
+                            aria-label="Next"
+                        >
+                            <ChevronRight className="h-6 w-6" />
+                        </button>
+                    </div>
+                    <p className="pb-3 text-center text-[11px] text-slate-500" onClick={(e) => e.stopPropagation()}>
+                        Use ← → arrow keys to move between screenshots · Esc to close
+                    </p>
+                </div>
+            )}
 
             {selectedShots.size > 0 && !deleteIds && (
                 <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-slate-700 bg-slate-900 px-4 py-2.5 shadow-2xl shadow-black/50">
