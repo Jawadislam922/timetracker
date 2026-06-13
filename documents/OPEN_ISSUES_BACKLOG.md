@@ -177,3 +177,38 @@ OPTIONAL FUTURE (needs prod composer update): bump inertia-laravel to v2
 to unlock DEFERRED PROPS — render the page frame instantly and stream
 heavy tables (Reports/Team) after, like the Dashboard already does.
 Plan it as its own step with a server composer require + full retest.
+
+## SHIPPED 2026-06-13 (dark-theme polish pass, opus fast)
+- Bulk-edit permissions picker: killed the nested scroll. SearchableMultiSelect
+  got an `inline` mode that expands the list in-flow (no inner scrollbar) so a
+  scrollable modal has ONE scrollbar instead of two stacked (2772e42). Applied
+  to the Grant/Revoke pickers; page filters keep the floating overlay.
+- Dark card interiors brought to the remaining LIST/DATA pages so they match
+  the Ember dark system (Dashboard/Team/Timeline):
+  - Monitoring SessionDetail: dark + upgraded the screenshot lightbox to the
+    Timeline pattern (header, Close button, Prev/Next arrows, ←/→/Esc keys,
+    click-dark-to-close, "n / total" index). Verified live on session #297.
+  - Monitoring SessionsList, Attendance (metric cards/tabs/inputs/summary
+    table/accordions/monthly grid), Clients, Work Diary list + report.
+  - Commits 0fda879, 4b12311, f4b7195. All verified live.
+- DELIBERATELY LEFT LIGHT (consistent rule): complex FORM dialogs that embed
+  the light-themed SearchableMultiSelect / form controls — Attendance
+  calendar/history/Slack dialogs, the Report "Send to Slack" dialog. Simple
+  confirm modals (delete) WERE darkened.
+
+STILL LIGHT — remaining dark-theme work (its own deliberate step):
+- The add/edit FORMS: ClientCreate/Edit, WorkHourCreate/Edit, User add/edit,
+  UpworkProfiles. These use shared light-themed input components (TextInput,
+  ClientCombobox, TagInput, SearchableMultiSelect) that are also used inside
+  the light bulk-edit modal — so they need a dark *variant* on those shared
+  components rather than per-page edits, or the light modals break. Scope it
+  with the shared components, not page-by-page.
+- Settings page (admin, System menu): big white panel + many setting
+  sub-components; full conversion or leave — a half job looks broken.
+- Minor: DesktopDownloads, Developer, Profile/Edit.
+
+NOT DONE — needs backend, not polish:
+- Coverage chip in Attendance Summary tab. The summary endpoint returns
+  total_work_hours / total_break_hours but NO tracked-work figure, so
+  presence-vs-tracked coverage needs the controller to compute + include
+  tracked seconds per employee/day first. Small feature, not a frontend tweak.
