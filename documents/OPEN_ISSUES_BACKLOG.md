@@ -100,3 +100,21 @@ USER-SIDE (Jawad): bulk-set night team shifts (Users -> sort by Shift ->
 bulk edit); grant "Use the AI Assistant" to managers; verify Haris
 Junaid's 41h manual entry on 06-07; security batch (DB password, old AWS
 key, test crons); Mac build via the Mac prompt doc (builds v0.3.0).
+
+## DELETION CLEANUP GAPS (Jawad, 2026-06-13, screenshot of Jawad Islam Fri 12)
+
+A. Leftover residue after deleting sessions/screenshots: month-strip still
+   shows green day dots, Week/Month totals show 1m, and the Tasks box lists
+   clients at 0m. Cause: sessions reduced to <60s still exist (dot renders
+   for any total_seconds > 0; client breakdown lists every session). Fix:
+   treat <60s sessions as nothing everywhere (strip dots, totals, client
+   breakdown, Team Performance) — or auto-delete sessions that hit 0.
+B. Work Diary -> full cascade: deleting a work-hour entry must also remove
+   its linked tracking session, screenshots, activity samples, and any
+   Timeline/Team Performance traces (reverse of the session->workhour sync).
+   Same audit trail as session deletion.
+C. INDUSTRY-LEVEL FULL INSPECTION (CEO-ready): thorough joint pass over
+   every page and every flow — correctness of all numbers across pages
+   (Timeline = Reports = Team = Dashboard = Attendance), deletion cascades
+   verified end to end, visual polish, empty states, error states, perf.
+   Output: documents/PAGE_AUDIT.md with per-page findings + fix list.
