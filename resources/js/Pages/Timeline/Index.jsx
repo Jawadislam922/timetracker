@@ -779,8 +779,8 @@ export default function TimelineIndex({
             </div>
 
             {lightboxShot && (
-                <div className="fixed inset-0 z-[45] flex flex-col bg-black/90" onClick={() => setLightboxId(null)}>
-                    <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-slate-200" onClick={(e) => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[70] flex flex-col bg-black/95" onClick={() => setLightboxId(null)}>
+                    <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-200" onClick={(e) => e.stopPropagation()}>
                         <div className="min-w-0">
                             <div className="flex items-center gap-2 font-semibold text-white">
                                 <span className={['inline-block h-2.5 w-2.5 rounded-full', activityDot(lightboxShot.activity_percent)].join(' ')} />
@@ -805,34 +805,37 @@ export default function TimelineIndex({
                                     <Trash2 className="h-3.5 w-3.5" /> Delete &amp; remove time
                                 </button>
                             )}
-                            <button type="button" onClick={() => setLightboxId(null)} className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10 hover:text-white" aria-label="Close">
-                                <X className="h-5 w-5" />
+                            <button type="button" onClick={() => setLightboxId(null)} className="inline-flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-700" aria-label="Close viewer">
+                                <X className="h-4 w-4" /> Close
                             </button>
                         </div>
                     </div>
-                    <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+                    {/* Clicking the dark area around the image closes the
+                        viewer; the image and arrows stop the click. */}
+                    <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-4">
                         <button
                             type="button"
-                            onClick={() => stepLightbox(-1)}
+                            onClick={(e) => { e.stopPropagation(); stepLightbox(-1); }}
                             disabled={lightboxIndex <= 0}
-                            className="absolute left-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/80 text-white hover:bg-slate-800 disabled:opacity-30"
+                            className="absolute left-3 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/80 text-white hover:bg-slate-800 disabled:opacity-30"
                             aria-label="Previous"
                         >
-                            <ChevronLeft className="h-6 w-6" />
+                            <ChevronLeft className="h-7 w-7" />
                         </button>
                         <img
                             src={lightboxShot.image_url || lightboxShot.thumbnail_url}
                             alt={lightboxShot.active_window_title || 'Screenshot'}
+                            onClick={(e) => e.stopPropagation()}
                             className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
                         />
                         <button
                             type="button"
-                            onClick={() => stepLightbox(1)}
+                            onClick={(e) => { e.stopPropagation(); stepLightbox(1); }}
                             disabled={lightboxIndex >= allShots.length - 1}
-                            className="absolute right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/80 text-white hover:bg-slate-800 disabled:opacity-30"
+                            className="absolute right-3 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/80 text-white hover:bg-slate-800 disabled:opacity-30"
                             aria-label="Next"
                         >
-                            <ChevronRight className="h-6 w-6" />
+                            <ChevronRight className="h-7 w-7" />
                         </button>
                     </div>
                     <p className="pb-3 text-center text-[11px] text-slate-500" onClick={(e) => e.stopPropagation()}>
