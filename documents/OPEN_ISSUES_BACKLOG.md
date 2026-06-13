@@ -158,3 +158,22 @@ lightbox to SessionDetail; dark card interiors; AI phase 2.
 - New: AvatarController, app/Support/ImageResizer (GD, graceful
   fallback). 116 tests green.
 - CHORE still open: 25 users need avatar re-uploads (originals long gone).
+
+## SHIPPED 2026-06-13 (Inertia v2 + prefetch, opus fast)
+- @inertiajs/react 1.3 -> 2.3.26 (d927d51). CLIENT ONLY — kept
+  inertiajs/inertia-laravel at v1.3.4 because prod vendor/ isn't updated
+  by git deploy (gitignored; Hostinger persists it), so a server-adapter
+  bump would need a risky composer update on the box. v2 client is
+  backward-compatible with the v1 server for core nav + prefetch.
+- Hover prefetch on all nav (primary items + dropdowns), cacheFor 20s
+  (175c6c6). Verified live: hovering Timeline fired GET /timeline 200
+  BEFORE click; click navigates instantly from cache.
+- Verified: pages render, router.get (Reports search) works, Link clicks
+  navigate, zero console errors, 116 tests pass. The one 404 seen at
+  deploy was the known mid-deploy race (endpoints 200 after).
+- Rollback point was e701f75 (not needed).
+
+OPTIONAL FUTURE (needs prod composer update): bump inertia-laravel to v2
+to unlock DEFERRED PROPS — render the page frame instantly and stream
+heavy tables (Reports/Team) after, like the Dashboard already does.
+Plan it as its own step with a server composer require + full retest.
