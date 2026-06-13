@@ -243,15 +243,15 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                     />
                     
                     {/* Main Content Card */}
-                    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
                         <div className="p-3">
                             {/* Actions Bar */}
                             <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                                 <div className="flex flex-wrap items-center gap-2">
                                     {/* Bulk Actions */}
                                     {canManage && selectedClients.size > 0 && (
-                                        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                                            <span className="text-purple-700 text-sm font-medium">
+                                        <div className="flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2">
+                                            <span className="text-orange-300 text-sm font-medium">
                                                 {selectedClients.size} selected
                                             </span>
                                             <button
@@ -265,7 +265,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                             </button>
                                             <button
                                                 onClick={clearAllSelections}
-                                                className="inline-flex items-center px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition-all text-sm"
+                                                className="inline-flex items-center px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold transition-all text-sm"
                                             >
                                                 Clear
                                             </button>
@@ -313,7 +313,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                     <input
                                         type="text"
                                         placeholder="Search clients by name or tag..."
-                                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-10 pr-10 text-sm text-slate-200 placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500"
                                         value={searchTerm}
                                         onChange={handleSearch}
                                     />
@@ -340,7 +340,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                             id="clients-per-page"
                                             value={selectedPerPage} 
                                             onChange={(e) => handlePerPageChange(parseInt(e.target.value))}
-                                            className="w-20 rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm font-medium text-slate-900 focus:border-blue-500 focus:ring-blue-500"
+                                            className="w-20 rounded-lg border border-slate-700 bg-slate-900 py-2 pl-3 pr-8 text-sm font-medium text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                         >
                                             <option value={10}>10</option>
                                             <option value={25}>25</option>
@@ -350,9 +350,9 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                 </div>
                             </div>
                             
-                            <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-                                <table className="min-w-full divide-y divide-slate-200 table-fixed">
-                                    <thead className="bg-slate-900">
+                            <div className="mt-3 overflow-x-auto rounded-lg border border-slate-800">
+                                <table className="min-w-full divide-y divide-slate-800 table-fixed">
+                                    <thead className="bg-slate-950/60">
                                         <tr>
                                             {canManage && <th className="w-12 px-6 py-4 text-left">
                                                 <input
@@ -368,26 +368,26 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                             <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Upwork Profile</th>
                                             <th className="w-48 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Tags</th>
                                             <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Weekly Hours Worked</th>
-                                            {canManage && <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider sticky right-0 bg-slate-900 border-l border-slate-700">Actions</th>}
+                                            {canManage && <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider sticky right-0 bg-slate-950 border-l border-slate-800">Actions</th>}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-200 bg-white">
+                                    <tbody className="divide-y divide-slate-800">
                                         {clients?.data?.map((client, index) => (
-                                            <tr key={client.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-purple-50 transition-all duration-200`}>
+                                            <tr key={client.id} className={`${index % 2 === 0 ? 'bg-slate-900' : 'bg-slate-900/40'} hover:bg-slate-800/50 transition-all duration-200`}>
                                                 {canManage && <td className="px-6 py-4 whitespace-nowrap">
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedClients.has(client.id)}
                                                         onChange={() => handleClientSelect(client.id)}
-                                                        className="w-4 h-4 text-purple-600 bg-white border-slate-300 rounded focus:ring-purple-500 focus:ring-2"
+                                                        className="w-4 h-4 text-orange-500 bg-slate-800 border-slate-600 rounded focus:ring-orange-500 focus:ring-2"
                                                     />
                                                 </td>}
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600">{client.id}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-900 font-medium">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-400">{client.id}</td>
+                                                <td className="px-6 py-4 text-sm text-slate-100 font-medium">
                                                     {canViewReports ? (
                                                         <Link
                                                             href={route('work-hours.report', { clients: [client.name] })}
-                                                            className="hover:text-blue-600 hover:underline"
+                                                            className="hover:text-orange-400 hover:underline"
                                                             title={`View ${client.name}'s report`}
                                                         >
                                                             {client.name}
@@ -398,7 +398,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                 </td>
                                                 <td className="px-6 py-4 text-sm">
                                                     {client.work_type && (
-                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded-lg border border-orange-200">
+                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-orange-500/15 text-orange-300 rounded-lg border border-orange-500/20">
                                                             {workTypes?.[client.work_type] || client.work_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                                         </span>
                                                     )}
@@ -406,12 +406,12 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                         <span className="text-slate-400 text-xs">Not set</span>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-slate-900">
+                                                <td className="px-6 py-4 text-sm text-slate-100">
                                                     {/* Display multiple profiles */}
                                                     {client.upwork_profiles && client.upwork_profiles.length > 0 && (
                                                         <div className="flex flex-wrap gap-1">
                                                             {client.upwork_profiles.map((profile, index) => (
-                                                                <span key={profile.id} className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-lg border border-purple-200">
+                                                                <span key={profile.id} className="inline-flex px-2 py-1 text-xs font-medium bg-purple-500/15 text-purple-300 rounded-lg border border-purple-500/20">
                                                                     {profile.name}
                                                                 </span>
                                                             ))}
@@ -419,7 +419,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                     )}
                                                     {/* Fallback to single profile for backward compatibility */}
                                                     {(!client.upwork_profiles || client.upwork_profiles.length === 0) && client.upwork_profile && (
-                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-lg border border-purple-200">
+                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-500/15 text-purple-300 rounded-lg border border-purple-500/20">
                                                             {client.upwork_profile.name}
                                                         </span>
                                                     )}
@@ -428,13 +428,13 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                         <span className="text-slate-400 text-xs">Not set</span>
                                                     )}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-slate-900">
+                                                <td className="px-6 py-4 text-sm text-slate-100">
                                                     <div className="flex flex-wrap gap-1">
                                                         {client.tags && client.tags.length > 0 ? (
                                                             client.tags.map((tag, tagIndex) => (
                                                                 <span
                                                                     key={tagIndex}
-                                                                    className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg border border-green-200"
+                                                                    className="inline-flex px-2 py-1 text-xs font-medium bg-emerald-500/15 text-emerald-300 rounded-lg border border-emerald-500/20"
                                                                 >
                                                                     {tag}
                                                                 </span>
@@ -444,14 +444,14 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-100">
                                                     <div className="flex items-center">
-                                                        <span className="inline-flex px-3 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full border border-purple-200 font-mono">
+                                                        <span className="inline-flex px-3 py-1 text-xs font-medium bg-purple-500/15 text-purple-300 rounded-full border border-purple-500/20 font-mono">
                                                             {client.weekly_hours_worked || '00:00'}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                {canManage && <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-inherit border-l border-slate-200">
+                                                {canManage && <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-inherit border-l border-slate-800">
                                                     <div className="flex space-x-2">
                                                         <Link href={editClientHref(client.id)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                             Edit
@@ -470,8 +470,8 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                         <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                                         </svg>
-                                                        <h3 className="text-lg font-medium text-slate-900 mb-2">No clients found</h3>
-                                                        <p className="text-slate-600 mb-4">Get started by adding your first client.</p>
+                                                        <h3 className="text-lg font-medium text-slate-100 mb-2">No clients found</h3>
+                                                        <p className="text-slate-300 mb-4">Get started by adding your first client.</p>
                                                         {canManage && (
                                                             <Link
                                                                 href={route('clients.create')}
@@ -493,7 +493,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                             
                             {/* Pagination Controls */}
                             {clients?.data && clients.data.length > 0 && (
-                                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
                                     <TraditionalPagination 
                                         pagination={clients}
                                         className="justify-between items-center"
@@ -511,11 +511,11 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
             {/* Single Delete Modal */}
             {deleteId && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-md">
-                    <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
-                        <h2 className="text-xl font-bold mb-4 text-slate-900">Confirm Delete</h2>
-                        <p className="mb-6 text-slate-600">Are you sure you want to delete this client?</p>
+                    <div className="w-full max-w-md rounded-lg border border-slate-800 bg-slate-900 p-6 shadow-xl">
+                        <h2 className="text-xl font-bold mb-4 text-slate-100">Confirm Delete</h2>
+                        <p className="mb-6 text-slate-300">Are you sure you want to delete this client?</p>
                         <div className="flex justify-end gap-3">
-                            <button onClick={() => setDeleteId(null)} className="px-6 py-2 bg-white hover:bg-slate-50 text-slate-900 rounded-lg font-semibold transition-all border border-slate-200">Cancel</button>
+                            <button onClick={() => setDeleteId(null)} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold transition-all border border-slate-700">Cancel</button>
                             <button onClick={handleDelete} className="rounded-lg bg-red-600 px-5 py-2 text-white font-semibold hover:bg-red-700">Delete</button>
                         </div>
                     </div>
@@ -525,13 +525,13 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
             {/* Bulk Delete Modal */}
             {showBulkDeleteModal && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-md">
-                    <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
-                        <h2 className="text-xl font-bold mb-4 text-slate-900">Confirm Bulk Delete</h2>
-                        <p className="mb-6 text-slate-600">
+                    <div className="w-full max-w-md rounded-lg border border-slate-800 bg-slate-900 p-6 shadow-xl">
+                        <h2 className="text-xl font-bold mb-4 text-slate-100">Confirm Bulk Delete</h2>
+                        <p className="mb-6 text-slate-300">
                             Are you sure you want to delete {selectedClients.size} selected client(s)? This action cannot be undone.
                         </p>
                         <div className="flex justify-end gap-3">
-                            <button onClick={() => setShowBulkDeleteModal(false)} className="px-6 py-2 bg-white hover:bg-slate-50 text-slate-900 rounded-lg font-semibold transition-all border border-slate-200">Cancel</button>
+                            <button onClick={() => setShowBulkDeleteModal(false)} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-semibold transition-all border border-slate-700">Cancel</button>
                             <button onClick={confirmBulkDelete} className="rounded-lg bg-red-600 px-5 py-2 text-white font-semibold hover:bg-red-700">Delete {selectedClients.size} Client(s)</button>
                         </div>
                     </div>

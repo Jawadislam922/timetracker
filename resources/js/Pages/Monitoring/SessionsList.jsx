@@ -39,19 +39,19 @@ export default function SessionsList({ auth, sessions, users = [], filters = {},
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Tracking Sessions</h2>}
+            header={<h2 className="font-semibold text-xl leading-tight">Tracking Sessions</h2>}
         >
             <Head title="Tracking Sessions" />
 
-            <div className="py-8">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
+            <div className="min-h-screen bg-slate-950">
+                <div className="mx-auto max-w-7xl space-y-4 px-4 py-8 sm:px-6 lg:px-8">
                     {users.length > 0 && (
-                        <div className="bg-white p-4 rounded-lg shadow flex items-center gap-3">
-                            <label className="text-sm font-medium text-gray-700">Filter user:</label>
+                        <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4 shadow">
+                            <label className="text-sm font-medium text-slate-300">Filter user:</label>
                             <select
                                 value={filters?.user_id || ''}
                                 onChange={onUserChange}
-                                className="border-gray-300 rounded-md shadow-sm"
+                                className="rounded-md border-slate-700 bg-slate-900 text-sm text-slate-200 shadow-sm [color-scheme:dark]"
                             >
                                 <option value="">All users</option>
                                 {users.map((u) => (
@@ -61,44 +61,44 @@ export default function SessionsList({ auth, sessions, users = [], filters = {},
                         </div>
                     )}
 
-                    <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                    <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow">
+                        <table className="min-w-full divide-y divide-slate-800">
+                            <thead className="bg-slate-950/40">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stopped</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Activity</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">User</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">Client</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">Started</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">Stopped</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">Duration</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">Activity</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-slate-500">Status</th>
                                     <th className="px-4 py-3"></th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="divide-y divide-slate-800">
                                 {rows.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                                        <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                                             No tracking sessions yet. Start the desktop tracker to begin recording.
                                         </td>
                                     </tr>
                                 )}
                                 {rows.map((s) => (
-                                    <tr key={s.id}>
-                                        <td className="px-4 py-3 text-sm">{s.user?.name || `User #${s.user_id}`}</td>
-                                        <td className="px-4 py-3 text-sm">{s.client?.name || '—'}</td>
-                                        <td className="px-4 py-3 text-sm">{fmtDate(s.started_at)}</td>
-                                        <td className="px-4 py-3 text-sm">{fmtDate(s.stopped_at)}</td>
-                                        <td className="px-4 py-3 text-sm">{fmtDuration(s.total_seconds)}</td>
-                                        <td className="px-4 py-3 text-sm">{s.activity_percent ?? 0}%</td>
+                                    <tr key={s.id} className="transition hover:bg-slate-800/40">
+                                        <td className="px-4 py-3 text-sm text-slate-200">{s.user?.name || `User #${s.user_id}`}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-300">{s.client?.name || '—'}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-300">{fmtDate(s.started_at)}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-300">{fmtDate(s.stopped_at)}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-200">{fmtDuration(s.total_seconds)}</td>
+                                        <td className="px-4 py-3 text-sm text-slate-300">{s.activity_percent ?? 0}%</td>
                                         <td className="px-4 py-3 text-sm">
                                             <span
                                                 className={
                                                     s.status === 'active'
-                                                        ? 'inline-flex px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-800'
+                                                        ? 'inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300'
                                                         : s.status === 'abandoned'
-                                                            ? 'inline-flex px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800'
-                                                            : 'inline-flex px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800'
+                                                            ? 'inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300'
+                                                            : 'inline-flex rounded-full bg-slate-700/40 px-2 py-0.5 text-xs text-slate-300'
                                                 }
                                             >
                                                 {s.status}
@@ -107,7 +107,7 @@ export default function SessionsList({ auth, sessions, users = [], filters = {},
                                         <td className="px-4 py-3 text-sm">
                                             <Link
                                                 href={route('monitoring.sessions.show', s.id)}
-                                                className="text-indigo-600 hover:text-indigo-900"
+                                                className="font-semibold text-orange-400 hover:text-orange-300"
                                             >
                                                 View
                                             </Link>

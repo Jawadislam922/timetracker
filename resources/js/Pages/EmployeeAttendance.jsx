@@ -59,10 +59,10 @@ const calendarStatusOptions = [
 ];
 
 const statusStyle = (status) => {
-    if (status === 'Working') return 'bg-emerald-50 text-emerald-800';
-    if (status === 'On Break') return 'bg-amber-50 text-amber-800';
-    if (status === 'Clocked Out') return 'bg-rose-50 text-rose-800';
-    return 'bg-slate-100 text-slate-700';
+    if (status === 'Working') return 'bg-emerald-500/15 text-emerald-300';
+    if (status === 'On Break') return 'bg-amber-500/15 text-amber-300';
+    if (status === 'Clocked Out') return 'bg-rose-500/15 text-rose-300';
+    return 'bg-slate-700/40 text-slate-300';
 };
 
 const gridStatusStyles = {
@@ -75,7 +75,7 @@ const gridStatusStyles = {
     LC: 'bg-orange-100 text-orange-800 border-orange-200',
     LI: 'bg-slate-100 text-slate-700 border-slate-300',
     PH: 'bg-purple-100 text-purple-800 border-purple-200',
-    empty: 'bg-slate-50 text-slate-400 border-slate-200',
+    empty: 'bg-slate-800/40 text-slate-600 border-slate-800',
 };
 
 const actionMeta = (actionType) => {
@@ -104,12 +104,12 @@ const EmployeeIdentity = ({ employee, size = 'small' }) => {
                     onError={() => setImageFailed(true)}
                 />
             ) : (
-                <span className={`flex ${avatarSize} shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-700`}>
+                <span className={`flex ${avatarSize} shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-bold text-slate-200`}>
                     {employee.user_name.charAt(0).toUpperCase()}
                 </span>
             )}
             <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-slate-900">{employee.user_name}</div>
+                <div className="truncate text-sm font-semibold text-slate-100">{employee.user_name}</div>
                 <div className="truncate text-xs text-slate-500">{employee.designation || 'Member'}</div>
             </div>
         </div>
@@ -446,8 +446,8 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
     const renderEmpty = (title, description) => (
         <div className="px-5 py-14 text-center">
-            <Users className="mx-auto h-10 w-10 text-slate-400" />
-            <h3 className="mt-3 font-semibold text-slate-900">{title}</h3>
+            <Users className="mx-auto h-10 w-10 text-slate-600" />
+            <h3 className="mt-3 font-semibold text-slate-100">{title}</h3>
             <p className="mt-1 text-sm text-slate-500">{description}</p>
         </div>
     );
@@ -476,14 +476,14 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                         type="month"
                                         value={selectedMonth}
                                         onChange={(event) => setSelectedMonth(event.target.value)}
-                                        className="rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                        className="rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                     />
                                 ) : (
                                     <input
                                         type="date"
                                         value={selectedDate}
                                         onChange={(event) => setSelectedDate(event.target.value)}
-                                        className="rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                        className="rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                     />
                                 )}
                             </label>
@@ -492,7 +492,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                     <button
                                         type="button"
                                         onClick={openCalendarDialog}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
                                     >
                                         <CalendarRange className="h-4 w-4" />
                                         Attendance calendar
@@ -500,7 +500,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                     <button
                                         type="button"
                                         onClick={openHistoryDialog}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
                                     >
                                         <History className="h-4 w-4" />
                                         Audit history
@@ -511,7 +511,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                 <button
                                     type="button"
                                     onClick={openSlackDialog}
-                                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                    className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
                                 >
                                     <Send className="h-4 w-4" />
                                     Send to Slack
@@ -534,14 +534,14 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                         {summaryMetrics.map((metric) => {
                             const Icon = metric.icon;
                             return (
-                                <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                                <div key={metric.label} className="rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-sm">
                                     <div className="flex items-center gap-3">
                                         <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${metric.bg}`}>
                                             <Icon className={`h-5 w-5 ${metric.color}`} />
                                         </span>
                                         <div>
-                                            <div className="text-xl font-bold text-slate-950">{metric.value}</div>
-                                            <div className="text-sm text-slate-600">{metric.label}</div>
+                                            <div className="text-xl font-bold text-slate-100">{metric.value}</div>
+                                            <div className="text-sm text-slate-400">{metric.label}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -549,9 +549,9 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                         })}
                     </section>
 
-                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div className="flex flex-col gap-4 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-                            <div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 sm:grid-cols-4 lg:inline-flex lg:w-auto">
+                    <section className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
+                        <div className="flex flex-col gap-4 border-b border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="grid w-full grid-cols-2 gap-1 rounded-lg bg-slate-950/60 p-1 sm:grid-cols-4 lg:inline-flex lg:w-auto">
                                 {TABS.map((tab) => {
                                     const Icon = tab.icon;
                                     return (
@@ -561,8 +561,8 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                             onClick={() => setActiveTab(tab.id)}
                                             className={`inline-flex min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold transition lg:flex-none lg:px-4 ${
                                                 activeTab === tab.id
-                                                    ? 'bg-white text-slate-950 shadow-sm'
-                                                    : 'text-slate-600 hover:text-slate-950'
+                                                    ? 'bg-slate-800 text-white shadow-sm'
+                                                    : 'text-slate-400 hover:text-white'
                                             }`}
                                         >
                                             <Icon className="h-4 w-4" />
@@ -580,7 +580,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                         value={searchQuery}
                                         onChange={(event) => setSearchQuery(event.target.value)}
                                         placeholder="Search employee or designation"
-                                        className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-sm text-slate-200 placeholder-slate-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                     />
                                 </label>
 
@@ -588,7 +588,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                     <select
                                         value={filterStatus}
                                         onChange={(event) => setFilterStatus(event.target.value)}
-                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                     >
                                         {STATUS_OPTIONS.map((status) => (
                                             <option key={status} value={status}>
@@ -601,8 +601,8 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                         </div>
 
                         {loading ? (
-                            <div className="flex items-center justify-center gap-3 px-5 py-16 text-sm font-medium text-slate-600">
-                                <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                            <div className="flex items-center justify-center gap-3 px-5 py-16 text-sm font-medium text-slate-400">
+                                <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-orange-500" />
                                 Loading attendance data...
                             </div>
                         ) : (
@@ -627,28 +627,28 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                         ? renderEmpty('No attendance records', 'No employees match the selected date and filters.')
                                         : (
                                             <div className="overflow-x-auto">
-                                                <table className="min-w-full divide-y divide-slate-200">
-                                                    <thead className="bg-slate-900">
+                                                <table className="min-w-full divide-y divide-slate-800">
+                                                    <thead className="bg-slate-950/40">
                                                         <tr>
                                                             {['Employee', 'Status', 'Work Hours', 'Break', 'First In', 'Last Activity', 'Actions'].map((heading) => (
-                                                                <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-white">{heading}</th>
+                                                                <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">{heading}</th>
                                                             ))}
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="divide-y divide-slate-200">
+                                                    <tbody className="divide-y divide-slate-800">
                                                         {filteredEmployees.map((employee) => (
-                                                            <tr key={employee.user_id} className="hover:bg-slate-50">
+                                                            <tr key={employee.user_id} className="transition hover:bg-slate-800/40">
                                                                 <td className="px-4 py-3"><EmployeeIdentity employee={employee} /></td>
                                                                 <td className="whitespace-nowrap px-4 py-3">
                                                                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle(employee.current_status)}`}>
                                                                         {employee.current_status}
                                                                     </span>
                                                                 </td>
-                                                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-900">{formatHours(employee.total_work_hours)}</td>
-                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{formatHours(employee.total_break_hours)}</td>
-                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.first_clock_in || '-'}</td>
-                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.last_action_time || '-'}</td>
-                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">{employee.total_entries}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.first_clock_in || '-'}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.last_action_time || '-'}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.total_entries}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -672,15 +672,15 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                             const meta = actionMeta(entry.action_type);
                                                             const Icon = meta.icon;
                                                             return (
-                                                                <div key={entry.id} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                                                                <div key={entry.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-3">
                                                                     <span className={`flex h-9 w-9 items-center justify-center rounded-lg border ${meta.className}`}>
                                                                         <Icon className="h-4 w-4" />
                                                                     </span>
                                                                     <div className="flex-1">
-                                                                        <div className="text-sm font-semibold text-slate-900">{meta.label}</div>
+                                                                        <div className="text-sm font-semibold text-slate-100">{meta.label}</div>
                                                                         <div className="text-xs text-slate-500">{entry.formatted_time}</div>
                                                                     </div>
-                                                                    {entry.notes && <div className="text-sm text-slate-600">{entry.notes}</div>}
+                                                                    {entry.notes && <div className="text-sm text-slate-300">{entry.notes}</div>}
                                                                 </div>
                                                             );
                                                         })}
@@ -702,15 +702,15 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                 renderContent={(timeline) => (
                                                     <div className="space-y-2">
                                                         {timeline.sessions.map((session, index) => (
-                                                            <div key={`${timeline.user_id}-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                                                            <div key={`${timeline.user_id}-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900 p-3 sm:flex-row sm:items-center sm:justify-between">
                                                                 <div className="flex items-center gap-3">
                                                                     <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                                                                        session.type === 'work' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                                                        session.type === 'work' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'
                                                                     }`}>
                                                                         {session.type === 'work' ? <Timer className="h-4 w-4" /> : <Coffee className="h-4 w-4" />}
                                                                     </span>
                                                                     <div>
-                                                                        <div className="text-sm font-semibold text-slate-900">
+                                                                        <div className="text-sm font-semibold text-slate-100">
                                                                             {session.type === 'work' ? 'Work Session' : 'Break'}
                                                                         </div>
                                                                         <div className="text-xs text-slate-500">
@@ -718,7 +718,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="text-sm font-bold text-slate-900">{session.duration}</div>
+                                                                <div className="text-sm font-bold text-slate-100">{session.duration}</div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1151,24 +1151,24 @@ function AuditStatusChip({ code, label }) {
 function AccordionList({ items, expandedEmployees, toggleEmployee, setAllExpanded, renderContent }) {
     return (
         <div>
-            <div className="flex justify-end gap-2 border-b border-slate-200 px-4 py-3">
+            <div className="flex justify-end gap-2 border-b border-slate-800 px-4 py-3">
                 <button
                     type="button"
                     onClick={() => setAllExpanded(items, true)}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-orange-400 transition hover:bg-orange-500/10"
                 >
                     Expand all
                 </button>
                 <button
                     type="button"
                     onClick={() => setAllExpanded(items, false)}
-                    className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-400 transition hover:bg-slate-800"
                 >
                     Collapse all
                 </button>
             </div>
 
-            <div className="divide-y divide-slate-200">
+            <div className="divide-y divide-slate-800">
                 {items.map((item) => {
                     const expanded = Boolean(expandedEmployees[item.user_id]);
                     return (
@@ -1176,20 +1176,20 @@ function AccordionList({ items, expandedEmployees, toggleEmployee, setAllExpande
                             <button
                                 type="button"
                                 onClick={() => toggleEmployee(item.user_id)}
-                                className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-50"
+                                className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-slate-800/40"
                             >
                                 <EmployeeIdentity employee={item} size="large" />
                                 <div className="flex items-center gap-3">
-                                    {item.entries && <span className="text-sm font-semibold text-slate-600">{item.entries.length} actions</span>}
+                                    {item.entries && <span className="text-sm font-semibold text-slate-400">{item.entries.length} actions</span>}
                                     {item.sessions && (
-                                        <span className="hidden text-sm text-slate-600 sm:inline">
+                                        <span className="hidden text-sm text-slate-400 sm:inline">
                                             {formatHours(item.total_work_hours)} work, {formatHours(item.total_break_hours)} break
                                         </span>
                                     )}
                                     {expanded ? <ChevronUp className="h-5 w-5 text-slate-500" /> : <ChevronDown className="h-5 w-5 text-slate-500" />}
                                 </div>
                             </button>
-                            {expanded && <div className="border-t border-slate-100 bg-slate-50 p-4">{renderContent(item)}</div>}
+                            {expanded && <div className="border-t border-slate-800 bg-slate-950/40 p-4">{renderContent(item)}</div>}
                         </div>
                     );
                 })}
@@ -1275,14 +1275,14 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
             <table className="min-w-max border-separate border-spacing-0 text-sm">
                 <thead>
                     <tr>
-                        <th className="sticky left-0 z-20 min-w-56 border-b border-r border-slate-300 bg-slate-900 px-4 py-3 text-left text-xs font-bold uppercase text-white">
+                        <th className="sticky left-0 z-20 min-w-56 border-b border-r border-slate-800 bg-slate-950 px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">
                             Employee
                         </th>
                         {days.map((day) => (
                             <th
                                 key={day.date}
-                                className={`min-w-11 border-b border-r border-slate-300 px-2 py-2 text-center text-xs font-bold uppercase ${
-                                    day.is_weekend ? 'bg-sky-100 text-sky-900' : 'bg-slate-900 text-white'
+                                className={`min-w-11 border-b border-r border-slate-800 px-2 py-2 text-center text-xs font-bold uppercase ${
+                                    day.is_weekend ? 'bg-sky-500/15 text-sky-300' : 'bg-slate-950 text-slate-300'
                                 }`}
                             >
                                 <div>{day.weekday}</div>
@@ -1290,7 +1290,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                             </th>
                         ))}
                         {summaryColumns.map((column) => (
-                            <th key={column.key} className="min-w-20 border-b border-r border-slate-300 bg-slate-900 px-3 py-3 text-center text-xs font-bold uppercase text-white">
+                            <th key={column.key} className="min-w-20 border-b border-r border-slate-800 bg-slate-950 px-3 py-3 text-center text-xs font-bold uppercase text-slate-300">
                                 {column.label}
                             </th>
                         ))}
@@ -1299,7 +1299,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                 <tbody>
                     {employees.map((employee) => (
                         <tr key={employee.user_id} className="group">
-                            <td className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-4 py-2 group-hover:bg-slate-50">
+                            <td className="sticky left-0 z-10 border-b border-r border-slate-800 bg-slate-900 px-4 py-2 group-hover:bg-slate-800/60">
                                 <EmployeeIdentity employee={employee} />
                             </td>
                             {employee.days.map((cell) => {
@@ -1317,7 +1317,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                                 ].filter(Boolean);
 
                                 return (
-                                    <td key={cell.date} className="relative border-b border-r border-slate-200 p-1 text-center">
+                                    <td key={cell.date} className="relative border-b border-r border-slate-800 p-1 text-center">
                                         <div className={`relative flex h-9 min-w-10 items-center justify-center rounded border text-xs font-bold ${statusClass}`} title={titleParts.join(' | ')}>
                                             {canManualMark ? (
                                                 <button
@@ -1339,7 +1339,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                                         </div>
                                         {canManualMark && open && menuPosition && typeof document !== 'undefined' && createPortal(
                                             <div
-                                                className="fixed z-[100] max-h-[calc(100vh-1rem)] w-48 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 text-left shadow-xl"
+                                                className="fixed z-[100] max-h-[calc(100vh-1rem)] w-48 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-2 text-left shadow-xl"
                                                 style={menuPosition}
                                                 role="menu"
                                                 data-attendance-menu
@@ -1352,13 +1352,13 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                                                         setOpenCell(null);
                                                         setMenuPosition(null);
                                                     }}
-                                                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                                                    className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                                                     role="menuitem"
                                                 >
                                                     <span>Auto</span>
                                                     <span>{statusCode || '-'}</span>
                                                 </button>
-                                                <div className="my-1 border-t border-slate-100" />
+                                                <div className="my-1 border-t border-slate-800" />
                                                 {statusOptions.map((option) => (
                                                     <button
                                                         key={option.code}
@@ -1368,7 +1368,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                                                             setOpenCell(null);
                                                             setMenuPosition(null);
                                                         }}
-                                                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-800"
+                                                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-slate-300 hover:bg-orange-500/10 hover:text-orange-300"
                                                         role="menuitem"
                                                     >
                                                         <span>{option.label}</span>
@@ -1382,7 +1382,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                                 );
                             })}
                             {summaryColumns.map((column) => (
-                                <td key={column.key} className="border-b border-r border-slate-200 bg-white px-3 py-2 text-center font-semibold text-slate-900">
+                                <td key={column.key} className="border-b border-r border-slate-800 bg-slate-900 px-3 py-2 text-center font-semibold text-slate-100">
                                     {column.format
                                         ? column.format(employee.summary?.[column.key] || 0)
                                         : employee.summary?.[column.key] || 0}
