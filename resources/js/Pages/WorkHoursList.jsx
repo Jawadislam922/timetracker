@@ -371,8 +371,8 @@ export default function WorkHoursList({
                                     onClick={() => setShowFilters((current) => !current)}
                                     className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold transition ${
                                         showFilters
-                                            ? 'bg-slate-900 text-white hover:bg-slate-800'
-                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                                            : 'bg-white/10 text-slate-300 hover:bg-white/20'
                                     }`}
                                 >
                                     <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
