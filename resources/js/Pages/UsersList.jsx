@@ -520,6 +520,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                         selectedValues={bulk.permsAdd}
                                         onChange={(values) => setBulk({ ...bulk, permsAdd: values })}
                                         placeholder="No permissions to grant"
+                                        inline
                                     />
                                     <SearchableMultiSelect
                                         label="Revoke"
@@ -527,6 +528,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                         selectedValues={bulk.permsRemove}
                                         onChange={(values) => setBulk({ ...bulk, permsRemove: values })}
                                         placeholder="No permissions to revoke"
+                                        inline
                                     />
                                 </div>
                             )}

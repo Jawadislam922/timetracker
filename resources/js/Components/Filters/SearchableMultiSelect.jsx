@@ -7,6 +7,11 @@ export default function SearchableMultiSelect({
     onChange,
     placeholder = 'Select options',
     searchPlaceholder = 'Search...',
+    // When true the panel expands in-flow (pushing content down) instead of
+    // floating as an absolute overlay. Use this inside a scrollable modal so
+    // the modal's own scrollbar handles everything — otherwise the panel's
+    // inner scroll stacks against the modal scroll (two scrollbars fighting).
+    inline = false,
 }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -85,7 +90,13 @@ export default function SearchableMultiSelect({
             </button>
 
             {open && (
-                <div className="absolute z-40 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-xl">
+                <div
+                    className={
+                        inline
+                            ? 'relative mt-1.5 w-full rounded-lg border border-slate-200 bg-white'
+                            : 'absolute z-40 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-xl'
+                    }
+                >
                     <div className="border-b border-slate-100 p-2">
                         <input
                             type="text"
@@ -96,7 +107,7 @@ export default function SearchableMultiSelect({
                         />
                     </div>
 
-                    <div className="max-h-64 overflow-y-auto py-1">
+                    <div className={inline ? 'py-1' : 'max-h-64 overflow-y-auto py-1'}>
                         {filteredOptions.length === 0 ? (
                             <div className="px-3 py-3 text-sm text-slate-500">No options found</div>
                         ) : (
