@@ -384,7 +384,7 @@ export default function WorkHoursList({
                                 <button
                                     onClick={exportToCSV}
                                     disabled={isExporting}
-                                    className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+                                    className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:bg-slate-900 disabled:text-slate-500"
                                 >
                                     <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -504,7 +504,7 @@ export default function WorkHoursList({
                                                 selected={customStartDate}
                                                 onChange={(date) => setCustomStartDate(date)}
                                                 maxDate={customEndDate || new Date()}
-                                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                                 dateFormat="yyyy-MM-dd"
                                             />
                                         </div>
@@ -515,7 +515,7 @@ export default function WorkHoursList({
                                                 onChange={(date) => setCustomEndDate(date)}
                                                 minDate={customStartDate}
                                                 maxDate={new Date()}
-                                                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                                 dateFormat="yyyy-MM-dd"
                                             />
                                         </div>
@@ -613,12 +613,12 @@ export default function WorkHoursList({
                                                 <td className="px-4 py-3 text-sm text-slate-100 font-medium">{entry.date}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-300">{entry.client?.name || 'No Client'}</td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full border border-purple-200">
+                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-500/15 text-purple-300 rounded-full border border-purple-500/20">
                                                         {formatWorkType(entry.work_type)}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded-full border border-teal-200 capitalize">
+                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-500/15 text-teal-300 rounded-full border border-teal-500/20 capitalize">
                                                         {entry.tracker}
                                                     </span>
                                                 </td>
@@ -681,13 +681,13 @@ export default function WorkHoursList({
             {/* Delete Modal */}
             {deleteId && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-                        <h3 className="text-xl font-bold text-slate-900 mb-4">Confirm Delete</h3>
-                        <p className="text-slate-600 mb-6">Are you sure you want to delete this work entry? This action cannot be undone.</p>
+                    <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                        <h3 className="text-xl font-bold text-slate-100 mb-4">Confirm Delete</h3>
+                        <p className="text-slate-300 mb-6">Are you sure you want to delete this work entry? This action cannot be undone.</p>
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={() => setDeleteId(null)}
-                                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-medium transition-all"
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium transition-all"
                             >
                                 Cancel
                             </button>
