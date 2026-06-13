@@ -45,6 +45,10 @@ createInertiaApp({
         );
     },
     progress: {
-        color: '#4B5563',
+        // Ember orange + thicker bar — the old slate grey was invisible on
+        // the dark nav, so page switches felt unresponsive.
+        color: '#f97316',
+        includeCSS: true,
+        showSpinner: true,
     },
 });
