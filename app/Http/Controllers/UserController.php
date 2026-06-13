@@ -134,6 +134,7 @@ class UserController extends Controller
                 'sort' => $sort,
                 'dir' => $dir,
             ],
+            'permissionGroups' => config('access.permissions'),
             'filterOptions' => [
                 'designations' => $allDesignations,
                 'roles' => collect(User::ROLES)->map(
@@ -408,6 +409,77 @@ class UserController extends Controller
         }
 
         return $redirect;
+    }
+
+    /**
+     * Bulk edit selected users. Only the sections the admin explicitly
+     * enabled are applied; everything else is left untouched. Permission
+     * changes require Super Admin, and non-supers can never modify a
+     * Super Admin account.
+     */
+    public function bulkUpdate(Request $request)
+    {
+        $actor = $request->user();
+
+        $data = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+            'set_shift' => ['boolean'],
+            'shift_start_time' => ['nullable', 'date_format:H:i'],
+            'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'set_designation' => ['boolean'],
+            'designation' => ['nullable', 'string', 'max:255'],
+            'permissions_add' => ['array'],
+            'permissions_add.*' => [Rule::in($this->permissionKeys())],
+            'permissions_remove' => ['array'],
+            'permissions_remove.*' => [Rule::in($this->permissionKeys())],
+            'slack_reports' => ['nullable', Rule::in(['include', 'exclude'])],
+        ]);
+
+        $wantsPermissionChanges = ! empty($data['permissions_add']) || ! empty($data['permissions_remove']);
+        if ($wantsPermissionChanges && ! $actor->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can change permissions.');
+        }
+
+        $users = User::whereIn('id', $data['user_ids'])->get();
+        $updated = 0;
+
+        foreach ($users as $user) {
+            if ($user->isSuperAdmin() && ! $actor->isSuperAdmin()) {
+                continue;
+            }
+
+            if (! empty($data['set_shift'])) {
+                $user->shift_start_time = $data['shift_start_time'] ?? null;
+                if (array_key_exists('shift_grace_minutes', $data) && $data['shift_grace_minutes'] !== null) {
+                    $user->shift_grace_minutes = $data['shift_grace_minutes'];
+                }
+            }
+
+            if (! empty($data['set_designation'])) {
+                $user->designation = $data['designation'] ?: null;
+            }
+
+            if ($wantsPermissionChanges && ! $user->isSuperAdmin()) {
+                $user->permissions = collect($user->permissions ?? [])
+                    ->merge($data['permissions_add'] ?? [])
+                    ->unique()
+                    ->reject(fn ($p) => in_array($p, $data['permissions_remove'] ?? [], true))
+                    ->values()
+                    ->all();
+            }
+
+            if (! empty($data['slack_reports'])) {
+                $user->include_in_slack_reports = $data['slack_reports'] === 'include';
+            }
+
+            if ($user->isDirty()) {
+                $user->save();
+                $updated++;
+            }
+        }
+
+        return response()->json(['message' => "Updated {$updated} user(s).", 'updated' => $updated]);
     }
 
     private function permissionKeys(): array

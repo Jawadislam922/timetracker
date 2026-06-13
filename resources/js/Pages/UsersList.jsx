@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
+import axios from 'axios';
 import { Pencil, Plus, Search, ShieldCheck, Trash2, Users } from 'lucide-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Avatar from '@/Components/Avatar';
@@ -15,7 +16,7 @@ const roleStyles = {
 
 const noDesignationValue = 'no_designation';
 
-export default function UsersList({ auth, users, filters = {}, filterOptions = {}, managedDesignations = [] }) {
+export default function UsersList({ auth, users, filters = {}, filterOptions = {}, managedDesignations = [], permissionGroups = {} }) {
     const can = (permission) => auth.user?.is_super_admin || auth.user?.permissions?.includes(permission);
     const [search, setSearch] = useState(filters.search || '');
     const [roles, setRoles] = useState((filters.roles || []).map(String));
@@ -24,6 +25,60 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
     const [deleteUser, setDeleteUser] = useState(null);
     const [showDesignationDialog, setShowDesignationDialog] = useState(false);
     const [newDesignation, setNewDesignation] = useState('');
+
+    // Bulk edit: only the sections the admin enables get applied.
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [showBulkModal, setShowBulkModal] = useState(false);
+    const [bulkSaving, setBulkSaving] = useState(false);
+    const [bulk, setBulk] = useState({
+        setShift: false, shiftTime: '', shiftGrace: 15,
+        setDesignation: false, designation: '',
+        permsAdd: [], permsRemove: [],
+        slackMode: '',
+    });
+
+    const permissionOptions = useMemo(() => (
+        Object.entries(permissionGroups).flatMap(([group, perms]) =>
+            Object.entries(perms).map(([key, def]) => ({
+                value: key,
+                label: `${group} — ${typeof def === 'string' ? def : def.label}`,
+            }))
+        )
+    ), [permissionGroups]);
+
+    const toggleSelected = (id) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const submitBulk = async () => {
+        setBulkSaving(true);
+        try {
+            const res = await axios.post(route('users.bulk-update'), {
+                user_ids: [...selectedIds],
+                set_shift: bulk.setShift,
+                shift_start_time: bulk.setShift ? (bulk.shiftTime || null) : null,
+                shift_grace_minutes: bulk.setShift ? Number(bulk.shiftGrace) : null,
+                set_designation: bulk.setDesignation,
+                designation: bulk.setDesignation ? bulk.designation : null,
+                permissions_add: bulk.permsAdd,
+                permissions_remove: bulk.permsRemove,
+                slack_reports: bulk.slackMode || null,
+            });
+            setShowBulkModal(false);
+            setSelectedIds(new Set());
+            setBulk({ setShift: false, shiftTime: '', shiftGrace: 15, setDesignation: false, designation: '', permsAdd: [], permsRemove: [], slackMode: '' });
+            router.reload({ preserveScroll: true });
+            window.alert(res.data.message);
+        } catch (err) {
+            window.alert(err.response?.data?.message || 'Bulk update failed.');
+        } finally {
+            setBulkSaving(false);
+        }
+    };
 
     const roleOptions = filterOptions.roles || [];
     const designationOptions = [
@@ -238,12 +293,48 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                     <p className="text-sm text-slate-500">{users.total} account{users.total === 1 ? '' : 's'}</p>
                                 </div>
                             </div>
+                            {selectedIds.size > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold text-orange-600">{selectedIds.size} selected</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBulkModal(true)}
+                                        className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+                                    >
+                                        Bulk edit
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedIds(new Set())}
+                                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-900">
                                     <tr>
+                                        {can('users.manage') && (
+                                            <th className="w-10 px-4 py-3">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={users.data.length > 0 && users.data.every((u) => selectedIds.has(u.id) || (u.role === 'super_admin' && !auth.user.is_super_admin))}
+                                                    onChange={(e) => {
+                                                        const next = new Set(selectedIds);
+                                                        users.data.forEach((u) => {
+                                                            if (u.role === 'super_admin' && !auth.user.is_super_admin) return;
+                                                            e.target.checked ? next.add(u.id) : next.delete(u.id);
+                                                        });
+                                                        setSelectedIds(next);
+                                                    }}
+                                                    className="rounded border-slate-500 bg-slate-800"
+                                                />
+                                            </th>
+                                        )}
                                         {[
                                             { heading: 'User', sort: 'name' },
                                             { heading: 'Designation', sort: 'designation' },
@@ -279,7 +370,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 <tbody className="divide-y divide-slate-200">
                                     {users.data.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-5 py-14 text-center">
+                                            <td colSpan={can('users.manage') ? 7 : 6} className="px-5 py-14 text-center">
                                                 <Users className="mx-auto h-10 w-10 text-slate-400" />
                                                 <h3 className="mt-3 font-semibold text-slate-900">No users found</h3>
                                                 <p className="mt-1 text-sm text-slate-500">Adjust the search or selected filters.</p>
@@ -292,7 +383,18 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                             && (auth.user.is_super_admin || user.role !== 'super_admin');
 
                                         return (
-                                            <tr key={user.id} className="bg-white hover:bg-slate-50">
+                                            <tr key={user.id} className={`bg-white hover:bg-slate-50 ${selectedIds.has(user.id) ? 'bg-orange-50' : ''}`}>
+                                                {can('users.manage') && (
+                                                    <td className="w-10 px-4 py-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedIds.has(user.id)}
+                                                            disabled={user.role === 'super_admin' && !auth.user.is_super_admin}
+                                                            onChange={() => toggleSelected(user.id)}
+                                                            className="rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td className="sticky left-0 z-[1] min-w-64 bg-inherit px-4 py-3">
                                                     <div className="flex items-center gap-3">
                                                         <Avatar user={user} size="md" />
@@ -368,6 +470,91 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                     </section>
                 </div>
             </div>
+
+            {showBulkModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
+                        <h2 className="text-lg font-bold text-slate-950">Bulk edit {selectedIds.size} user{selectedIds.size === 1 ? '' : 's'}</h2>
+                        <p className="mt-1 text-sm text-slate-600">Only the sections you enable below will be applied — everything else stays untouched.</p>
+
+                        <div className="mt-4 space-y-4">
+                            <div className="rounded-lg border border-slate-200 p-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                    <input type="checkbox" checked={bulk.setShift} onChange={(e) => setBulk({ ...bulk, setShift: e.target.checked })} className="rounded border-slate-300 text-orange-600" />
+                                    Set shift
+                                </label>
+                                {bulk.setShift && (
+                                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                                        <label className="flex items-center gap-2">Start
+                                            <input type="time" value={bulk.shiftTime} onChange={(e) => setBulk({ ...bulk, shiftTime: e.target.value })} className="rounded-lg border-slate-300 text-sm" />
+                                        </label>
+                                        <label className="flex items-center gap-2">Grace (min)
+                                            <input type="number" min="0" max="240" value={bulk.shiftGrace} onChange={(e) => setBulk({ ...bulk, shiftGrace: e.target.value })} className="w-20 rounded-lg border-slate-300 text-sm" />
+                                        </label>
+                                        <span className="text-xs text-slate-500">Leave start empty to clear the shift.</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="rounded-lg border border-slate-200 p-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                                    <input type="checkbox" checked={bulk.setDesignation} onChange={(e) => setBulk({ ...bulk, setDesignation: e.target.checked })} className="rounded border-slate-300 text-orange-600" />
+                                    Set designation
+                                </label>
+                                {bulk.setDesignation && (
+                                    <select value={bulk.designation} onChange={(e) => setBulk({ ...bulk, designation: e.target.value })} className="mt-2 w-full rounded-lg border-slate-300 text-sm">
+                                        <option value="">No designation</option>
+                                        {(filterOptions.designations || []).map((d) => (
+                                            <option key={d} value={d}>{d}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            {auth.user.is_super_admin && (
+                                <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+                                    <p className="text-sm font-semibold text-slate-800">Permissions <span className="font-normal text-xs text-slate-500">(Super Admin only — applied on top of each user&apos;s current access)</span></p>
+                                    <SearchableMultiSelect
+                                        label="Grant"
+                                        options={permissionOptions}
+                                        selectedValues={bulk.permsAdd}
+                                        onChange={(values) => setBulk({ ...bulk, permsAdd: values })}
+                                        placeholder="No permissions to grant"
+                                    />
+                                    <SearchableMultiSelect
+                                        label="Revoke"
+                                        options={permissionOptions}
+                                        selectedValues={bulk.permsRemove}
+                                        onChange={(values) => setBulk({ ...bulk, permsRemove: values })}
+                                        placeholder="No permissions to revoke"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="rounded-lg border border-slate-200 p-3">
+                                <label className="block text-sm font-semibold text-slate-800">Slack reports</label>
+                                <select value={bulk.slackMode} onChange={(e) => setBulk({ ...bulk, slackMode: e.target.value })} className="mt-2 w-full rounded-lg border-slate-300 text-sm">
+                                    <option value="">Leave unchanged</option>
+                                    <option value="include">Include in reports</option>
+                                    <option value="exclude">Exclude from reports</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button type="button" onClick={() => setShowBulkModal(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                            <button
+                                type="button"
+                                onClick={submitBulk}
+                                disabled={bulkSaving}
+                                className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-2 text-sm font-semibold text-white hover:from-orange-600 hover:to-amber-600 disabled:opacity-50"
+                            >
+                                {bulkSaving ? 'Applying…' : `Apply to ${selectedIds.size}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {deleteUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
