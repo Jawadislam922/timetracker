@@ -306,8 +306,9 @@ export default function Authenticated({ user, header, children }) {
 
             <main>{children}</main>
 
-            {/* Floating AI chat — reachable from every page for report viewers. */}
-            {can('reports.view') && <AiChatWidget />}
+            {/* Floating AI chat — only for people granted the AI permission
+                (each question costs API credit). */}
+            {can('ai.assistant') && <AiChatWidget />}
         </div>
     );
 }

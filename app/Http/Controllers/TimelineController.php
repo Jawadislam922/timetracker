@@ -49,7 +49,8 @@ class TimelineController extends Controller
             ],
             'initialData' => $this->buildDayPayload($targetUser, $date, $authUser),
             'weekStartsOn' => MonitoringSetting::current()->week_starts_on,
-            'aiEnabled' => app(\App\Services\AnthropicService::class)->configured(),
+            'aiEnabled' => app(\App\Services\AnthropicService::class)->configured()
+                && $authUser->hasPermission('ai.assistant'),
         ]);
     }
 
@@ -71,6 +72,7 @@ class TimelineController extends Controller
     public function aiSummary(Request $request): JsonResponse
     {
         $authUser = $request->user();
+        abort_unless($authUser->hasPermission('ai.assistant'), 403, 'AI access has not been granted to this account.');
         $canViewOthers = $authUser->hasPermission('timeline.view_others');
 
         $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);

@@ -218,25 +218,36 @@ export default function UserForm({
                                 <div key={group} className="grid gap-3 px-5 py-4 md:grid-cols-[160px_1fr]">
                                     <h3 className="text-sm font-bold text-slate-900">{group}</h3>
                                     <div className="grid gap-2 xl:grid-cols-2">
-                                        {Object.entries(permissions).map(([permission, label]) => (
-                                            <label
-                                                key={permission}
-                                                className={`flex items-start gap-3 rounded-lg px-3 py-2 ${
-                                                    form.data.role === 'super_admin'
-                                                        ? 'cursor-not-allowed bg-slate-50'
-                                                        : 'cursor-pointer hover:bg-slate-50'
-                                                }`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={form.data.role === 'super_admin' || form.data.permissions.includes(permission)}
-                                                    disabled={form.data.role === 'super_admin'}
-                                                    onChange={() => togglePermission(permission)}
-                                                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-sm text-slate-700">{label}</span>
-                                            </label>
-                                        ))}
+                                        {Object.entries(permissions).map(([permission, def]) => {
+                                            // Catalog entries are {label, description}; tolerate
+                                            // the old plain-string shape too.
+                                            const label = typeof def === 'string' ? def : def.label;
+                                            const description = typeof def === 'string' ? null : def.description;
+                                            return (
+                                                <label
+                                                    key={permission}
+                                                    className={`flex items-start gap-3 rounded-lg px-3 py-2 ${
+                                                        form.data.role === 'super_admin'
+                                                            ? 'cursor-not-allowed bg-slate-50'
+                                                            : 'cursor-pointer hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={form.data.role === 'super_admin' || form.data.permissions.includes(permission)}
+                                                        disabled={form.data.role === 'super_admin'}
+                                                        onChange={() => togglePermission(permission)}
+                                                        className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="min-w-0">
+                                                        <span className="block text-sm font-semibold text-slate-800">{label}</span>
+                                                        {description && (
+                                                            <span className="mt-0.5 block text-xs leading-5 text-slate-500">{description}</span>
+                                                        )}
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ))}
