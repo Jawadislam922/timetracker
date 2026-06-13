@@ -202,6 +202,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/screenshots/{screenshot}/image', [MonitoringController::class, 'screenshotImage'])->name('monitoring.screenshots.image');
         Route::get('/screenshots/{screenshot}/thumbnail', [MonitoringController::class, 'screenshotThumbnail'])->name('monitoring.screenshots.thumbnail');
         Route::patch('/screenshots/{screenshot}/flag', [MonitoringController::class, 'flagScreenshot'])->name('monitoring.screenshots.flag');
+        Route::post('/sessions/{session}/delete', [MonitoringController::class, 'deleteSession'])
+            ->middleware('permission:monitoring.delete_screenshots')
+            ->name('monitoring.sessions.delete-session');
         Route::post('/screenshots/bulk-delete', [MonitoringController::class, 'bulkDeleteScreenshots'])
             ->middleware('permission:monitoring.delete_screenshots')
             ->name('monitoring.screenshots.bulk-delete');

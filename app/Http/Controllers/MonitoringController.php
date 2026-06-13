@@ -223,6 +223,7 @@ class MonitoringController extends Controller
         $previousAt = $session?->started_at;
 
         foreach ($all as $shot) {
+            $windowStart = $previousAt;
             $gap = $previousAt && $shot->captured_at
                 ? min(max(0, $previousAt->diffInSeconds($shot->captured_at)), 600)
                 : 0;
@@ -233,6 +234,16 @@ class MonitoringController extends Controller
             }
 
             $deducted += $gap;
+
+            // The apps & URLs samples captured in the same interval go with
+            // it — otherwise deleted YouTube time would keep showing in the
+            // activity rollups.
+            if ($windowStart && $shot->captured_at) {
+                \App\Models\TrackingActivitySample::where('tracking_session_id', $shot->tracking_session_id)
+                    ->where('captured_at', '>', $windowStart)
+                    ->where('captured_at', '<=', $shot->captured_at)
+                    ->delete();
+            }
 
             TrackingAuditLog::record([
                 'tracking_session_id' => $shot->tracking_session_id,
@@ -269,6 +280,47 @@ class MonitoringController extends Controller
         }
 
         return $deducted;
+    }
+
+    /**
+     * Delete an entire tracking session: its time, screenshots, activity
+     * samples, and the mirrored work-hours row. This is the tool for time
+     * blocks with no screenshot evidence (or fully bogus sessions) that
+     * per-screenshot deletion can't reach.
+     */
+    public function deleteSession(Request $request, \App\Models\TrackingSession $session): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_unless($actor->hasPermission('monitoring.delete_screenshots'), 403);
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        TrackingAuditLog::record([
+            'tracking_session_id' => $session->id,
+            'subject_user_id' => $session->user_id,
+            'actor_user_id' => $actor->id,
+            'action' => 'session.delete',
+            'event_date' => optional($session->started_at)->toDateString(),
+            'old_value' => [
+                'started_at' => optional($session->started_at)->toIso8601String(),
+                'stopped_at' => optional($session->stopped_at)->toIso8601String(),
+                'total_seconds' => (int) $session->total_seconds,
+                'screenshots' => $session->screenshots()->count(),
+            ],
+            'new_value' => null,
+            'reason' => $data['reason'] ?? null,
+        ]);
+
+        $minutes = round((int) $session->total_seconds / 60);
+
+        \App\Models\TrackingActivitySample::where('tracking_session_id', $session->id)->delete();
+        TrackingScreenshot::where('tracking_session_id', $session->id)->delete();
+        \App\Models\WorkHour::where('tracking_session_id', $session->id)->delete();
+        $session->delete();
+
+        return back()->with('success', "Session deleted — {$minutes} minute(s) of tracked time and all connected data removed.");
     }
 
     private function authorizeScreenshotManagement(User $actor, TrackingScreenshot $screenshot): void

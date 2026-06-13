@@ -282,7 +282,7 @@ function fmtDayTime(iso) {
     }
 }
 
-function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete }) {
+function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete, onRequestDeleteSession }) {
     const daySeconds = session.day_seconds ?? session.total_seconds;
     const isSplit = session.started_before_day || session.continues_after_day;
     return (
@@ -311,6 +311,20 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                             title="Select every screenshot in this session"
                         >
                             Select all
+                        </button>
+                    )}
+                    {canDeleteScreenshots && (
+                        <button
+                            type="button"
+                            onClick={() => onRequestDeleteSession?.({
+                                id: session.id,
+                                label: `${fmtTime(session.started_at)} - ${fmtTime(session.stopped_at)} · ${sessionLabel(session)}`,
+                                seconds: session.total_seconds,
+                            })}
+                            className="rounded border border-rose-500/40 px-1.5 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/10"
+                            title="Delete this whole session: its time, screenshots, and apps & URLs data"
+                        >
+                            Delete session
                         </button>
                     )}
                 </span>
@@ -389,7 +403,8 @@ export default function TimelineIndex({
     // Screenshot deletion: select tiles, then one modal collects the reason.
     // Deleting removes the tracked minutes those screenshots represent.
     const [selectedShots, setSelectedShots] = useState(new Set());
-    const [deleteIds, setDeleteIds] = useState(null); // array => modal open
+    const [deleteIds, setDeleteIds] = useState(null); // array => modal open (screenshots)
+    const [deleteSession, setDeleteSession] = useState(null); // {id, label, seconds} => modal open (whole session)
     const [deleteReason, setDeleteReason] = useState('');
     const [deleting, setDeleting] = useState(false);
 
@@ -411,32 +426,38 @@ export default function TimelineIndex({
     };
 
     const confirmDelete = () => {
-        if (!deleteIds || deleteIds.length === 0 || deleting) return;
+        if (deleting) return;
         setDeleting(true);
         const finish = () => {
             setDeleting(false);
             setDeleteIds(null);
+            setDeleteSession(null);
             setDeleteReason('');
             setSelectedShots(new Set());
             reload(activeDate, activeUserId);
         };
-        if (deleteIds.length === 1) {
-            router.delete(route('monitoring.screenshots.delete', { screenshot: deleteIds[0] }), {
-                data: { reason: deleteReason },
-                preserveScroll: true,
-                preserveState: true,
-                onFinish: finish,
-            });
-        } else {
-            router.post(route('monitoring.screenshots.bulk-delete'), {
-                screenshot_ids: deleteIds,
+        if (deleteSession) {
+            router.post(route('monitoring.sessions.delete-session', { session: deleteSession.id }), {
                 reason: deleteReason,
             }, {
                 preserveScroll: true,
                 preserveState: true,
                 onFinish: finish,
             });
+            return;
         }
+        if (!deleteIds || deleteIds.length === 0) {
+            setDeleting(false);
+            return;
+        }
+        router.post(route('monitoring.screenshots.bulk-delete'), {
+            screenshot_ids: deleteIds,
+            reason: deleteReason,
+        }, {
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: finish,
+        });
     };
 
     const summarizeDay = async () => {
@@ -684,6 +705,7 @@ export default function TimelineIndex({
                                 onToggleSelect={toggleShot}
                                 onSelectSession={selectSession}
                                 onRequestDelete={(ids) => setDeleteIds(ids)}
+                                onRequestDeleteSession={(info) => setDeleteSession(info)}
                             />
                         ))}
                     </div>
@@ -737,15 +759,28 @@ export default function TimelineIndex({
                 </div>
             )}
 
-            {deleteIds && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => !deleting && setDeleteIds(null)}>
+            {(deleteIds || deleteSession) && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => !deleting && (setDeleteIds(null), setDeleteSession(null))}>
                     <div className="w-full max-w-md rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="text-base font-bold text-white">Delete {deleteIds.length} screenshot{deleteIds.length === 1 ? '' : 's'}?</h3>
-                        <p className="mt-2 text-sm leading-6 text-slate-400">
-                            The tracked time these screenshots represent (the minutes between each one and the previous capture)
-                            will be <span className="font-semibold text-rose-300">removed from the session and from reports</span>.
-                            Everything is recorded in the audit history.
-                        </p>
+                        <h3 className="text-base font-bold text-white">
+                            {deleteSession
+                                ? 'Delete this whole session?'
+                                : `Delete ${deleteIds.length} screenshot${deleteIds.length === 1 ? '' : 's'}?`}
+                        </h3>
+                        {deleteSession ? (
+                            <p className="mt-2 text-sm leading-6 text-slate-400">
+                                <span className="font-medium text-slate-300">{deleteSession.label}</span><br />
+                                All of it goes: <span className="font-semibold text-rose-300">{fmtHm(deleteSession.seconds)} of tracked time</span>,
+                                every screenshot, the apps &amp; URLs data, and the synced report hours.
+                                Recorded in the audit history.
+                            </p>
+                        ) : (
+                            <p className="mt-2 text-sm leading-6 text-slate-400">
+                                The tracked time these screenshots represent (the minutes between each one and the previous capture)
+                                will be <span className="font-semibold text-rose-300">removed from the session and from reports</span>,
+                                along with the matching apps &amp; URLs data. Everything is recorded in the audit history.
+                            </p>
+                        )}
                         <textarea
                             value={deleteReason}
                             onChange={(e) => setDeleteReason(e.target.value)}
@@ -756,7 +791,7 @@ export default function TimelineIndex({
                         <div className="mt-4 flex justify-end gap-2">
                             <button
                                 type="button"
-                                onClick={() => setDeleteIds(null)}
+                                onClick={() => { setDeleteIds(null); setDeleteSession(null); }}
                                 disabled={deleting}
                                 className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
                             >
@@ -768,7 +803,7 @@ export default function TimelineIndex({
                                 disabled={deleting}
                                 className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
                             >
-                                {deleting ? 'Deleting…' : 'Delete & remove time'}
+                                {deleting ? 'Deleting…' : deleteSession ? 'Delete entire session' : 'Delete & remove time'}
                             </button>
                         </div>
                     </div>

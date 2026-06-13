@@ -241,7 +241,15 @@ class TimelineController extends Controller
                 'apps' => $this->rollupBy($sessionSamples, 'active_app', $sampleIntervalSeconds),
                 'urls' => $this->rollupBy($sessionSamples, 'url_domain', $sampleIntervalSeconds),
             ];
-        })->values();
+        })
+            // Hide ghost rows: sessions that merely brush the day with under
+            // a minute and left no screenshots or activity here only confuse
+            // the view (e.g. a stale orphan closed just after midnight).
+            ->filter(fn (array $s) => $s['day_seconds'] >= 60
+                || count($s['screenshots']) > 0
+                || $s['screenshot_count_hidden'] > 0
+                || ! empty($s['apps']))
+            ->values();
 
         $totalsScope = fn (Carbon $from, Carbon $to) => (int) TrackingSession::where('user_id', $targetUser->id)
             ->whereBetween('started_at', BusinessTime::utcRange($from, $to))
