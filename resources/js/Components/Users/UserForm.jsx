@@ -18,6 +18,11 @@ export default function UserForm({
 }) {
     const editing = Boolean(user);
     const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
+    // True when the saved designation isn't one of the suggestions — the
+    // select then shows the free-text input.
+    const [customDesignation, setCustomDesignation] = useState(
+        Boolean(user?.designation) && !designationOptions.includes(user.designation)
+    );
     const form = useForm({
         _method: editing ? 'patch' : 'post',
         name: user?.name || '',
@@ -119,19 +124,35 @@ export default function UserForm({
                                 required={!editing}
                             />
                         </Field>
-                        <Field label="Designation" hint="Choose a suggestion or type a new designation." error={form.errors.designation}>
-                            <input
-                                list="designation-options"
-                                value={form.data.designation}
-                                onChange={(event) => form.setData('designation', event.target.value)}
-                                placeholder="Admin, Graphic Designer, Video Editor..."
+                        <Field label="Designation" hint="Pick from the list, or choose “New designation” to type one." error={form.errors.designation}>
+                            <select
+                                value={customDesignation ? '__custom__' : form.data.designation}
+                                onChange={(event) => {
+                                    if (event.target.value === '__custom__') {
+                                        setCustomDesignation(true);
+                                        form.setData('designation', '');
+                                    } else {
+                                        setCustomDesignation(false);
+                                        form.setData('designation', event.target.value);
+                                    }
+                                }}
                                 className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-                            />
-                            <datalist id="designation-options">
+                            >
+                                <option value="">No designation</option>
                                 {designationOptions.map((designation) => (
-                                    <option key={designation} value={designation} />
+                                    <option key={designation} value={designation}>{designation}</option>
                                 ))}
-                            </datalist>
+                                <option value="__custom__">+ New designation…</option>
+                            </select>
+                            {customDesignation && (
+                                <input
+                                    value={form.data.designation}
+                                    onChange={(event) => form.setData('designation', event.target.value)}
+                                    placeholder="Type the new designation"
+                                    autoFocus
+                                    className="mt-2 w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                />
+                            )}
                         </Field>
                         <Field label="Joining date" hint="Days before this date show as Late joining." error={form.errors.joining_date}>
                             <input

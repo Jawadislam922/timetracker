@@ -72,13 +72,31 @@ class UserController extends Controller
             $query->whereIn('role', $roles);
         }
 
+        $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
+        $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
+
+        // Sortable columns. Weekly hours sorts on a SQL subquery sum so the
+        // order is correct across pages, not just within the visible page.
+        $sort = (string) $request->get('sort', 'name');
+        $dir = $request->get('dir') === 'desc' ? 'desc' : 'asc';
+        $sortColumns = [
+            'name' => 'name',
+            'designation' => 'designation',
+            'shift' => 'shift_start_time',
+            'role' => 'role',
+        ];
+
+        if ($sort === 'weekly_hours') {
+            $query->withSum([
+                'workHours as weekly_hours_sum' => fn ($q) => $q->whereBetween('date', [$startOfWeek, $endOfWeek]),
+            ], 'hours')->orderBy('weekly_hours_sum', $dir);
+        } else {
+            $query->orderBy($sortColumns[$sort] ?? 'name', $dir);
+        }
+
         $users = $query->orderBy('name')
             ->paginate($perPage)
             ->appends($request->query());
-
-        // Calculate weekly hours for each user and format as HH:MM
-        $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
-        $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
 
         $users->getCollection()->transform(function ($user) use ($startOfWeek, $endOfWeek) {
             // Get the sum of hours for this week
@@ -113,6 +131,8 @@ class UserController extends Controller
                 'search' => $request->get('search', ''),
                 'designations' => $designations,
                 'roles' => $roles,
+                'sort' => $sort,
+                'dir' => $dir,
             ],
             'filterOptions' => [
                 'designations' => $allDesignations,

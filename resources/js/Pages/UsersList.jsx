@@ -40,6 +40,8 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
             roles: changes.roles ?? roles,
             designations: changes.designations ?? designations,
             perPage: changes.perPage ?? perPage,
+            sort: changes.sort ?? (filters.sort || 'name'),
+            dir: changes.dir ?? (filters.dir || 'asc'),
         };
 
         router.get(route('users.index'), next, {
@@ -47,6 +49,11 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
             preserveScroll: true,
             replace: true,
         });
+    };
+
+    const sortBy = (column) => {
+        const dir = (filters.sort || 'name') === column && (filters.dir || 'asc') === 'asc' ? 'desc' : 'asc';
+        applyFilters({ sort: column, dir });
     };
 
     useEffect(() => {
@@ -237,14 +244,34 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-900">
                                     <tr>
-                                        {['User', 'Designation', 'Shift', 'Role', 'Weekly hours', 'Actions'].map((heading, index) => (
+                                        {[
+                                            { heading: 'User', sort: 'name' },
+                                            { heading: 'Designation', sort: 'designation' },
+                                            { heading: 'Shift', sort: 'shift' },
+                                            { heading: 'Role', sort: 'role' },
+                                            { heading: 'Weekly tracked', sort: 'weekly_hours', help: 'Work-diary hours this week (tracker + manual entries) — not clock in/out time.' },
+                                            { heading: 'Actions', sort: null },
+                                        ].map(({ heading, sort, help }, index) => (
                                             <th
                                                 key={heading}
                                                 className={`whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-white ${
                                                     index === 0 ? 'sticky left-0 z-10 bg-slate-900' : ''
                                                 }`}
                                             >
-                                                {heading}
+                                                {sort ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => sortBy(sort)}
+                                                        title={help || `Sort by ${heading.toLowerCase()}`}
+                                                        className="inline-flex items-center gap-1 uppercase hover:text-orange-300"
+                                                    >
+                                                        {heading}
+                                                        {help && <span className="text-slate-400">ⓘ</span>}
+                                                        {(filters.sort || 'name') === sort && (
+                                                            <span>{(filters.dir || 'asc') === 'asc' ? '▲' : '▼'}</span>
+                                                        )}
+                                                    </button>
+                                                ) : heading}
                                             </th>
                                         ))}
                                     </tr>
