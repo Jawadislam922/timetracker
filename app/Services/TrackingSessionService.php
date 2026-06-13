@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\TrackingActivitySample;
+use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\UpworkProfile;
 use App\Models\WorkHour;
@@ -9,6 +11,25 @@ use Carbon\CarbonInterface;
 
 class TrackingSessionService
 {
+    /**
+     * Completely remove a tracking session and every trace of it: activity
+     * samples, screenshots, and the mirrored work-hours row. Used when an
+     * admin deletes a bogus session, when a work-diary entry that mirrors a
+     * session is deleted, and when screenshot deletion empties a session to
+     * crumbs. Returns the seconds that were removed.
+     */
+    public function purge(TrackingSession $session): int
+    {
+        $removed = (int) $session->total_seconds;
+
+        TrackingActivitySample::where('tracking_session_id', $session->id)->delete();
+        TrackingScreenshot::where('tracking_session_id', $session->id)->delete();
+        WorkHour::where('tracking_session_id', $session->id)->delete();
+        $session->delete();
+
+        return $removed;
+    }
+
     /**
      * Close a session and mirror it into work_hours, exactly like a normal
      * desktop "stop". Used both by the stop endpoint and the stale-session

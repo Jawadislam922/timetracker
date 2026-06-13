@@ -204,6 +204,16 @@ class TimelineController extends Controller
         $samplesBySession = $samples->groupBy('tracking_session_id');
         $sampleIntervalSeconds = MonitoringSetting::current()->activity_sample_interval_seconds ?: 60;
 
+        // Drop ghost sessions that screenshot deletion gutted down to crumbs
+        // (sub-minute with no screenshots and no samples left). They would
+        // otherwise leave residue in the day total, the Tasks box, and the
+        // month-strip dots even though the session list already hides them.
+        $sessions = $sessions->filter(function (TrackingSession $session) use ($shotsBySession, $samplesBySession) {
+            return (int) $session->total_seconds >= 60
+                || ($shotsBySession[$session->id] ?? collect())->isNotEmpty()
+                || ($samplesBySession[$session->id] ?? collect())->isNotEmpty();
+        })->values();
+
         $dateKey = $date->toDateString();
 
         $sessionPayload = $sessions->map(function (TrackingSession $session) use ($shotsBySession, $samplesBySession, $sampleIntervalSeconds, $canViewScreenshots, $dayStart, $dayEnd, $dateKey) {
@@ -251,8 +261,12 @@ class TimelineController extends Controller
                 || ! empty($s['apps']))
             ->values();
 
+        // Sub-minute sessions never reach work_hours (syncWorkHour skips
+        // them), so excluding them here keeps the Timeline week/month totals
+        // in step with Reports and ignores any deletion crumbs.
         $totalsScope = fn (Carbon $from, Carbon $to) => (int) TrackingSession::where('user_id', $targetUser->id)
             ->whereBetween('started_at', BusinessTime::utcRange($from, $to))
+            ->where('total_seconds', '>=', 60)
             ->sum('total_seconds');
 
         $clientBreakdown = $sessions
@@ -400,6 +414,8 @@ class TimelineController extends Controller
             ->where('user_id', $userId)
             ->where('started_at', '<=', $rangeEnd)
             ->where('started_at', '>=', $rangeStart->copy()->subDays(2))
+            // Skip deletion crumbs so the day dots match the real day totals.
+            ->where('total_seconds', '>=', 60)
             ->where(function ($q) use ($rangeStart) {
                 $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $rangeStart);
             })
@@ -411,7 +427,7 @@ class TimelineController extends Controller
             $lastDay = BusinessTime::dateKey($session->stopped_at) ?? BusinessTime::today()->toDateString();
             for ($day = Carbon::parse($firstDay, BusinessTime::tz()); $day->toDateString() <= $lastDay; $day->addDay()) {
                 $seconds = $this->inDaySeconds($session, $day->copy()->startOfDay(), $day->copy()->endOfDay());
-                if ($seconds > 0) {
+                if ($seconds >= 30) {
                     $perDay[$day->toDateString()] = ($perDay[$day->toDateString()] ?? 0) + $seconds;
                 }
             }

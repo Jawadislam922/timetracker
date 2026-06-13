@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\MonitoringSetting;
+use App\Models\TrackingAuditLog;
+use App\Models\TrackingSession;
 use App\Models\UpworkProfile;
 use App\Models\User;
 use App\Models\WorkHour;
 use App\Services\SlackReportService;
+use App\Services\TrackingSessionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -308,11 +311,52 @@ class WorkHourController extends Controller
     {
         $this->authorizeWorkHourAccess($workHour);
 
-        $workHour->delete();
+        $cascaded = $this->deleteWorkHourAndSource($workHour, $request->user());
 
         return $this->redirectToReturnPath($request, 'work-hours.index', [
-            'success' => 'Work hour entry deleted.',
+            'success' => $cascaded
+                ? 'Work entry deleted — its tracking session, screenshots, and activity data were removed too.'
+                : 'Work hour entry deleted.',
         ]);
+    }
+
+    /**
+     * Delete a work entry and, when it mirrors a tracker session, tear down
+     * that whole session (screenshots, activity samples) so it also vanishes
+     * from the Timeline and Team Performance. Manual entries have no source
+     * session and are simply removed. Returns true when a session cascaded.
+     */
+    private function deleteWorkHourAndSource(WorkHour $workHour, ?User $actor): bool
+    {
+        $session = $workHour->tracking_session_id
+            ? TrackingSession::find($workHour->tracking_session_id)
+            : null;
+
+        if (! $session) {
+            $workHour->delete();
+
+            return false;
+        }
+
+        TrackingAuditLog::record([
+            'tracking_session_id' => $session->id,
+            'subject_user_id' => $session->user_id,
+            'actor_user_id' => $actor?->id,
+            'action' => 'session.delete',
+            'event_date' => optional($session->started_at)->toDateString(),
+            'old_value' => [
+                'via' => 'work_diary',
+                'total_seconds' => (int) $session->total_seconds,
+                'screenshots' => $session->screenshots()->count(),
+            ],
+            'new_value' => null,
+            'reason' => 'Work-diary entry deleted',
+        ]);
+
+        // purge() removes the mirrored work-hours row as well.
+        app(TrackingSessionService::class)->purge($session);
+
+        return true;
     }
 
     public function bulkDelete(Request $request)
@@ -329,28 +373,25 @@ class WorkHourController extends Controller
         $user = auth()->user();
         $ids = $validated['ids'];
 
-        if ($user->hasPermission('work_hours.manage_all')) {
-            $deletedCount = WorkHour::whereIn('id', $ids)->delete();
-        } else {
+        $query = WorkHour::whereIn('id', $ids);
+        if (! $user->hasPermission('work_hours.manage_all')) {
             // Ensure user can only delete their own entries.
-            $ownCount = WorkHour::whereIn('id', $ids)
-                ->where('user_id', $user->id)
-                ->count();
-
-            if ($ownCount !== count($ids)) {
-                // Inertia requests must get a redirect/validation response, not
-                // plain JSON — surface the failure as a form error.
+            if (WorkHour::whereIn('id', $ids)->where('user_id', $user->id)->count() !== count($ids)) {
                 return back()->withErrors([
                     'ids' => 'Some entries could not be deleted. You can only delete your own entries.',
                 ]);
             }
-
-            $deletedCount = WorkHour::whereIn('id', $ids)
-                ->where('user_id', $user->id)
-                ->delete();
+            $query->where('user_id', $user->id);
         }
 
-        return back()->with('success', "Successfully deleted {$deletedCount} entries.");
+        // Cascade each entry so tracker-synced ones also remove their session,
+        // screenshots, and activity data (not just the work_hours row).
+        $entries = $query->get();
+        foreach ($entries as $entry) {
+            $this->deleteWorkHourAndSource($entry, $user);
+        }
+
+        return back()->with('success', 'Successfully deleted '.$entries->count().' entries.');
     }
 
     public function exportPersonal(Request $request)

@@ -270,11 +270,18 @@ class MonitoringController extends Controller
             $session->update(['total_seconds' => max(0, (int) $session->total_seconds - $deducted)]);
             $session->refresh();
 
-            if ($session->total_seconds >= 60) {
+            $remainingShots = TrackingScreenshot::where('tracking_session_id', $session->id)->count();
+
+            if ($session->total_seconds < 60 && $remainingShots === 0) {
+                // Gutted down to crumbs — remove the whole session so it
+                // leaves no residue on the month strip, day totals, Tasks
+                // box, or Team Performance.
+                app(\App\Services\TrackingSessionService::class)->purge($session);
+            } elseif ($session->total_seconds >= 60) {
                 app(\App\Services\TrackingSessionService::class)->syncWorkHour($session);
             } else {
-                // Below the sync threshold — drop the mirrored row so the
-                // deleted time can't linger in reports.
+                // Below the sync threshold but still has screenshots — drop
+                // the mirrored row so the deleted time can't linger in reports.
                 \App\Models\WorkHour::where('tracking_session_id', $session->id)->delete();
             }
         }
@@ -315,10 +322,7 @@ class MonitoringController extends Controller
 
         $minutes = round((int) $session->total_seconds / 60);
 
-        \App\Models\TrackingActivitySample::where('tracking_session_id', $session->id)->delete();
-        TrackingScreenshot::where('tracking_session_id', $session->id)->delete();
-        \App\Models\WorkHour::where('tracking_session_id', $session->id)->delete();
-        $session->delete();
+        app(\App\Services\TrackingSessionService::class)->purge($session);
 
         return back()->with('success', "Session deleted — {$minutes} minute(s) of tracked time and all connected data removed.");
     }

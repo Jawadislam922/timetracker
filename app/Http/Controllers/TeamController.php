@@ -31,6 +31,9 @@ class TeamController extends Controller
         // Per-user session totals for the day.
         $sessions = TrackingSession::with('client:id,name')
             ->whereBetween('started_at', [$dayStart, $dayEnd])
+            // Skip deletion crumbs (sub-minute sessions never mirror to
+            // work_hours) so Team Performance matches Reports.
+            ->where('total_seconds', '>=', 60)
             ->get(['id', 'user_id', 'client_id', 'started_at', 'stopped_at', 'last_heartbeat_at', 'total_seconds', 'activity_percent', 'status']);
 
         $sessionsByUser = $sessions->groupBy('user_id');
