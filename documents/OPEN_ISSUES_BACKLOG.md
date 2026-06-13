@@ -138,3 +138,23 @@ C. INDUSTRY-LEVEL FULL INSPECTION (CEO-ready): thorough joint pass over
 STILL NEXT: Inertia v2 speed upgrade (queue #2); full CEO-ready page
 audit WITH Jawad -> documents/PAGE_AUDIT.md (queue #3, gap C); apply
 lightbox to SessionDetail; dark card interiors; AI phase 2.
+
+## SHIPPED 2026-06-13 (avatars/logo/filters, opus fast)
+- Avatars (ab8f83b + 0c905c1): root cause was avatar_url minting a fresh
+  presigned S3 URL every render -> no browser cache -> ~50 signed GETs to
+  Stockholm at once -> 503 throttling + slow. Now a stable cached
+  /avatar/{user} proxy (week browser cache + ETag/304 + server byte
+  cache) AND on-serve resize to 160px. Live photos were 1.7-1.8MB ->
+  ~30KB (60x). Also: 25 of 28 avatar refs were DEAD pointers (files
+  wiped by pre-S3 deploys) -> nulled them so they show initials with no
+  failed request (images already gone; only broken pointers removed). 3
+  live avatars remain (ids 2,3,41).
+- Logo: byte-cached + resized 1024px/1MB -> 320px/102KB (10x). Both
+  verified live.
+- Users filters lost on edit return FIXED: UserEdit never read the
+  return_to prop, so save redirected to a filterless /users. Wired
+  return_to -> UserForm. Verified: edit+save returns to
+  /users?dir=desc&search=claude&sort=shift intact.
+- New: AvatarController, app/Support/ImageResizer (GD, graceful
+  fallback). 116 tests green.
+- CHORE still open: 25 users need avatar re-uploads (originals long gone).
