@@ -175,7 +175,7 @@ function RollupList({ items, icon: Icon, emptyLabel }) {
     );
 }
 
-function ScreenshotTile({ shot, canManage, canDelete, onChanged }) {
+function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = false, onToggleSelect = null, onRequestDelete = null }) {
     const [busy, setBusy] = useState(false);
 
     const toggleFlag = () => {
@@ -197,26 +197,24 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged }) {
 
     const remove = () => {
         if (!canDelete || busy) return;
-        const reason = prompt('Reason for deleting this screenshot? (recorded in audit log)') ?? '';
-        if (reason === null) return;
-        if (!confirm('Delete this screenshot? It will disappear from the timeline.')) return;
-        setBusy(true);
-        router.delete(
-            route('monitoring.screenshots.delete', { screenshot: shot.id }),
-            {
-                data: { reason },
-                preserveScroll: true,
-                preserveState: true,
-                onSuccess: () => onChanged?.(),
-                onFinish: () => setBusy(false),
-            }
-        );
+        onRequestDelete?.([shot.id]);
     };
 
     return (
-        <figure className="relative overflow-hidden rounded-md border border-slate-800 bg-slate-950">
+        <figure className={`relative overflow-hidden rounded-md border bg-slate-950 ${selected ? 'border-rose-500/70 ring-1 ring-rose-500/50' : 'border-slate-800'}`}>
             <div className="flex items-center justify-between bg-slate-900 px-2 py-1 text-[11px] text-slate-400">
-                <span>{fmtTime(shot.captured_at)}</span>
+                <span className="flex items-center gap-1.5">
+                    {canDelete && onToggleSelect && (
+                        <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => onToggleSelect(shot.id)}
+                            title="Select for deletion"
+                            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-800 text-rose-500 focus:ring-rose-500"
+                        />
+                    )}
+                    {fmtTime(shot.captured_at)}
+                </span>
                 <div className="flex items-center gap-1.5">
                     {shot.is_flagged && <Flag className="h-3 w-3 text-rose-500" />}
                     <span className={['inline-block h-2 w-2 rounded-full', activityDot(shot.activity_percent)].join(' ')} title={`Activity ${shot.activity_percent}%`} />
@@ -284,7 +282,7 @@ function fmtDayTime(iso) {
     }
 }
 
-function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged }) {
+function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete }) {
     const daySeconds = session.day_seconds ?? session.total_seconds;
     const isSplit = session.started_before_day || session.continues_after_day;
     return (
@@ -303,8 +301,18 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                         continues past midnight
                     </span>
                 )}
-                <span className="ml-auto text-xs font-normal text-slate-400">
+                <span className="ml-auto flex items-center gap-2 text-xs font-normal text-slate-400">
                     {fmtHm(daySeconds)}{isSplit ? ` this day of ${fmtHm(session.total_seconds)}` : ''} · activity {session.activity_percent ?? 0}%
+                    {canDeleteScreenshots && view !== 'apps' && (session.screenshots || []).length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => onSelectSession?.(session.screenshots.map((s) => s.id))}
+                            className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800"
+                            title="Select every screenshot in this session"
+                        >
+                            Select all
+                        </button>
+                    )}
                 </span>
             </header>
 
@@ -340,6 +348,9 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                                     canManage={canManageScreenshots}
                                     canDelete={canDeleteScreenshots}
                                     onChanged={onShotChanged}
+                                    selected={selectedShots?.has(shot.id)}
+                                    onToggleSelect={onToggleSelect}
+                                    onRequestDelete={onRequestDelete}
                                 />
                             ))}
                         </div>
@@ -374,6 +385,59 @@ export default function TimelineIndex({
     const [showDownloadHint, setShowDownloadHint] = useState(false);
     const [aiSummary, setAiSummary] = useState(null);
     const [aiLoading, setAiLoading] = useState(false);
+
+    // Screenshot deletion: select tiles, then one modal collects the reason.
+    // Deleting removes the tracked minutes those screenshots represent.
+    const [selectedShots, setSelectedShots] = useState(new Set());
+    const [deleteIds, setDeleteIds] = useState(null); // array => modal open
+    const [deleteReason, setDeleteReason] = useState('');
+    const [deleting, setDeleting] = useState(false);
+
+    const toggleShot = (id) => {
+        setSelectedShots((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const selectSession = (ids) => {
+        setSelectedShots((prev) => {
+            const next = new Set(prev);
+            const allIn = ids.every((id) => next.has(id));
+            ids.forEach((id) => (allIn ? next.delete(id) : next.add(id)));
+            return next;
+        });
+    };
+
+    const confirmDelete = () => {
+        if (!deleteIds || deleteIds.length === 0 || deleting) return;
+        setDeleting(true);
+        const finish = () => {
+            setDeleting(false);
+            setDeleteIds(null);
+            setDeleteReason('');
+            setSelectedShots(new Set());
+            reload(activeDate, activeUserId);
+        };
+        if (deleteIds.length === 1) {
+            router.delete(route('monitoring.screenshots.delete', { screenshot: deleteIds[0] }), {
+                data: { reason: deleteReason },
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: finish,
+            });
+        } else {
+            router.post(route('monitoring.screenshots.bulk-delete'), {
+                screenshot_ids: deleteIds,
+                reason: deleteReason,
+            }, {
+                preserveScroll: true,
+                preserveState: true,
+                onFinish: finish,
+            });
+        }
+    };
 
     const summarizeDay = async () => {
         if (aiLoading) return;
@@ -616,6 +680,10 @@ export default function TimelineIndex({
                                 canDeleteScreenshots={permissions.delete_screenshots}
                                 view={view}
                                 onShotChanged={() => reload(activeDate, activeUserId)}
+                                selectedShots={selectedShots}
+                                onToggleSelect={toggleShot}
+                                onSelectSession={selectSession}
+                                onRequestDelete={(ids) => setDeleteIds(ids)}
                             />
                         ))}
                     </div>
@@ -648,6 +716,64 @@ export default function TimelineIndex({
                 </div>
             </div>
             </div>
+
+            {selectedShots.size > 0 && !deleteIds && (
+                <div className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-slate-700 bg-slate-900 px-4 py-2.5 shadow-2xl shadow-black/50">
+                    <span className="text-sm font-semibold text-white">{selectedShots.size} screenshot{selectedShots.size === 1 ? '' : 's'} selected</span>
+                    <button
+                        type="button"
+                        onClick={() => setDeleteIds([...selectedShots])}
+                        className="rounded-full bg-rose-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-rose-500"
+                    >
+                        Delete & remove time
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSelectedShots(new Set())}
+                        className="rounded-full border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800"
+                    >
+                        Clear
+                    </button>
+                </div>
+            )}
+
+            {deleteIds && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => !deleting && setDeleteIds(null)}>
+                    <div className="w-full max-w-md rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-base font-bold text-white">Delete {deleteIds.length} screenshot{deleteIds.length === 1 ? '' : 's'}?</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-400">
+                            The tracked time these screenshots represent (the minutes between each one and the previous capture)
+                            will be <span className="font-semibold text-rose-300">removed from the session and from reports</span>.
+                            Everything is recorded in the audit history.
+                        </p>
+                        <textarea
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            rows={2}
+                            placeholder="Reason (e.g. watching YouTube — not work)…"
+                            className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-rose-500 focus:ring-rose-500"
+                        />
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteIds(null)}
+                                disabled={deleting}
+                                className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDelete}
+                                disabled={deleting}
+                                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                            >
+                                {deleting ? 'Deleting…' : 'Delete & remove time'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {historyOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setHistoryOpen(false)}>

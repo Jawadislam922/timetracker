@@ -166,27 +166,109 @@ class MonitoringController extends Controller
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        TrackingAuditLog::record([
-            'tracking_session_id' => $screenshot->tracking_session_id,
-            'tracking_screenshot_id' => $screenshot->id,
-            'subject_user_id' => $screenshot->user_id,
-            'actor_user_id' => $actor->id,
-            'action' => 'screenshot.delete',
-            'event_date' => optional($screenshot->captured_at)->toDateString(),
-            'old_value' => [
-                'image_path' => $screenshot->image_path,
-                'captured_at' => optional($screenshot->captured_at)->toIso8601String(),
-            ],
-            'new_value' => null,
-            'reason' => $data['reason'] ?? null,
+        $deducted = $this->deleteShotsAndDeductTime($actor, collect([$screenshot]), $data['reason'] ?? null);
+
+        return back()->with('success', 'Screenshot deleted — '.round($deducted / 60).' minute(s) of tracked time removed.');
+    }
+
+    /**
+     * Delete several screenshots at once (e.g. a whole "watched YouTube"
+     * stretch) and remove the tracked time they represent.
+     */
+    public function bulkDeleteScreenshots(Request $request): RedirectResponse
+    {
+        $actor = $request->user();
+        abort_unless($actor->hasPermission('monitoring.delete_screenshots'), 403);
+
+        $data = $request->validate([
+            'screenshot_ids' => ['required', 'array', 'min:1', 'max:200'],
+            'screenshot_ids.*' => ['integer'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // Soft delete the row but keep the actual image file (so the audit
-        // record remains meaningful and the action can be reversed by a DBA
-        // if needed). Hard-deleting files should be a separate retention job.
-        $screenshot->delete();
+        $shots = TrackingScreenshot::whereIn('id', $data['screenshot_ids'])->get();
+        if ($shots->isEmpty()) {
+            return back()->with('error', 'No matching screenshots found.');
+        }
 
-        return back()->with('success', 'Screenshot deleted.');
+        $deducted = 0;
+        foreach ($shots->groupBy('tracking_session_id') as $sessionShots) {
+            $deducted += $this->deleteShotsAndDeductTime($actor, $sessionShots, $data['reason'] ?? null);
+        }
+
+        return back()->with('success', $shots->count().' screenshot(s) deleted — '.round($deducted / 60).' minute(s) of tracked time removed.');
+    }
+
+    /**
+     * Each screenshot stands for the interval since the previous one in its
+     * session (capped at 10 minutes, session start for the first). Deleting
+     * it removes that interval from the session's tracked seconds and
+     * re-syncs the mirrored work-hours row, so wrongly tracked time stops
+     * counting anywhere the moment the evidence is removed.
+     *
+     * @param  \Illuminate\Support\Collection<int, TrackingScreenshot>  $shots  all in the same session
+     * @return int seconds deducted
+     */
+    private function deleteShotsAndDeductTime(User $actor, $shots, ?string $reason): int
+    {
+        $session = $shots->first()->trackingSession;
+
+        // Ordered full set for interval math (before anything is deleted).
+        $all = TrackingScreenshot::where('tracking_session_id', $shots->first()->tracking_session_id)
+            ->orderBy('captured_at')
+            ->get();
+
+        $deleteIds = $shots->pluck('id')->all();
+        $deducted = 0;
+        $previousAt = $session?->started_at;
+
+        foreach ($all as $shot) {
+            $gap = $previousAt && $shot->captured_at
+                ? min(max(0, $previousAt->diffInSeconds($shot->captured_at)), 600)
+                : 0;
+            $previousAt = $shot->captured_at ?? $previousAt;
+
+            if (! in_array($shot->id, $deleteIds, true)) {
+                continue;
+            }
+
+            $deducted += $gap;
+
+            TrackingAuditLog::record([
+                'tracking_session_id' => $shot->tracking_session_id,
+                'tracking_screenshot_id' => $shot->id,
+                'subject_user_id' => $shot->user_id,
+                'actor_user_id' => $actor->id,
+                'action' => 'screenshot.delete',
+                'event_date' => optional($shot->captured_at)->toDateString(),
+                'old_value' => [
+                    'image_path' => $shot->image_path,
+                    'captured_at' => optional($shot->captured_at)->toIso8601String(),
+                ],
+                'new_value' => ['deducted_seconds' => $gap],
+                'reason' => $reason,
+            ]);
+
+            // Soft delete the row but keep the actual image file (so the audit
+            // record remains meaningful and the action can be reversed by a
+            // DBA if needed).
+            $shot->delete();
+        }
+
+        if ($session && $deducted > 0) {
+            $session->update(['total_seconds' => max(0, (int) $session->total_seconds - $deducted)]);
+            $session->refresh();
+
+            if ($session->total_seconds >= 60) {
+                app(\App\Services\TrackingSessionService::class)->syncWorkHour($session);
+            } else {
+                // Below the sync threshold — drop the mirrored row so the
+                // deleted time can't linger in reports.
+                \App\Models\WorkHour::where('tracking_session_id', $session->id)->delete();
+            }
+        }
+
+        return $deducted;
     }
 
     private function authorizeScreenshotManagement(User $actor, TrackingScreenshot $screenshot): void
