@@ -38,6 +38,8 @@ function NavItem({ item, onClick }) {
         <Link
             href={item.href}
             onClick={onClick}
+            prefetch
+            cacheFor="20s"
             className={[
                 'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition xl:px-3',
                 active
@@ -78,6 +80,8 @@ function NavGroup({ label, icon: Icon, items }) {
                         <Dropdown.Link
                             key={item.label}
                             href={item.href}
+                            prefetch
+                            cacheFor="20s"
                             className={isActive ? 'bg-slate-100 font-semibold text-slate-900' : ''}
                         >
                             <span className="flex items-center gap-2">
