@@ -293,3 +293,27 @@ NOT DONE — needs backend, not polish:
 - NOT DONE (optional follow-up): self-service rollback BUTTON on the Developer
   page (currently rollback is the artisan command via SSH). Reuse the Developer
   `run` action infra + show active/available versions.
+
+## SHIPPED 2026-06-14 (timeline labels + auto clock-in; desktop redesign queued)
+- Timeline Tasks breakdown: non-client work now shows its type (office_work->
+  "Office work", upwork_bidding->"Bidding", test_task->"Test task") instead of
+  "Unassigned" (TimelineController::breakdownLabel). Verified on Jawad's real
+  6/14 data. Pure backend, no rebuild.
+- Auto clock-in on tracker start (Desktop SessionController::start): if not
+  already clocked in, create a clock_in at the SESSION'S start time (correct
+  even for offline-queued starts), notes "Auto clock-in (started tracker)".
+  Pairs with the auto-clock-out net. Backend only.
+- Web login show-password eye toggle ALREADY EXISTS (Login.jsx).
+- Offline tracking CONFIRMED fine: screenshots/activity queue locally with real
+  timestamps + sync on reconnect; auto clock-in uses session start time too.
+
+## QUEUED — DESKTOP v0.3.2 (owner wishlist, needs build; owner: "design the 3 best")
+- THEME SYSTEM + cinematic redesign: app feels flatly dark; add a one-click
+  theme switcher with ~3 polished themes (Claude to design — e.g. warm
+  cinematic default / clean light / neutral midnight). Premium, "studio" feel.
+- Smoother scrolling (QoL — current scroll feels rough).
+- Prominent "who's logged in" name (shared computers / different shifts so
+  people don't track under someone else). Header already shows name; make it
+  unmissable.
+- Show-password eye toggle on the DESKTOP login (web already has it).
+- (Carry) Mac 0.3.1 build (bump Mac prompt), self-service rollback button.
