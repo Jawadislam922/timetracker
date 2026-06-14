@@ -1,0 +1,197 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\TimeEntry;
+use App\Models\TrackingSession;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Safety net for forgotten clock-outs.
+ *
+ * The desktop/web clock is fully manual — it only records the action the user
+ * presses. If someone clocks in and never clocks out (closed the app, slept the
+ * laptop, or simply forgot), the clock-in hangs open forever: they read as
+ * "Working" indefinitely and the day never closes. This closes those dangling
+ * clock-ins and, crucially, writes a real clock_out entry with a plain-language
+ * REASON, so the Activity log always shows the pair and why it was auto-closed.
+ *
+ * A clock-out time is never invented out of thin air — it is chosen, in order:
+ *   1. Tracker went idle: the tracker sent its last heartbeat >= idle-hours ago
+ *      -> clock out at that last activity. (Credits only time they were active.)
+ *   2. Never tracked (e.g. executives who don't run the tracker): once the
+ *      clock-in is older than cap-hours -> clock out at clock-in + cap.
+ * Either way the clock-out never runs past cap-hours, so there are no 60-hour
+ * ghosts. A session whose tracker is still alive (idle < idle-hours) is left
+ * alone — we never cut off someone who is genuinely mid-shift.
+ */
+class AutoCloseAttendance extends Command
+{
+    protected $signature = 'attendance:auto-clock-out
+        {--cap-hours=12 : Maximum hours a single clock-in may span before it is force-closed}
+        {--idle-hours=2 : Close a tracked session this many hours after its last heartbeat}
+        {--user= : Limit to a single user id (for testing)}
+        {--dry-run : Report what would be closed without writing anything}';
+
+    protected $description = 'Auto clock-out dangling attendance clock-ins (forgotten clock-outs), recording a reason.';
+
+    public function handle(): int
+    {
+        $capHours = (float) $this->option('cap-hours');
+        $idleHours = (float) $this->option('idle-hours');
+        $dry = (bool) $this->option('dry-run');
+        $now = Carbon::now('Asia/Karachi');
+
+        $users = User::query()
+            ->when($this->option('user'), fn ($q) => $q->where('id', $this->option('user')))
+            ->get();
+
+        $closed = 0;
+        $skipped = 0;
+
+        foreach ($users as $user) {
+            $last = TimeEntry::where('user_id', $user->id)
+                ->orderByDesc('action_timestamp')->orderByDesc('id')
+                ->first();
+
+            // Only act on an OPEN session (latest action is a clock-in or an
+            // unfinished break). Anything else is already closed.
+            if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start'], true)) {
+                continue;
+            }
+
+            // The clock-in that started this open session.
+            $clockIn = TimeEntry::where('user_id', $user->id)
+                ->where('action_type', 'clock_in')
+                ->orderByDesc('action_timestamp')->orderByDesc('id')
+                ->first();
+            if (! $clockIn) {
+                continue; // open break with no clock-in — malformed, leave it
+            }
+
+            $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
+            $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
+            $capAt = $clockInTs->copy()->addMinutes((int) round($capHours * 60));
+
+            // Last sign of life from the tracker during this open session.
+            $lastHeartbeat = $this->lastTrackerSignal($user->id, $clockInTs);
+
+            $closeAt = null;
+            $reason = null;
+
+            if ($lastHeartbeat) {
+                $idleSince = $lastHeartbeat->diffInMinutes($now, false) / 60;
+                if ($idleSince >= $idleHours) {
+                    $closeAt = $lastHeartbeat->copy();
+                    $reason = sprintf(
+                        'Auto clock-out: tracker stopped %s ago (last activity %s); no manual clock-out.',
+                        $this->humanHours($idleSince),
+                        $lastHeartbeat->format('M j, g:i A')
+                    );
+                } else {
+                    $skipped++; // tracker alive recently — genuinely working
+                    continue;
+                }
+            } elseif ($ageHours >= $capHours) {
+                $closeAt = $capAt->copy();
+                $reason = sprintf(
+                    'Auto clock-out: no time tracked since clock-in; capped at %dh. Adjust manually if you worked longer.',
+                    (int) round($capHours)
+                );
+            } else {
+                $skipped++; // within window, no tracking yet — may still be working
+                continue;
+            }
+
+            // Never let an auto clock-out run past the hard cap.
+            if ($closeAt->greaterThan($capAt)) {
+                $closeAt = $capAt->copy();
+                $reason = sprintf(
+                    'Auto clock-out: open clock-in exceeded %dh maximum; capped by system.',
+                    (int) round($capHours)
+                );
+            }
+
+            // Closing must never predate the clock-in.
+            if ($closeAt->lessThanOrEqualTo($clockInTs)) {
+                $closeAt = $clockInTs->copy()->addMinute();
+            }
+
+            $spanHours = $clockInTs->diffInMinutes($closeAt, false) / 60;
+            $this->line(sprintf(
+                '%-22s clock-in %s -> %s clock-out (%s) %s',
+                $user->name,
+                $clockInTs->format('M j g:i A'),
+                $closeAt->format('M j g:i A'),
+                $this->humanHours($spanHours),
+                $dry ? '[dry-run]' : ''
+            ));
+            $this->line('    reason: '.$reason);
+
+            if (! $dry) {
+                $this->writeClose($user, $clockIn, $last, $closeAt, $reason);
+            }
+            $closed++;
+        }
+
+        $this->info(sprintf('%s %d open clock-in(s); skipped %d still-active.', $dry ? 'Would close' : 'Closed', $closed, $skipped));
+
+        return self::SUCCESS;
+    }
+
+    /** Most recent tracker heartbeat/stop during the open session, or null if never tracked. */
+    private function lastTrackerSignal(int $userId, Carbon $clockInTs): ?Carbon
+    {
+        $row = TrackingSession::where('user_id', $userId)
+            ->where(function ($q) use ($clockInTs) {
+                $q->where('last_heartbeat_at', '>=', $clockInTs)
+                    ->orWhere('stopped_at', '>=', $clockInTs)
+                    ->orWhere('started_at', '>=', $clockInTs);
+            })
+            ->selectRaw('MAX(GREATEST(COALESCE(last_heartbeat_at, started_at), COALESCE(stopped_at, started_at))) as sig')
+            ->value('sig');
+
+        return $row ? Carbon::parse($row)->setTimezone('Asia/Karachi') : null;
+    }
+
+    /** Write break_end (if on break) then the clock_out, on the clock-in's attendance date. */
+    private function writeClose(User $user, TimeEntry $clockIn, TimeEntry $last, Carbon $closeAt, string $reason): void
+    {
+        DB::transaction(function () use ($clockIn, $last, $closeAt, $reason) {
+            $date = $clockIn->action_date instanceof Carbon
+                ? $clockIn->action_date->toDateString()
+                : (string) $clockIn->action_date;
+
+            // An open break must be ended before a valid clock-out.
+            if ($last->action_type === 'break_start') {
+                TimeEntry::create([
+                    'user_id' => $clockIn->user_id,
+                    'action_type' => 'break_end',
+                    'action_timestamp' => $closeAt,
+                    'action_date' => $date,
+                    'action_time' => $closeAt->toTimeString(),
+                    'notes' => 'Auto break-end (system close).',
+                ]);
+            }
+
+            TimeEntry::create([
+                'user_id' => $clockIn->user_id,
+                'action_type' => 'clock_out',
+                'action_timestamp' => $closeAt,
+                'action_date' => $date,
+                'action_time' => $closeAt->toTimeString(),
+                'notes' => $reason,
+            ]);
+        });
+    }
+
+    private function humanHours(float $hours): string
+    {
+        $mins = max(0, (int) round($hours * 60));
+
+        return $mins >= 60 ? sprintf('%dh %dm', intdiv($mins, 60), $mins % 60) : $mins.'m';
+    }
+}

@@ -60,4 +60,10 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-opus-4-8'),
     ],
 
+    // Forgotten-clock-out safety net. Off by default so the command can be
+    // dry-run and reviewed before the scheduler starts closing live sessions.
+    'attendance' => [
+        'auto_clockout_enabled' => env('ATTENDANCE_AUTO_CLOCKOUT', false),
+    ],
+
 ];

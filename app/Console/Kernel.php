@@ -42,6 +42,17 @@ class Kernel extends ConsoleKernel
             ->everyTenMinutes()
             ->withoutOverlapping();
 
+        // Safety net for forgotten clock-outs: the clock is fully manual, so a
+        // clock-in with no clock-out hangs open forever. Close dangling
+        // clock-ins (at last tracker activity, or capped at 12h when never
+        // tracked) and record a clock_out with a plain-language reason.
+        // Gated by a flag so it can be dry-run/reviewed before going live.
+        if (config('services.attendance.auto_clockout_enabled')) {
+            $schedule->command('attendance:auto-clock-out')
+                ->everyThirtyMinutes()
+                ->withoutOverlapping();
+        }
+
         // Hostinger's git auto-deploy re-clones the tree and wipes
         // bootstrap/cache, dropping the config cache (a large chunk of TTFB
         // on shared hosting). Rebuild it whenever it's found missing.
