@@ -1,7 +1,7 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
@@ -28,6 +28,7 @@
     "electron-store": "^8.2.0",
     "electron-updater": "^6.8.9",
     "form-data": "^4.0.0",
+    "jimp": "^0.22.12",
     "screenshot-desktop": "^1.15.0",
     "uiohook-napi": "^1.5.4",
     "uuid": "^10.0.0"
@@ -76,7 +77,7 @@
     ],
     "win": {
       "icon": "build/icon.png",
-            "target": [
+      "target": [
         {
           "target": "nsis",
           "arch": [

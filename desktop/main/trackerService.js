@@ -376,7 +376,7 @@ class Tracker extends EventEmitter {
     if (this.settings.capture_enabled === false || this.settings.screenshots_per_hour === 0) return;
 
     const capturedAt = new Date().toISOString();
-    const { localPath } = await screenshotService.capturePrimary({ sessionId: this.session.id });
+    const { localPath } = await screenshotService.capture({ sessionId: this.session.id });
     const appUrlOn = this.settings.app_url_tracking_enabled !== false;
     const winInfo = appUrlOn
       ? await activityService.activeWindowInfo()
