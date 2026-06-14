@@ -212,3 +212,29 @@ NOT DONE — needs backend, not polish:
   total_work_hours / total_break_hours but NO tracked-work figure, so
   presence-vs-tracked coverage needs the controller to compute + include
   tracked seconds per employee/day first. Small feature, not a frontend tweak.
+
+## SHIPPED 2026-06-14 (forgotten-clock-out safety net, opus fast)
+- ROOT CAUSE: the attendance clock is fully MANUAL (web + desktop only record
+  the action pressed). A clock-in with no clock-out hangs open forever — person
+  reads "Working" indefinitely, day never closes. close-stale-sessions only
+  touches tracking SESSIONS, not attendance. 15 users were stuck (Yasir 61h,
+  Salman 39h, Qaswar on-break 30h, ... Jawad 9.5h).
+- NEW command attendance:auto-clock-out (2d7150d). Closes a dangling clock-in
+  and writes a REAL clock_out with a plain-language reason. Clock-out time:
+  (1) tracked-then-idle >= idle-hours -> last heartbeat; (2) never tracked ->
+  capped at cap-hours. Never past the cap (no 60h ghosts); never closes a
+  still-alive session (idle < 2h). Open breaks get a break_end first. clock_out
+  uses the clock-in's attendance_date so the pair stays on the right day.
+  Params: --cap-hours=12 --idle-hours=2 (12h = owner's stated max shift).
+- Gated by services.attendance.auto_clockout_enabled (env ATTENDANCE_AUTO_CLOCKOUT).
+  Dry-ran on prod, owner reviewed, then applied: closed 8 stale (15 -> 7 open;
+  the 7 left are genuinely active / within 12h, incl. Jawad who auto-closes at
+  8:03 AM). Set ATTENDANCE_AUTO_CLOCKOUT=true + config:cache; scheduled every
+  30 min. Verified Yasir got a clean clock_in/clock_out pair w/ reason.
+- NEXT STEP (owner approved "Slack next"): build an interactive Slack
+  "still working?" check as the PRIMARY going-forward mechanism, 12h cap as the
+  backstop. Flow: at ~8h open, DM the person with buttons [Yes still working]/
+  [No clock me out]; Yes snoozes, No clocks out, no-response after a few 10-min
+  nudges -> auto clock-out. NEEDS FROM OWNER: Slack app "Interactivity" enabled
+  + Request URL (we provide, e.g. /api/slack/interact) + SLACK_SIGNING_SECRET in
+  .env; DMs reach users via email->Slack lookup (users:read.email scope).
