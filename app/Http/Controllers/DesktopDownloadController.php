@@ -12,22 +12,21 @@ class DesktopDownloadController extends Controller
 
     private const WINDOWS_VERSION = '0.3.2';
 
-    private const MAC_VERSION = '0.1.0';
+    private const MAC_VERSION = '0.3.2';
 
     /**
      * Accepted macOS artifact names, preferred first. A DMG is preferred, but
      * a zipped .app bundle is a perfectly valid distribution too (download,
-     * unzip, drag to Applications).
+     * unzip, drag to Applications). The SA Track-branded 0.3.2 build is the
+     * current one; older names are kept as fallbacks.
      */
     private const MAC_INSTALLERS = [
-        'Timetracker Desktop-0.2.0-universal.dmg',
+        'SA Track-0.3.2-arm64.dmg',
+        'SA Track-0.3.2-universal.dmg',
+        'SA Track-0.3.2-arm64-mac.zip',
         'Timetracker Desktop-0.2.0-arm64.dmg',
-        'Timetracker Desktop-0.2.0.dmg',
-        'Timetracker Desktop-0.1.0-universal.dmg',
         'Timetracker Desktop-0.1.0-arm64.dmg',
-        'Timetracker Desktop-0.1.0.dmg',
         'Timetracker Desktop-0.1.0-arm64-mac.zip',
-        'Timetracker Desktop-0.1.0-mac.zip',
         'Timetracker Desktop.app.zip',
     ];
 

@@ -4,6 +4,12 @@
 out exactly what it takes to turn it from "our internal tool" into a global,
 industry-level SaaS product we can sell, market, and customize per customer.*
 
+> **Status (owner decision, 2026-06-15): documentation only for now.** The
+> go/no-go and the open decisions (product name, pricing, cloud stack) are
+> **deferred until after the team has tested the product internally at Sparking
+> Asia**. No SaaS build starts yet — we keep this document the living plan and
+> revisit once internal testing is done.
+
 ---
 
 ## 1. The opportunity in one paragraph
