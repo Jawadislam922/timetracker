@@ -157,6 +157,18 @@ const INTERNAL_CLIENTS = [
   { id: -3, name: 'Upwork Bidding', work_type: 'upwork_bidding', internal: true },
 ];
 
+// Selectable appearance themes (CSS lives in styles.css under [data-theme]).
+const THEMES = [
+  { id: 'cinematic', name: 'Cinematic' },
+  { id: 'light', name: 'Light' },
+  { id: 'midnight', name: 'Midnight' },
+];
+
+// The progress ring fills against a notional 8h day.
+const DAILY_GOAL_SECONDS = 8 * 3600;
+const RING_RADIUS = 88;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
 // Resolve a saved session with no client back to its internal pseudo-client,
 // so Office Work / Test Task rows behave like client rows (title + resume).
 function internalClientFor(session) {
@@ -263,6 +275,16 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     if (typeof window.tt?.settings?.setPrefs !== 'function') return;
     const next = await window.tt.settings.setPrefs({ [key]: value });
     setPrefs(next || {});
+  };
+
+  // Apply the saved appearance theme to the document root whenever it changes.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', prefs.theme || 'cinematic');
+  }, [prefs.theme]);
+
+  const applyTheme = (themeId) => {
+    document.documentElement.setAttribute('data-theme', themeId);
+    setPref('theme', themeId);
   };
 
   // Screenshot notification: local pref overrides the admin default when set.
@@ -624,9 +646,12 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   return (
     <div className="scrin-shell">
       <header className="tracker-top">
-        <div>
-          <div className="tracking-eyebrow">Tracking for myself</div>
-          <h1>{user?.name || 'Timetracker'}</h1>
+        <div className="who">
+          <div className="who-avatar">{(user?.name || '?').trim().charAt(0).toUpperCase()}</div>
+          <div className="who-text">
+            <div className="who-eyebrow">Signed in as</div>
+            <h1>{user?.name || 'Timetracker'}</h1>
+          </div>
         </div>
         <button className="menu-button" onClick={() => setMenuOpen((open) => !open)} aria-label="Menu">
           <span />
@@ -652,7 +677,23 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
 
         <div className="drawer-user">
           <span className="drawer-user-dot" />
-          Tracking for myself — {user?.name || 'me'}
+          Signed in as {user?.name || 'me'}
+        </div>
+
+        <div className="drawer-section-label">Appearance</div>
+        <div className="theme-picker">
+          {THEMES.map((theme) => (
+            <button
+              key={theme.id}
+              type="button"
+              data-theme-preview={theme.id}
+              className={(prefs.theme || 'cinematic') === theme.id ? 'theme-swatch active' : 'theme-swatch'}
+              onClick={() => applyTheme(theme.id)}
+            >
+              <span className="theme-swatch-dot" />
+              <span className="theme-swatch-name">{theme.name}</span>
+            </button>
+          ))}
         </div>
 
         <div className="drawer-section-label">Preferences</div>
@@ -760,19 +801,36 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
 
       <main className="tracker-main">
         <section className="hero-panel">
-          <div className={['timer-orb', status.paused ? 'paused' : status.running ? 'live' : ''].join(' ').trim()}>
-            <svg className="clock-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-              <path d="M12 7v5l3.2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <div className={['timer-ring', status.paused ? 'paused' : status.running ? 'live' : ''].join(' ').trim()}>
+            <svg className="ring-svg" viewBox="0 0 200 200" aria-hidden="true">
+              <defs>
+                <linearGradient id="ttRingGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop className="ring-grad-from" offset="0%" />
+                  <stop className="ring-grad-to" offset="100%" />
+                </linearGradient>
+              </defs>
+              <circle className="ring-track-circle" cx="100" cy="100" r={RING_RADIUS} />
+              <circle
+                className="ring-fill"
+                cx="100"
+                cy="100"
+                r={RING_RADIUS}
+                style={{
+                  strokeDasharray: RING_CIRCUMFERENCE,
+                  strokeDashoffset: RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, totalTodaySeconds / DAILY_GOAL_SECONDS))),
+                }}
+              />
             </svg>
-            <div className="orb-time">{fmtClock(totalTodaySeconds)}</div>
-            <div className="orb-label">{status.paused ? 'paused' : status.running ? 'tracking' : 'today'}</div>
-            {status.running && (
-              <div className={['orb-status', status.paused ? 'paused' : 'live'].join(' ')}>
-                <span className="orb-status-dot" />
-                {status.paused ? 'Paused — resumes when you return' : 'Live'}
-              </div>
-            )}
+            <div className="ring-center">
+              <div className="ring-time">{fmtClock(totalTodaySeconds)}</div>
+              <div className="ring-label">{status.paused ? 'paused' : status.running ? 'tracking' : 'today'}</div>
+              {status.running && (
+                <div className={['ring-live', status.paused ? 'paused' : ''].join(' ').trim()}>
+                  <span className="ring-live-dot" />
+                  {status.paused ? 'Paused' : 'Live'}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="week-panel">

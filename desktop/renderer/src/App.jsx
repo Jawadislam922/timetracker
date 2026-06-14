@@ -18,6 +18,15 @@ export default function App() {
     })();
   }, []);
 
+  // Apply the saved appearance theme as early as possible so the login screen
+  // and the tracker share the chosen look (default: cinematic).
+  useEffect(() => {
+    if (typeof window.tt?.settings?.getPrefs !== 'function') return;
+    window.tt.settings.getPrefs()
+      .then((p) => document.documentElement.setAttribute('data-theme', p?.theme || 'cinematic'))
+      .catch(() => {});
+  }, []);
+
   // Server rejected our token (e.g. it was revoked): drop to the login
   // screen with a clear message instead of surfacing raw 401 errors.
   useEffect(() => {

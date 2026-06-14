@@ -13,6 +13,7 @@ const PREF_DEFAULTS = {
   notifyScreenshot: null, // null = follow the admin/server setting
   idleNotifications: true,
   minimizeToTray: false,
+  theme: 'cinematic', // appearance theme: cinematic | light | midnight
 };
 
 function broadcast(channel, payload) {
