@@ -317,3 +317,11 @@ NOT DONE — needs backend, not polish:
   unmissable.
 - Show-password eye toggle on the DESKTOP login (web already has it).
 - (Carry) Mac 0.3.1 build (bump Mac prompt), self-service rollback button.
+
+## NEXT SESSION (owner: "we'll do it tomorrow"): DESKTOP v0.3.2 redesign
+Full brief: documents/DESKTOP_V0.3.2_REDESIGN_BRIEF.md. Premium/cinematic
+redesign of the desktop tracker: 3 themes + switcher (Claude designs), REDESIGN
+THE CLOCK (owner: the purple disc looks too much like the competitor's
+screenshot-monitor — make it bespoke/premium/theme-aware), premium week graph,
+smoother scrolling, prominent logged-in name, desktop login eye icon (coded).
+Files: desktop/renderer/src/{styles.css, views/Tracker.jsx, views/Login.jsx, App.jsx}.
