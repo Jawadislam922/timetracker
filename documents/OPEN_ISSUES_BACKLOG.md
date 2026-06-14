@@ -238,3 +238,20 @@ NOT DONE — needs backend, not polish:
   nudges -> auto clock-out. NEEDS FROM OWNER: Slack app "Interactivity" enabled
   + Request URL (we provide, e.g. /api/slack/interact) + SLACK_SIGNING_SECRET in
   .env; DMs reach users via email->Slack lookup (users:read.email scope).
+
+## SHIPPED 2026-06-14 (Slack "still working?" check — LIVE team-wide)
+- Interactive companion to the 12h cap (66dff3c). At 8h open (config
+  prompt_after_hours), attendance:still-working-check DMs the person Yes/No
+  buttons; Yes => confirmed_until=now+2h (snooze + exempt from cap while fresh);
+  No => clock out now ("Clocked out via Slack"); no response after 6 nudges
+  (10-min interval) => auto clock-out with reason. Buttons POST to
+  /api/slack/interact (SlackInteractionController, signing-secret HMAC + replay
+  guard). State table attendance_clock_checks; shared App\Services\AttendanceCloser.
+- Owner enabled Slack app Interactivity + Request URL; SLACK_SIGNING_SECRET in
+  .env. Both buttons tested live on Jawad (Yes set snooze; No wrote a real
+  clock_out). Enabled team-wide: ATTENDANCE_STILL_WORKING_SLACK=true,
+  scheduled */10. Open clock-ins now 5 (from 15); Haris/Aliyan get the first
+  real DMs on the next run.
+- Two attendance jobs now live: auto-clock-out (*/30, 12h cap backstop) +
+  still-working-check (*/10, Slack prompts). Tunables: ATTENDANCE_PROMPT_AFTER_HOURS,
+  --cap-hours, --idle-hours, --max-prompts, --snooze-hours.
