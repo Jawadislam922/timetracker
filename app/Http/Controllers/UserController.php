@@ -164,6 +164,7 @@ class UserController extends Controller
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'allow_multiple_devices' => 'nullable|boolean',
         ];
 
         // Only add avatar validation if file is present
@@ -193,6 +194,9 @@ class UserController extends Controller
             'joining_date' => $validated['joining_date'] ?? null,
             'shift_start_time' => $validated['shift_start_time'] ?? null,
             'shift_grace_minutes' => $validated['shift_grace_minutes'] ?? 15,
+            'allow_multiple_devices' => $request->user()->isSuperAdmin()
+                ? (bool) ($validated['allow_multiple_devices'] ?? false)
+                : false,
         ];
 
         // Only add avatar if we have one
@@ -223,6 +227,7 @@ class UserController extends Controller
                 'joining_date' => $user->joining_date?->format('Y-m-d'),
                 'shift_start_time' => $user->shift_start_time?->format('H:i'),
                 'shift_grace_minutes' => $user->shift_grace_minutes ?? 15,
+                'allow_multiple_devices' => (bool) $user->allow_multiple_devices,
                 'return_to' => request('return_to'),
             ],
             ...$this->accessFormProps(),
@@ -248,6 +253,7 @@ class UserController extends Controller
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'allow_multiple_devices' => 'nullable|boolean',
         ];
 
         // Only add avatar validation if file is present
@@ -279,6 +285,7 @@ class UserController extends Controller
                 ? []
                 : $this->validatedPermissions($validated['permissions'] ?? []);
             $user->include_in_slack_reports = $validated['include_in_slack_reports'] ?? true;
+            $user->allow_multiple_devices = (bool) ($validated['allow_multiple_devices'] ?? false);
         }
 
         // Only update password if it's provided and not empty

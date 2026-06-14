@@ -31,6 +31,7 @@ class User extends Authenticatable
         'joining_date',
         'shift_start_time',
         'shift_grace_minutes',
+        'allow_multiple_devices',
     ];
 
     /**
@@ -67,6 +68,7 @@ class User extends Authenticatable
         'joining_date' => 'date',
         'shift_start_time' => 'datetime:H:i',
         'shift_grace_minutes' => 'integer',
+        'allow_multiple_devices' => 'boolean',
     ];
 
     const ROLES = [

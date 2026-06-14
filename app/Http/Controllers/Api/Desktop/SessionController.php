@@ -63,6 +63,23 @@ class SessionController extends Controller
             ],
         );
 
+        // Single-device tracking (last device wins): unless this user is allowed
+        // to track on multiple devices, starting here stops any session still
+        // running on another device, so the same wall-clock time is never
+        // double-counted. The response reports what was stopped so the desktop
+        // can tell the user.
+        $stoppedDevices = [];
+        if ($session->wasRecentlyCreated && ! $user->allow_multiple_devices) {
+            $others = TrackingSession::where('user_id', $user->id)
+                ->where('status', TrackingSession::STATUS_ACTIVE)
+                ->where('id', '!=', $session->id)
+                ->get();
+            foreach ($others as $other) {
+                $this->sessions->finalize($other);
+                $stoppedDevices[] = $other->device_name ?: 'another device';
+            }
+        }
+
         // Starting the tracker means they're working — if they forgot to clock
         // in (or didn't know they had to), clock them in automatically at the
         // session's real start time. Only on a genuine new session, never on an
@@ -76,6 +93,7 @@ class SessionController extends Controller
             'status' => $session->status,
             'started_at' => $session->started_at?->toIso8601String(),
             'client_uuid' => $session->client_uuid,
+            'stopped_other_devices' => $stoppedDevices,
         ], 201);
     }
 
@@ -110,6 +128,16 @@ class SessionController extends Controller
     public function heartbeat(HeartbeatRequest $request, TrackingSession $session): JsonResponse
     {
         abort_unless($session->user_id === $request->user()->id, 403);
+
+        // If this session was already stopped (e.g. another device took over
+        // under the single-device rule), don't let stale heartbeats re-inflate
+        // its time. Signal the desktop so it can stop tracking locally.
+        if ($session->status !== TrackingSession::STATUS_ACTIVE) {
+            return response()->json([
+                'status' => $session->status,
+                'stopped_elsewhere' => true,
+            ], 409);
+        }
 
         $data = $request->validated();
 

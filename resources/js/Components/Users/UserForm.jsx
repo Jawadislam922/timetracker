@@ -36,6 +36,7 @@ export default function UserForm({
         role: user?.role || 'member',
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
+        allow_multiple_devices: user?.allow_multiple_devices ?? false,
         avatar: null,
         return_to: returnTo || user?.return_to || '',
     });
@@ -299,6 +300,27 @@ export default function UserForm({
                         {form.errors.include_in_slack_reports && (
                             <p className="px-5 pb-4 text-sm font-medium text-rose-600">{form.errors.include_in_slack_reports}</p>
                         )}
+                    </section>
+
+                    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b border-slate-200 px-5 py-4">
+                            <h2 className="font-bold text-slate-950">Devices</h2>
+                            <p className="mt-1 text-sm text-slate-600">By default a person can track on only one device at a time — starting on a second device stops the first, so time is never double-counted.</p>
+                        </div>
+                        <label className="flex cursor-pointer items-start gap-3 p-5">
+                            <input
+                                type="checkbox"
+                                checked={form.data.allow_multiple_devices}
+                                onChange={(event) => form.setData('allow_multiple_devices', event.target.checked)}
+                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>
+                                <span className="block text-sm font-semibold text-slate-900">Allow tracking on multiple devices at once</span>
+                                <span className="mt-1 block text-sm leading-5 text-slate-600">
+                                    Only enable for someone who genuinely needs two machines tracking simultaneously. Overlapping time is kept and clearly marked as double-tracked.
+                                </span>
+                            </span>
+                        </label>
                     </section>
                 </>
             )}
