@@ -394,3 +394,22 @@ BUILD PATH (incremental):
   Super-admin toggle in Users edit + bulk edit. Admin overlap alert (quick win).
 - DESKTOP (fold into v0.3.3): the friendly "tracking moved here / your other PC
   was stopped" in-app messages.
+
+## SHIPPED 2026-06-15 (multi-device single-session enforcement) — server-side, LIVE
+- users.allow_multiple_devices (default false) + super-admin toggle in user
+  create/edit form. SessionController::start finalizes the user's OTHER active
+  sessions unless allowed; heartbeat 409s a stopped session so stale pings can't
+  re-inflate. Closes the double-count hole (commit 291fa65, migrated). Verified:
+  0 users currently double-tracking, 0 allowed.
+- FAST-FOLLOW (desktop v0.3.3 + a bit of web): in-app "tracking moved here /
+  your other PC was stopped" messages (desktop reads stopped_other_devices on
+  start + the 409 on heartbeat); "Double tracked" label on overlapping
+  sessions in Timeline/Reports for allowed users; allow-multiple toggle in BULK
+  edit; admin overlap alert.
+
+## PRODUCT VISION doc created (documents/PRODUCT_VISION.md)
+- Full feature inventory + roadmap to turn SA Track into a sellable multi-tenant
+  SaaS: tenancy (the gate), self-serve signup, Stripe billing/membership, white-
+  label + themes + i18n ("global, matches every company"), compliance, cloud
+  scale, marketing. Build it as a multi-tenant evolution of THIS codebase, not a
+  rewrite. See the doc for phases + packaging/pricing matrix + differentiation.
