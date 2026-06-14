@@ -273,3 +273,23 @@ NOT DONE — needs backend, not polish:
   dual-monitor employees get it on next update.
 - VERIFY after rollout: a dual-monitor employee updates, then their next
   timeline screenshot is a wide image showing both screens.
+
+## SHIPPED 2026-06-14 (desktop v0.3.1 multi-monitor + rollback) — LIVE
+- v0.3.1 built (Windows) + uploaded to the feed (/home/u406855808/desktop-installers):
+  SA Track Setup 0.3.1.exe + blockmap + latest.yml. Verified over HTTP
+  (latest.yml=0.3.1, exe 200/87.5MB). Clients on 0.3.0 auto-update. Downloads
+  page bumped to 0.3.1. Mac build still pending (bump its prompt to 0.3.1).
+- ROLLBACK now possible:
+  - desktop/main/updater.js: autoUpdater.allowDowngrade=true (baked into 0.3.1+),
+    so the feed can move clients DOWN a version.
+  - Every release archived as latest-<version>.yml beside its installer
+    (latest-0.3.0.yml, latest-0.3.1.yml created). Old exes already kept.
+  - Command `php artisan desktop:set-active-version <ver>` copies that version's
+    archived manifest over latest.yml → all clients move to it next check. `--list`
+    shows archived + active. ROLL BACK A BAD RELEASE: `... 0.3.0`; forward again: `... 0.3.1`.
+  - NOTE: rollback only reaches versions that have BOTH an archived manifest and
+    the installer present. 0.2.x exes exist but have no archived manifest (and a
+    different productName), so practical rollback floor is 0.3.0.
+- NOT DONE (optional follow-up): self-service rollback BUTTON on the Developer
+  page (currently rollback is the artisan command via SSH). Reuse the Developer
+  `run` action infra + show active/available versions.
