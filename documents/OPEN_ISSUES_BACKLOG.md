@@ -367,3 +367,30 @@ Files: desktop/renderer/src/{styles.css, views/Tracker.jsx, views/Login.jsx, App
 - More settings to consider: daily-hours goal (the ring target, fixed 8h now),
   default client + work type for one-tap start, "remind me to clock in",
   launch-minimized-to-tray, global start/stop hotkey, per-account theme.
+
+## CONFIRMED SPEC — concurrent / multi-device tracking (owner decided 2026-06-15)
+PROBLEM (verified in code): sessions are keyed on (user, device-uuid) with NO
+one-active-session guard, and reports SUM total_seconds with no overlap merge.
+So tracking on 2 PCs double-counts (9-5 on both = 16h) + 2 screenshot streams.
+Abuse/accuracy hole.
+
+DECISIONS:
+1. DEFAULT = single active session, LAST DEVICE WINS. Starting the tracker on a
+   2nd PC auto-STOPS the session on the 1st PC. Show a clear message: the new PC
+   says it started here; the stopped PC tells the user "you started tracking on
+   another PC, this one was stopped" so they know.
+2. SUPER-ADMIN per-user setting "Allow tracking on multiple devices" (off by
+   default). A person asks the owner; owner enables it for that user only.
+3. For ALLOWED dual-tracking: keep both, but it must be WRITTEN CLEARLY that the
+   overlapping time was DOUBLE TRACKED — a visible "Double tracked" label on the
+   overlapping sessions/intervals in Timeline + Reports (transparency, not silent
+   sum/merge).
+
+BUILD PATH (incremental):
+- SERVER-ONLY (no desktop rebuild, closes the hole now): add allow_multiple_devices
+  user flag (default off); on /sessions/start finalize the user's OTHER active
+  sessions unless the flag is set, return stopped-device info; heartbeat signals
+  the stopped PC. Overlap detection + "Double tracked" label in Timeline/Reports.
+  Super-admin toggle in Users edit + bulk edit. Admin overlap alert (quick win).
+- DESKTOP (fold into v0.3.3): the friendly "tracking moved here / your other PC
+  was stopped" in-app messages.
