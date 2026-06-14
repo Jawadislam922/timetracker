@@ -413,3 +413,16 @@ BUILD PATH (incremental):
   label + themes + i18n ("global, matches every company"), compliance, cloud
   scale, marketing. Build it as a multi-tenant evolution of THIS codebase, not a
   rewrite. See the doc for phases + packaging/pricing matrix + differentiation.
+
+## SHIPPED 2026-06-15 (Mac v0.3.2) — LIVE on downloads page
+- Mac build done on owner's Apple Silicon Mac (ad-hoc signed so permissions
+  persist), published to GitHub release desktop-v0.3.2-mac. Claude pulled the
+  DMG+zip from the public release (sha256 19cfac2a… verified) and scp'd them to
+  the prod feed as "SA Track-0.3.2-arm64.dmg" + ".zip" (space form to match
+  DesktopDownloadController MAC_INSTALLERS; MAC_VERSION bumped to 0.3.2). Serving
+  over HTTP (200, 123MB). Shows on /desktop-downloads.
+- Mac smoke test: login + tracking VERIFIED server-side (session 312, platform
+  darwin, app_version 0.3.2). Screenshots NOT yet confirmed (0 shots) — needs
+  macOS Screen Recording permission granted to SA Track + a longer session.
+- Reminder: Mac is unsigned-for-update (ad-hoc only) -> NO auto-update; Mac users
+  update manually from /desktop-downloads. arm64 only.
