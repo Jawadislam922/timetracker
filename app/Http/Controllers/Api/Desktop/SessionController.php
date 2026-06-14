@@ -7,9 +7,12 @@ use App\Http\Requests\Desktop\HeartbeatRequest;
 use App\Http\Requests\Desktop\StartSessionRequest;
 use App\Http\Requests\Desktop\StopSessionRequest;
 use App\Models\Client;
+use App\Models\TimeEntry;
 use App\Models\TrackingSession;
+use App\Models\User;
 use App\Services\TrackingSessionService;
 use App\Support\BusinessTime;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -60,12 +63,48 @@ class SessionController extends Controller
             ],
         );
 
+        // Starting the tracker means they're working — if they forgot to clock
+        // in (or didn't know they had to), clock them in automatically at the
+        // session's real start time. Only on a genuine new session, never on an
+        // idempotent retry, and never if they're already clocked in.
+        if ($session->wasRecentlyCreated) {
+            $this->ensureClockedIn($user, $session->started_at ?? now());
+        }
+
         return response()->json([
             'id' => $session->id,
             'status' => $session->status,
             'started_at' => $session->started_at?->toIso8601String(),
             'client_uuid' => $session->client_uuid,
         ], 201);
+    }
+
+    /**
+     * Auto clock-in when a tracking session starts and the user isn't already
+     * clocked in. Uses the session start time (which the desktop sends from its
+     * local clock, so an offline-queued start still records the correct time).
+     */
+    private function ensureClockedIn(User $user, Carbon $startedAt): void
+    {
+        $last = TimeEntry::where('user_id', $user->id)
+            ->orderByDesc('action_timestamp')->orderByDesc('id')
+            ->first();
+
+        // clock_in / break_start / break_end all mean "still clocked in".
+        if ($last && in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
+            return;
+        }
+
+        $ts = $startedAt->copy()->setTimezone('Asia/Karachi');
+
+        TimeEntry::create([
+            'user_id' => $user->id,
+            'action_type' => 'clock_in',
+            'action_timestamp' => $ts,
+            'action_date' => $user->attendanceDateFor($ts),
+            'action_time' => $ts->toTimeString(),
+            'notes' => 'Auto clock-in (started tracker)',
+        ]);
     }
 
     public function heartbeat(HeartbeatRequest $request, TrackingSession $session): JsonResponse

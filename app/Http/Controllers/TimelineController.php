@@ -270,7 +270,7 @@ class TimelineController extends Controller
             ->sum('total_seconds');
 
         $clientBreakdown = $sessions
-            ->groupBy(fn (TrackingSession $s) => $s->client?->name ?: 'Unassigned')
+            ->groupBy(fn (TrackingSession $s) => $this->breakdownLabel($s))
             ->map(fn ($group, $name) => [
                 'client' => $name,
                 'total_seconds' => (int) $group->sum(fn (TrackingSession $s) => $this->inDaySeconds($s, $dayStart, $dayEnd)),
@@ -377,6 +377,34 @@ class TimelineController extends Controller
      * therefore splits cleanly at midnight: Friday gets the pre-midnight
      * share, Saturday the rest, and the two always sum to total_seconds.
      */
+    /**
+     * Label for the Tasks breakdown. Client work shows the client; non-client
+     * work (office work, bidding, test task) shows the work type instead of a
+     * bare "Unassigned", so that time is clearly attributed.
+     */
+    private function breakdownLabel(TrackingSession $session): string
+    {
+        if ($session->client?->name) {
+            return $session->client->name;
+        }
+
+        $labels = [
+            'office_work' => 'Office work',
+            'test_task' => 'Test task',
+            'upwork_bidding' => 'Bidding',
+        ];
+
+        if ($session->work_type && isset($labels[$session->work_type])) {
+            return $labels[$session->work_type];
+        }
+
+        if ($session->work_type) {
+            return ucfirst(str_replace('_', ' ', $session->work_type));
+        }
+
+        return 'Unassigned';
+    }
+
     private function inDaySeconds(TrackingSession $session, Carbon $dayStart, Carbon $dayEnd): int
     {
         $start = $session->started_at;
