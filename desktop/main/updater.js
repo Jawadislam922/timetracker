@@ -38,6 +38,11 @@ function init() {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  // Let the feed move clients DOWN a version, not just up. This is what makes
+  // rollback possible: if a release turns out broken, an admin republishes the
+  // previous good build as the active version (latest.yml) and every client
+  // reverts to it on the next check — without anyone reinstalling by hand.
+  autoUpdater.allowDowngrade = true;
 
   autoUpdater.on('update-available', (info) => {
     pendingVersion = info?.version || null;
