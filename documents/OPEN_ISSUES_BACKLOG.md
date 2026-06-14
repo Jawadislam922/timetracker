@@ -325,3 +325,18 @@ THE CLOCK (owner: the purple disc looks too much like the competitor's
 screenshot-monitor — make it bespoke/premium/theme-aware), premium week graph,
 smoother scrolling, prominent logged-in name, desktop login eye icon (coded).
 Files: desktop/renderer/src/{styles.css, views/Tracker.jsx, views/Login.jsx, App.jsx}.
+
+## SHIPPED 2026-06-15 (desktop v0.3.2 — premium redesign)
+- Theme system: CSS-variable palette + 3 switchable themes (Cinematic ember
+  default / Light / Midnight slate-indigo), one-click switcher in the drawer,
+  persisted via prefs.theme (electron-store), applied app-wide incl. login.
+- Bespoke clock: flat purple disc -> progress RING filling toward an 8h day,
+  accent gradient + glow + live pulse; theme-aware. (Owner: competitor's
+  screenshot-monitor disc, make it ours.)
+- Theme-aware week graph (today in accent gradient); custom slim scrollbars +
+  smooth scroll; prominent identity header (gradient avatar + "Signed in as").
+- Desktop login eye icon (from 0.3.1 commit) ships here too.
+- Verified all 3 themes via a temporary browser mock harness (removed after).
+  Commit 26618cd. Build/upload to feed in progress; archive latest-0.3.2.yml,
+  set active, Downloads page bumped to 0.3.2. latest-0.3.0/0.3.1 kept as
+  rollback targets.
