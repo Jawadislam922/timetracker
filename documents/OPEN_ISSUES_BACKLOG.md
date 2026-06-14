@@ -255,3 +255,21 @@ NOT DONE — needs backend, not polish:
 - Two attendance jobs now live: auto-clock-out (*/30, 12h cap backstop) +
   still-working-check (*/10, Slack prompts). Tunables: ATTENDANCE_PROMPT_AFTER_HOURS,
   --cap-hours, --idle-hours, --max-prompts, --snooze-hours.
+
+## DESKTOP v0.3.1 (multi-monitor capture) — code done, build/release pending
+- Dual/extended-monitor users looked "frozen" (only the primary screen was
+  captured). Now desktop/main/screenshotService.js detects displays and, on a
+  multi-monitor setup, captures every screen (screenshot.all) and stitches them
+  side-by-side into ONE wide jpg via jimp (added dep, classic 0.22 API, pure JS
+  so it bundles in asar). Single-monitor unchanged; always falls back to primary
+  on any failure. No server/web changes — still one image per capture. Stitch
+  validated standalone (1920x1080 + 1366x768 -> 3294x1080 JPEG). Commit 7f42976,
+  version bumped 0.3.0 -> 0.3.1.
+- TO SHIP: (1) Windows build `cd desktop && npm run rebuild && npm run dist`
+  -> dist-app installer + latest.yml, upload to the update feed at
+  https://timetracker.sparkingasia.com/desktop-updates (deploy-proof installer
+  hosting). (2) Mac build via the Mac Claude session — BUMP the Mac build prompt
+  to 0.3.1 so Mac includes this too. Auto-updater then pushes it; the 2-3
+  dual-monitor employees get it on next update.
+- VERIFY after rollout: a dual-monitor employee updates, then their next
+  timeline screenshot is a wide image showing both screens.
