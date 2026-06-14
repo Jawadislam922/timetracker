@@ -340,3 +340,30 @@ Files: desktop/renderer/src/{styles.css, views/Tracker.jsx, views/Login.jsx, App
   Commit 26618cd. Build/upload to feed in progress; archive latest-0.3.2.yml,
   set active, Downloads page bumped to 0.3.2. latest-0.3.0/0.3.1 kept as
   rollback targets.
+
+## QUEUED — DESKTOP v0.3.3 (identity / shared-computer, owner discussion 2026-06-15)
+- Goal: on a shared PC, make it obvious whose tracker it is + easy to switch to
+  your own account, WITHOUT nagging people who are clearly present.
+- ACCOUNT SWITCHER (Facebook-style): "Welcome, <name>" header with a Switch
+  account control -> list of saved people on this machine (avatar+name) +
+  "Add another account" (normal login once) + Log out. Switching uses the
+  already-saved token (no email/password re-entry).
+- PIN: DEFERRED (owner: skip for now, revisit if team feedback in ~1-2 weeks
+  asks for it so no one can open someone else's tracker). When needed: per-
+  account 4-5 digit PIN (store a HASH), required to switch into an account.
+- PRESENCE SIGNAL = clock-in/out (server-connected), NOT tracker activity —
+  executives clock in but don't run the tracker, so "no tracker session" must
+  never be read as "not working".
+- DON'T NAG THE CLOCKED-IN: no welcome/confirm prompt for someone already
+  clocked in within their shift. Active prompts only when NOT clocked in, or
+  past ~8h (the existing Slack still-working check already fires at 8h on the
+  open clock-in, so they're consistent).
+- CONTEXTUAL GREETING: "Welcome, <name>" only on open / when NOT clocked in
+  (invites confirm-identity + clock-in). Once clocked in / mid-shift, just show
+  name + status (e.g. "Working since 9:02") — no "welcome", which feels wrong
+  to someone who's been in the office for hours (owner's point).
+- OPTIONAL pairing: auto-lock to the switch/identity screen after ~10min idle,
+  so the next person at a shared PC must pick their own account before tracking.
+- More settings to consider: daily-hours goal (the ring target, fixed 8h now),
+  default client + work type for one-tap start, "remind me to clock in",
+  launch-minimized-to-tray, global start/stop hotkey, per-account theme.
