@@ -53,6 +53,15 @@ class Kernel extends ConsoleKernel
                 ->withoutOverlapping();
         }
 
+        // Interactive "still working?" Slack check: DM people clocked in past
+        // the threshold with Yes/No buttons; clock out non-responders. The cap
+        // above stays as the final backstop. Gated by its own flag.
+        if (config('services.attendance.still_working_slack_enabled')) {
+            $schedule->command('attendance:still-working-check')
+                ->everyTenMinutes()
+                ->withoutOverlapping();
+        }
+
         // Hostinger's git auto-deploy re-clones the tree and wipes
         // bootstrap/cache, dropping the config cache (a large chunk of TTFB
         // on shared hosting). Rebuild it whenever it's found missing.

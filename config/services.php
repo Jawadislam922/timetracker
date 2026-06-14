@@ -51,6 +51,8 @@ return [
         'token' => env('SLACK_BOT_TOKEN'),
         'resets_channel' => env('SLACK_RESETS_CHANNEL'),
         'digest_channel' => env('SLACK_DIGEST_CHANNEL'),
+        // Verifies interactive button clicks really came from Slack.
+        'signing_secret' => env('SLACK_SIGNING_SECRET'),
     ],
 
     // Claude API for AI summaries/digests. Key is managed from the Developer
@@ -64,6 +66,9 @@ return [
     // dry-run and reviewed before the scheduler starts closing live sessions.
     'attendance' => [
         'auto_clockout_enabled' => env('ATTENDANCE_AUTO_CLOCKOUT', false),
+        // Interactive Slack "still working?" check (DMs people past a threshold).
+        'still_working_slack_enabled' => env('ATTENDANCE_STILL_WORKING_SLACK', false),
+        'prompt_after_hours' => env('ATTENDANCE_PROMPT_AFTER_HOURS', 8),
     ],
 
 ];

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Desktop\MetaController as DesktopMetaController;
 use App\Http\Controllers\Api\Desktop\ScreenshotController as DesktopScreenshotController;
 use App\Http\Controllers\Api\Desktop\SessionController as DesktopSessionController;
 use App\Http\Controllers\Api\Desktop\TimeClockController as DesktopTimeClockController;
+use App\Http\Controllers\SlackInteractionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +24,11 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// Slack interactive button clicks (the "still working?" attendance check).
+// No auth middleware — authenticity is proven by the Slack signing-secret HMAC
+// verified inside the controller.
+Route::post('/slack/interact', [SlackInteractionController::class, 'handle'])->name('slack.interact');
 
 /*
 |--------------------------------------------------------------------------

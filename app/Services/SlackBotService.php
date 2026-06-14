@@ -54,6 +54,36 @@ class SlackBotService
     }
 
     /**
+     * DM a workspace member (found by email) an interactive message with blocks
+     * (e.g. buttons). `text` is the notification/fallback. Returns true when
+     * delivered.
+     *
+     * @param  array<int, array<string, mixed>>  $blocks
+     */
+    public function dmBlocksByEmail(string $email, string $text, array $blocks): bool
+    {
+        $lookup = $this->api('users.lookupByEmail', ['email' => $email], get: true);
+        $userId = $lookup['user']['id'] ?? null;
+        if (! $userId) {
+            return false;
+        }
+
+        $open = $this->api('conversations.open', ['users' => $userId]);
+        $channelId = $open['channel']['id'] ?? null;
+        if (! $channelId) {
+            return false;
+        }
+
+        $response = $this->api('chat.postMessage', [
+            'channel' => $channelId,
+            'text' => $text,
+            'blocks' => $blocks,
+        ]);
+
+        return (bool) ($response['ok'] ?? false);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function api(string $method, array $params, bool $get = false): array

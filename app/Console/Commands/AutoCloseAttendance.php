@@ -2,12 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Models\AttendanceClockCheck;
 use App\Models\TimeEntry;
 use App\Models\TrackingSession;
 use App\Models\User;
+use App\Services\AttendanceCloser;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Safety net for forgotten clock-outs.
@@ -38,7 +39,7 @@ class AutoCloseAttendance extends Command
 
     protected $description = 'Auto clock-out dangling attendance clock-ins (forgotten clock-outs), recording a reason.';
 
-    public function handle(): int
+    public function handle(AttendanceCloser $closer): int
     {
         $capHours = (float) $this->option('cap-hours');
         $idleHours = (float) $this->option('idle-hours');
@@ -70,6 +71,14 @@ class AutoCloseAttendance extends Command
                 ->first();
             if (! $clockIn) {
                 continue; // open break with no clock-in — malformed, leave it
+            }
+
+            // If they explicitly confirmed "still working" in Slack and the
+            // snooze hasn't expired, trust them and don't force-cap.
+            $check = AttendanceClockCheck::where('clock_in_id', $clockIn->id)->first();
+            if ($check && $check->confirmed_until && $check->confirmed_until->isFuture()) {
+                $skipped++;
+                continue;
             }
 
             $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
@@ -132,7 +141,10 @@ class AutoCloseAttendance extends Command
             $this->line('    reason: '.$reason);
 
             if (! $dry) {
-                $this->writeClose($user, $clockIn, $last, $closeAt, $reason);
+                $closer->close($user->id, $closeAt, $reason);
+                AttendanceClockCheck::where('clock_in_id', $clockIn->id)
+                    ->whereNull('resolved_at')
+                    ->update(['resolved_at' => $now, 'resolution' => 'closed_elsewhere']);
             }
             $closed++;
         }
@@ -155,37 +167,6 @@ class AutoCloseAttendance extends Command
             ->value('sig');
 
         return $row ? Carbon::parse($row)->setTimezone('Asia/Karachi') : null;
-    }
-
-    /** Write break_end (if on break) then the clock_out, on the clock-in's attendance date. */
-    private function writeClose(User $user, TimeEntry $clockIn, TimeEntry $last, Carbon $closeAt, string $reason): void
-    {
-        DB::transaction(function () use ($clockIn, $last, $closeAt, $reason) {
-            $date = $clockIn->action_date instanceof Carbon
-                ? $clockIn->action_date->toDateString()
-                : (string) $clockIn->action_date;
-
-            // An open break must be ended before a valid clock-out.
-            if ($last->action_type === 'break_start') {
-                TimeEntry::create([
-                    'user_id' => $clockIn->user_id,
-                    'action_type' => 'break_end',
-                    'action_timestamp' => $closeAt,
-                    'action_date' => $date,
-                    'action_time' => $closeAt->toTimeString(),
-                    'notes' => 'Auto break-end (system close).',
-                ]);
-            }
-
-            TimeEntry::create([
-                'user_id' => $clockIn->user_id,
-                'action_type' => 'clock_out',
-                'action_timestamp' => $closeAt,
-                'action_date' => $date,
-                'action_time' => $closeAt->toTimeString(),
-                'notes' => $reason,
-            ]);
-        });
     }
 
     private function humanHours(float $hours): string
