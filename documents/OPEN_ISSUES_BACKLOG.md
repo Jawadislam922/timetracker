@@ -426,3 +426,31 @@ BUILD PATH (incremental):
   macOS Screen Recording permission granted to SA Track + a longer session.
 - Reminder: Mac is unsigned-for-update (ad-hoc only) -> NO auto-update; Mac users
   update manually from /desktop-downloads. arm64 only.
+
+## ROLLOUT ISSUES 2026-06-15 (company-wide deploy)
+1. UNCLEAR LOGIN ERROR — FIXED in code (08e407a): desktop showed raw
+   "AxiosError: Request failed with status code 422". Now api.js login()
+   maps failures to plain language ("Incorrect email or password.", "Could not
+   reach the server…", rate-limit) + renderer strips the Electron IPC prefix.
+   Ships in next desktop build. Server already returned a clear message.
+   NOTE: the reporting user was on the OLD "Timetracker Desktop" build (pre-
+   rebrand) — they should update to SA Track v0.3.2.
+2. BITDEFENDER blocks SA Track.exe as "Malware" (Advanced Threat Defense /
+   behavioral, 60 apps blocked). FALSE POSITIVE — the app is UNSIGNED and does
+   keylogger-adjacent things (global kbd/mouse hooks via uiohook-napi +
+   screenshots), which behavioral AV flags. Standard for monitoring tools
+   (Hubstaff/Time Doctor also need AV exclusions).
+   - IMMEDIATE (unblock today): central Bitdefender **GravityZone** exclusion
+     for the install folder %LOCALAPPDATA%\Programs\timetracker-desktop\ (+ exe),
+     incl. an Advanced Threat Defense exception, pushed to all machines. Per-
+     machine: Protection → Advanced Threat Defense → Settings → Manage
+     exceptions. Also submit a false-positive to Bitdefender Labs.
+   - PROPER (recommended for company + product): buy a **code-signing cert**
+     (OV ~$200-400/yr, or EV which also clears Windows SmartScreen instantly).
+     Then configure electron-builder win.signtoolOptions/certificate → signed
+     builds gain publisher reputation + clear SmartScreen. NOTE: even signed, a
+     screenshot/keystroke tool may still need an ATD exclusion — signing reduces
+     friction (esp. on un-managed machines) but the exclusion is the reliable op
+     fix for this app category.
+   - DECISION PENDING: whitelist now + ship unsigned v0.3.3 (login fix), or get
+     a cert first and ship signed.
