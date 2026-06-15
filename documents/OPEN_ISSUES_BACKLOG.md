@@ -477,3 +477,18 @@ DESIGN — "the tracker follows the clock":
    the /time-clock status response; desktop displays it (v0.3.3).
 
 SPLIT: #4 server-side now (urgent, stops bad records). #2/#3/#5 desktop = v0.3.3.
+
+## FIXED 2026-06-15 (Hina / auto-clock-out idle rule) — server, LIVE
+- ROOT BUG: auto-clock-out's idle rule back-dated a clock-out to the tracker's
+  last activity when the tracker went quiet — produced contradictory records
+  (Hina: auto clock-out 1:00 PM AND manual clock-out 5:08 PM, break_end at 1:00
+  BEFORE break_start at 3:11). Removed the idle rule (503e07d): a quiet tracker
+  no longer triggers a clock-out; only the 12h hard cap force-closes; the Slack
+  "still working?" check (8h, ASKS the person) handles forgotten clock-outs.
+  Verified: dry-run now closes 0 (was about to wrongly close an idle user).
+- Hina's data fixed: shift_start 9 PM -> 9 AM (was owner's data-entry error);
+  deleted the 2 bogus auto entries (ids 23534/23535) -> clean day (in 9:11,
+  break 3:11-3:57, out 5:08).
+- DEPLOY LESSON: a `git checkout -f` deploy did NOT stick first time (prod stayed
+  on the prior commit). Always VERIFY deploys by file content (grep), not just
+  the rev-parse echo.
