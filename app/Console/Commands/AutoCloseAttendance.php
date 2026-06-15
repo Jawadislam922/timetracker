@@ -85,49 +85,24 @@ class AutoCloseAttendance extends Command
             $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
             $capAt = $clockInTs->copy()->addMinutes((int) round($capHours * 60));
 
-            // Last sign of life from the tracker during this open session.
-            $lastHeartbeat = $this->lastTrackerSignal($user->id, $clockInTs);
-
-            $closeAt = null;
-            $reason = null;
-
-            if ($lastHeartbeat) {
-                $idleSince = $lastHeartbeat->diffInMinutes($now, false) / 60;
-                if ($idleSince >= $idleHours) {
-                    $closeAt = $lastHeartbeat->copy();
-                    $reason = sprintf(
-                        'Auto clock-out: tracker stopped %s ago (last activity %s); no manual clock-out.',
-                        $this->humanHours($idleSince),
-                        $lastHeartbeat->format('M j, g:i A')
-                    );
-                } else {
-                    $skipped++; // tracker alive recently — genuinely working
-                    continue;
-                }
-            } elseif ($ageHours >= $capHours) {
-                $closeAt = $capAt->copy();
-                $reason = sprintf(
-                    'Auto clock-out: no time tracked since clock-in; capped at %dh. Adjust manually if you worked longer.',
-                    (int) round($capHours)
-                );
-            } else {
-                $skipped++; // within window, no tracking yet — may still be working
+            // Presence is the CLOCK, not the tracker: a person can keep working
+            // (or do non-tracker work) after their tracker goes quiet and clock
+            // out manually later. So a quiet tracker NO LONGER triggers a
+            // clock-out — that produced contradictory records (an auto clock-out
+            // back-dated to the tracker's last activity while the person was
+            // still present and clocked out manually hours later). We only
+            // force-close at the hard cap; the Slack "still working?" check ASKS
+            // the person at ~8h and handles genuinely forgotten clock-outs.
+            if ($ageHours < $capHours) {
+                $skipped++; // still within the day's window — leave them alone
                 continue;
             }
 
-            // Never let an auto clock-out run past the hard cap.
-            if ($closeAt->greaterThan($capAt)) {
-                $closeAt = $capAt->copy();
-                $reason = sprintf(
-                    'Auto clock-out: open clock-in exceeded %dh maximum; capped by system.',
-                    (int) round($capHours)
-                );
-            }
-
-            // Closing must never predate the clock-in.
-            if ($closeAt->lessThanOrEqualTo($clockInTs)) {
-                $closeAt = $clockInTs->copy()->addMinute();
-            }
+            $closeAt = $capAt->copy();
+            $reason = sprintf(
+                'Auto clock-out: no manual clock-out; capped at %dh maximum.',
+                (int) round($capHours)
+            );
 
             $spanHours = $clockInTs->diffInMinutes($closeAt, false) / 60;
             $this->line(sprintf(
