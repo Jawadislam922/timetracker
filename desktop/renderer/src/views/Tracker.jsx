@@ -414,10 +414,10 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     [weekDays]
   );
   const todayRows = useMemo(() => {
-    const rows = [...todaySessions];
+    const sessions = [...todaySessions];
 
     if (status.running && status.session) {
-      const existingIndex = rows.findIndex((session) => Number(session.id) === Number(status.session.id));
+      const existingIndex = sessions.findIndex((session) => Number(session.id) === Number(status.session.id));
       const live = {
         ...status.session,
         total_seconds: liveSeconds,
@@ -425,12 +425,45 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
         task_note: picker.task_note || status.session.task_note,
       };
 
-      if (existingIndex >= 0) rows[existingIndex] = { ...rows[existingIndex], ...live };
-      else rows.unshift(live);
+      if (existingIndex >= 0) sessions[existingIndex] = { ...sessions[existingIndex], ...live };
+      else sessions.unshift(live);
     }
 
-    return rows.slice(0, 8);
-  }, [liveSeconds, picker.task_note, status.running, status.session, todaySessions]);
+    // Group by client/task so frequent switching sums into ONE row per task
+    // instead of a long repeating list (e.g. Test Task ×3 -> one row, summed).
+    const groups = new Map();
+    for (const s of sessions) {
+      const internal = internalClientFor(s);
+      const key = s.client_id ? `c:${s.client_id}` : (internal ? `i:${internal.work_type}` : `w:${s.work_type || 'x'}`);
+      const isLive = s.status === 'active' || (status.running && Number(s.id) === Number(status.session?.id));
+      const seconds = isLive ? liveSeconds : Number(s.total_seconds || 0);
+      const startTs = Date.parse(s.started_at) || 0;
+
+      let g = groups.get(key);
+      if (!g) {
+        g = { key, client_id: s.client_id ?? null, client_uuid: s.client_uuid, client_name: s.client_name, work_type: s.work_type, task_note: s.task_note, upwork_profile_name: s.upwork_profile_name, total_seconds: 0, live: false, paused: false, count: 0, latestTs: -1 };
+        groups.set(key, g);
+      }
+      g.total_seconds += seconds;
+      g.count += 1;
+      if (isLive) { g.live = true; g.paused = !!status.paused; }
+      // Keep the most recent session's details as the row's representative
+      // (title, note, work type, profile) and for restarting it.
+      if (startTs >= g.latestTs) {
+        g.latestTs = startTs;
+        g.client_id = s.client_id ?? g.client_id;
+        g.client_uuid = s.client_uuid ?? g.client_uuid;
+        g.client_name = s.client_name ?? g.client_name;
+        g.work_type = s.work_type ?? g.work_type;
+        g.task_note = s.task_note ?? g.task_note;
+        g.upwork_profile_name = s.upwork_profile_name ?? g.upwork_profile_name;
+      }
+    }
+
+    return Array.from(groups.values())
+      .sort((a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || b.latestTs - a.latestTs)
+      .slice(0, 8);
+  }, [liveSeconds, picker.task_note, status.running, status.session, status.paused, todaySessions]);
 
   const refreshToday = async () => {
     if (typeof window.tt?.meta?.todaySessions !== 'function') return;
@@ -982,37 +1015,38 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
             <p className="empty-today">No tracked work yet. Pick a client above and hit start.</p>
           ) : (
             <div className="today-list">
-              {todayRows.map((session) => {
-                const isActive = session.status === 'active' || (status.running && Number(session.id) === Number(status.session?.id));
-                const matchingClient = clients.find((c) => Number(c.id) === Number(session.client_id));
-                const internalClient = internalClientFor(session);
-                const clientName = session.client_name || matchingClient?.name || internalClient?.name;
-                const trackerName = session.upwork_profile_name || matchingClient?.upwork_profile_name;
-                const canResume = (!!session.client_id || !!internalClient) && !isActive && !busy;
+              {todayRows.map((row) => {
+                const isActive = row.live;
+                const matchingClient = clients.find((c) => Number(c.id) === Number(row.client_id));
+                const internalClient = internalClientFor(row);
+                const clientName = row.client_name || matchingClient?.name || internalClient?.name;
+                const trackerName = row.upwork_profile_name || matchingClient?.upwork_profile_name;
+                const canResume = (!!row.client_id || !!internalClient) && !isActive && !busy;
                 return (
                   <button
                     type="button"
-                    key={session.id || session.client_uuid}
+                    key={row.key}
                     className={[
                       'today-row',
                       isActive ? 'active' : '',
                       canResume ? 'resumable' : '',
                     ].join(' ').trim()}
-                    onClick={() => canResume && restartFromSession(session)}
+                    onClick={() => canResume && restartFromSession(row)}
                     disabled={!canResume}
                     title={canResume ? (status.running ? 'Switch tracking to this client' : 'Start this client again') : ''}
                   >
                     <div className="today-row-main">
-                      <strong className="today-row-title">{clientName || session.task_note || sessionTitle(session, clients)}</strong>
+                      <strong className="today-row-title">{clientName || row.task_note || sessionTitle(row, clients)}</strong>
                       <div className="today-row-meta">
-                        {session.task_note && <span className="chip chip-note" title={session.task_note}>{session.task_note}</span>}
-                        {session.work_type && <span className="chip chip-worktype">{workTypeLabel(session.work_type)}</span>}
+                        {row.task_note && <span className="chip chip-note" title={row.task_note}>{row.task_note}</span>}
+                        {row.work_type && <span className="chip chip-worktype">{workTypeLabel(row.work_type)}</span>}
                         {trackerName && <span className="chip chip-tracker">{trackerName}</span>}
-                        {isActive && status.paused && <span className="chip chip-paused">Paused</span>}
-                        {isActive && !status.paused && <span className="chip chip-live">Live</span>}
+                        {row.count > 1 && <span className="chip" title={`${row.count} sessions today, summed`}>{row.count}×</span>}
+                        {isActive && row.paused && <span className="chip chip-paused">Paused</span>}
+                        {isActive && !row.paused && <span className="chip chip-live">Live</span>}
                       </div>
                     </div>
-                    <strong className="today-row-time">{fmtShort(isActive ? liveSeconds : session.total_seconds || 0)}</strong>
+                    <strong className="today-row-time">{fmtShort(row.total_seconds)}</strong>
                   </button>
                 );
               })}
