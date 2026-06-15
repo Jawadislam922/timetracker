@@ -492,3 +492,16 @@ SPLIT: #4 server-side now (urgent, stops bad records). #2/#3/#5 desktop = v0.3.3
 - DEPLOY LESSON: a `git checkout -f` deploy did NOT stick first time (prod stayed
   on the prior commit). Always VERIFY deploys by file content (grep), not just
   the rev-parse echo.
+
+## SHIPPED 2026-06-15 (Windows desktop v0.3.3) — LIVE
+- Clear login errors ("Incorrect email or password." instead of raw 422) +
+  Today-list aggregation (sums time per task; no more repeating rows). Built,
+  uploaded to feed, active=0.3.3 (verified HTTP 200, 87.5MB), Downloads page
+  bumped. Rollback targets 0.3.0–0.3.3 archived. Windows auto-updates once IT
+  adds the Bitdefender exclusion. Mac 0.3.3 = quick rebuild (MAC_BUILD_PROMPT_0.3.3.md).
+- COST DECISION: owner won't buy a code-signing cert / Apple Dev account. Not
+  needed — Bitdefender GravityZone exclusion (free) is the standard fix for a
+  monitoring tool; Mac stays ad-hoc-signed (free, right-click-Open). Cert idea dropped.
+- STILL QUEUED for a future desktop build (not blocking): break↔tracker pause +
+  clock-out↔tracker stop, shift-timing header on the tracker, account switcher
+  (welcome logic), in-app multi-device "tracking moved here" messages.
