@@ -36,8 +36,14 @@ export default function Login({ initial, notice, onLoggedIn }) {
       const user = await window.tt.auth.login({ email, password, deviceName, apiBaseUrl, remember });
       onLoggedIn({ user, apiBaseUrl });
     } catch (err) {
-      const msg = err?.message || 'Login failed.';
-      setError(msg.includes('credentials') ? 'Invalid email or password.' : msg);
+      let msg = err?.message || 'Sign-in failed.';
+      // Electron wraps IPC errors as "Error invoking remote method 'x': ...".
+      msg = msg.replace(/^Error invoking remote method '[^']*':\s*/i, '').trim();
+      // Safety net for older messages that slipped through as raw HTTP errors.
+      if (/status code 4(01|22)/i.test(msg) || /credentials/i.test(msg)) {
+        msg = 'Incorrect email or password.';
+      }
+      setError(msg);
     } finally {
       setBusy(false);
     }

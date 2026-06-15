@@ -47,11 +47,33 @@ async function login({ email, password, deviceName, apiBaseUrl }) {
     store.set('apiBaseUrl', apiBaseUrl.replace(/\/+$/, ''));
   }
   const url = baseUrl() + '/api/desktop/login';
-  const res = await axios.post(url, {
-    email,
-    password,
-    device_name: deviceName,
-  }, { timeout: 20000, headers: { Accept: 'application/json' } });
+
+  let res;
+  try {
+    res = await axios.post(url, {
+      email,
+      password,
+      device_name: deviceName,
+    }, { timeout: 20000, headers: { Accept: 'application/json' } });
+  } catch (err) {
+    // Turn raw Axios/HTTP failures into a clear, human message the login
+    // screen can show — instead of "Request failed with status code 422".
+    if (err.response) {
+      const status = err.response.status;
+      if (status === 422 || status === 401) {
+        throw new Error('Incorrect email or password.');
+      }
+      if (status === 429) {
+        throw new Error('Too many sign-in attempts. Please wait a minute and try again.');
+      }
+      throw new Error(err.response.data?.message || `Sign-in failed (server error ${status}). Please try again.`);
+    }
+    if (err.code === 'ECONNABORTED') {
+      throw new Error('The server took too long to respond. Check your connection and try again.');
+    }
+    // No response at all — DNS/network/server down or a wrong server URL.
+    throw new Error('Could not reach the server. Check your internet connection (and the Server URL under Advanced).');
+  }
 
   store.set('token', res.data.token);
   store.set('user', res.data.user);
