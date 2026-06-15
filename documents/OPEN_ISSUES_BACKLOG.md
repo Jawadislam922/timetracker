@@ -505,3 +505,16 @@ SPLIT: #4 server-side now (urgent, stops bad records). #2/#3/#5 desktop = v0.3.3
 - STILL QUEUED for a future desktop build (not blocking): break↔tracker pause +
   clock-out↔tracker stop, shift-timing header on the tracker, account switcher
   (welcome logic), in-app multi-device "tracking moved here" messages.
+
+## SHIPPED 2026-06-15 (Windows v0.3.4) — installer "cannot be closed" fix, LIVE
+- NSIS installer/updater got stuck on "SA Track cannot be closed" because the
+  Electron app's tray + helper processes don't close via the default check.
+  Added build/installer.nsh with a customCheckAppRunning macro (taskkill /F /T)
+  + nsis.include in package.json -> installer hard-closes the whole process tree
+  before installing. Active=0.3.4 so older clients update straight to it via the
+  fixed installer (no manual close). Verified HTTP 200; rollback targets 0.3.0-0.3.4.
+- USER WORKAROUND for in-flight 0.3.3 installs: Task Manager -> End task all
+  "SA Track" -> Retry (or Cancel and let 0.3.4 auto-install). Not from "removing
+  a button" — inherent Electron/NSIS tray-app behaviour.
+- Mac: bump MAC_BUILD_PROMPT to 0.3.4 next Mac build (installer.nsh is Win-only;
+  Mac DMG unaffected).
