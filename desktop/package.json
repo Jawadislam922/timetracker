@@ -1,7 +1,7 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
@@ -118,7 +118,8 @@
       "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "SA Track"
+      "shortcutName": "SA Track",
+      "include": "build/installer.nsh"
     }
   }
 }
