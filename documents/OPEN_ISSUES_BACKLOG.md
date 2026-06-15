@@ -454,3 +454,26 @@ BUILD PATH (incremental):
      fix for this app category.
    - DECISION PENDING: whitelist now + ship unsigned v0.3.3 (login fix), or get
      a cert first and ship signed.
+
+## PLAN — tracker↔clock coupling + shift info on desktop (owner 2026-06-15)
+TRIGGER: Hina Batool's day was contradictory — auto clock-out backdated to
+1:00 PM (tracker idle) WHILE she was still present (manual break 3:11, manual
+clock-out 5:08). Root cause: the auto-clock-out's IDLE rule trusts "tracker went
+quiet" as "left", which conflicts with the principle clock=truth-not-tracker.
+
+DESIGN — "the tracker follows the clock":
+1. Start tracker -> auto clock-in if not clocked in. (ALREADY SHIPPED.)
+2. Start break -> PAUSE the tracker; end break -> resume. (NEW)
+3. Clock out -> STOP the tracker. (NEW) Can't track while clocked-out/on-break.
+   => break time never tracked; can't track without being clocked in. Prefer
+   auto-clock-in over "block tracker unless clocked in" (smoother).
+4. Refine AUTO-CLOCK-OUT: drop the "tracker idle -> clock out at last activity"
+   rule (it mis-closed Hina). Keep honest backstops: Slack "still working?"
+   check (asks the person at 8h) + 12h cap. This is SERVER-SIDE — can ship now,
+   no desktop build, stops the conflicting records immediately.
+5. SHIFT INFO on desktop top: show name + shift window + on-time/late + current
+   clock status, so people catch wrong shift entries (owner mis-entered shifts
+   for several people) and always know where they stand. Server adds shift to
+   the /time-clock status response; desktop displays it (v0.3.3).
+
+SPLIT: #4 server-side now (urgent, stops bad records). #2/#3/#5 desktop = v0.3.3.
