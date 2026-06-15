@@ -8,9 +8,9 @@ use Inertia\Inertia;
 
 class DesktopDownloadController extends Controller
 {
-    private const WINDOWS_INSTALLER = 'SA Track Setup 0.3.2.exe';
+    private const WINDOWS_INSTALLER = 'SA Track Setup 0.3.3.exe';
 
-    private const WINDOWS_VERSION = '0.3.2';
+    private const WINDOWS_VERSION = '0.3.3';
 
     private const MAC_VERSION = '0.3.2';
 
@@ -21,6 +21,8 @@ class DesktopDownloadController extends Controller
      * current one; older names are kept as fallbacks.
      */
     private const MAC_INSTALLERS = [
+        'SA Track-0.3.3-arm64.dmg',
+        'SA Track-0.3.3-arm64-mac.zip',
         'SA Track-0.3.2-arm64.dmg',
         'SA Track-0.3.2-universal.dmg',
         'SA Track-0.3.2-arm64-mac.zip',
