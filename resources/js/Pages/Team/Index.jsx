@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Avatar from '@/Components/Avatar';
@@ -47,6 +47,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
     const [sending, setSending] = useState(false);
     const [query, setQuery] = useState('');
     const [nowTs, setNowTs] = useState(Date.now());
+    const renderTsRef = useRef(Date.now());
     const flash = usePage().props.flash || {};
     const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
 
@@ -57,15 +58,26 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
         return () => clearInterval(t);
     }, []);
 
+    // Reset the tick baseline whenever fresh server rows arrive (date change /
+    // poll) so we add only the seconds elapsed since this data was rendered.
+    useEffect(() => {
+        renderTsRef.current = Date.now();
+    }, [rows]);
+
+    // Only the day being viewed *today* keeps growing; past days are fixed.
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: DISPLAY.timezone });
+    const isToday = date === todayStr;
+
     const q = query.trim().toLowerCase();
     const visibleRows = q
         ? rows.filter((r) => r.name.toLowerCase().includes(q) || (r.designation || '').toLowerCase().includes(q))
         : rows;
 
-    // For a live row, show the running session age so "Live" never reads 0m.
+    // For a live row on today, tick up from the server's day-clamped value so
+    // "Live" counts in place without re-inflating across midnight.
     const trackedSecondsFor = (row) =>
-        row.is_live && row.live?.started_at
-            ? Math.max(row.total_seconds, Math.floor((nowTs - new Date(row.live.started_at).getTime()) / 1000))
+        row.is_live && isToday
+            ? row.total_seconds + Math.max(0, Math.floor((nowTs - renderTsRef.current) / 1000))
             : row.total_seconds;
 
     const reload = (nextDate) => {

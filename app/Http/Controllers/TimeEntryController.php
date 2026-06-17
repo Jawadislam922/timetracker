@@ -266,11 +266,14 @@ class TimeEntryController extends Controller
         );
 
         // Add the live session's running time so a currently-tracking person
-        // shows real progress instead of 0 until their session syncs. Capped at
-        // 16h to bound a forgotten session the stale-sweep hasn't closed.
+        // shows real progress instead of 0 until their session syncs — but only
+        // the part that falls on today's calendar date, so a night shift's
+        // pre-midnight hours don't inflate today. Capped at 16h.
         $live = $liveByUser?->get($employee->id);
         if ($live) {
-            $liveSeconds = min(16 * 3600, max((int) $live->total_seconds, (int) $live->started_at->diffInSeconds($now)));
+            $sinceMidnight = (int) $now->copy()->startOfDay()->diffInSeconds($now);
+            $liveWall = (int) $live->started_at->diffInSeconds($now);
+            $liveSeconds = min(16 * 3600, $liveWall, max(0, $sinceMidnight));
             $stats['tracked_hours'] = round($stats['tracked_hours'] + $liveSeconds / 3600, 2);
         }
         $stats['is_live'] = (bool) $live;

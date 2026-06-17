@@ -28,12 +28,21 @@ class TeamController extends Controller
 
         $users = User::orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
 
-        // Per-user session totals for the day.
+        // Sessions that OVERLAP the selected day — including one that started
+        // the previous evening and is still running. Each session's time is
+        // clamped to the day below, so a night shift's pre-midnight hours stay
+        // on the previous date instead of inflating today.
         $sessions = TrackingSession::with('client:id,name')
-            ->whereBetween('started_at', [$dayStart, $dayEnd])
+            ->where('started_at', '<', $dayEnd)
+            ->where(function ($q) use ($dayStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>', $dayStart);
+            })
             // Skip deletion crumbs (sub-minute sessions never mirror to
-            // work_hours) so Team Performance matches Reports.
-            ->where('total_seconds', '>=', 60)
+            // work_hours), but always keep a running session.
+            ->where(function ($q) {
+                $q->where('total_seconds', '>=', 60)
+                    ->orWhere('status', TrackingSession::STATUS_ACTIVE);
+            })
             ->get(['id', 'user_id', 'client_id', 'started_at', 'stopped_at', 'last_heartbeat_at', 'total_seconds', 'activity_percent', 'status']);
 
         $sessionsByUser = $sessions->groupBy('user_id');
@@ -64,27 +73,34 @@ class TeamController extends Controller
             ->get(['id', 'user_id', 'client_id', 'task_note', 'started_at', 'last_heartbeat_at', 'activity_percent', 'total_seconds'])
             ->keyBy('user_id');
 
-        $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow, $manualByUser) {
+        // Seconds a session contributes to THIS day. A session fully inside the
+        // day keeps its idle-adjusted total (accurate); one that straddles
+        // midnight (or is still running) is attributed by its wall-clock overlap
+        // with the day, capped at 16h to bound a forgotten session.
+        $now = now();
+        $daySeconds = function ($session) use ($dayStart, $dayEnd, $now): int {
+            $start = $session->started_at;
+            $end = $session->stopped_at ?? $now;
+            $oStart = $start->greaterThan($dayStart) ? $start : $dayStart;
+            $oEnd = $end->lessThan($dayEnd) ? $end : $dayEnd;
+            $overlap = $oEnd->getTimestamp() - $oStart->getTimestamp();
+            if ($overlap <= 0) {
+                return 0;
+            }
+            $fullyInside = $start->greaterThanOrEqualTo($dayStart) && $end->lessThanOrEqualTo($dayEnd);
+
+            return $fullyInside ? (int) $session->total_seconds : (int) min($overlap, 16 * 3600);
+        };
+
+        $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow, $manualByUser, $daySeconds) {
             $userSessions = $sessionsByUser[$u->id] ?? collect();
             $userSamples = $samplesByUser[$u->id] ?? collect();
             $live = $activeNow[$u->id] ?? null;
 
-            // Tracked = completed sessions' stored (idle-adjusted) seconds PLUS
-            // the live session's running time. Without the live term, "tracked"
-            // only reflects finalized heartbeats, so a person who's been live
-            // for an hour reads 0m until their session stops. We add the greater
-            // of the live session's last-reported seconds and its wall-clock
-            // age, capped at 16h to bound a forgotten session the stale-sweep
-            // hasn't closed yet.
-            $trackedSeconds = (int) $userSessions
-                ->where('status', '!=', TrackingSession::STATUS_ACTIVE)
-                ->sum('total_seconds');
-            if ($live) {
-                $trackedSeconds += min(
-                    16 * 3600,
-                    max((int) $live->total_seconds, (int) $live->started_at->diffInSeconds(now()))
-                );
-            }
+            // Tracked = each session's time clamped to THIS day. A running
+            // session counts toward today, but a night shift's pre-midnight
+            // hours stay on the previous date instead of inflating today.
+            $trackedSeconds = (int) $userSessions->sum(fn ($s) => $daySeconds($s));
             $manualSeconds = (int) round((float) ($manualByUser[$u->id] ?? collect())->sum('hours') * 3600);
             $totalSeconds = $trackedSeconds + $manualSeconds;
 
@@ -101,7 +117,7 @@ class TeamController extends Controller
 
             $topClient = $userSessions
                 ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
-                ->map(fn ($g, $name) => ['name' => $name, 'total_seconds' => (int) $g->sum('total_seconds')])
+                ->map(fn ($g, $name) => ['name' => $name, 'total_seconds' => (int) $g->sum(fn ($s) => $daySeconds($s))])
                 ->sortByDesc('total_seconds')
                 ->first();
 
