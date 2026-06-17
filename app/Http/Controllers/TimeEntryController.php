@@ -202,9 +202,13 @@ class TimeEntryController extends Controller
         return \App\Models\TrackingSession::query()
             ->whereIn('user_id', $userIds)
             ->where('total_seconds', '>', 0)
+            ->where('started_at', '<=', $now)
+            // Sessions that ran at some point today, including a night shift's
+            // session that started yesterday evening and finished after midnight
+            // (or is still running).
             ->where(function ($q) use ($now) {
-                $q->where('started_at', '>=', $now->copy()->startOfDay())
-                    ->orWhere('status', \App\Models\TrackingSession::STATUS_ACTIVE);
+                $q->whereNull('stopped_at')
+                    ->orWhere('stopped_at', '>=', $now->copy()->startOfDay());
             })
             ->get(['user_id', 'total_seconds', 'activity_percent'])
             ->groupBy('user_id')
