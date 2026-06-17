@@ -690,9 +690,13 @@ export default function WorkHoursReport({
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-500/15 text-teal-300 rounded-full capitalize">
-                                                        {entry.tracker}
-                                                    </span>
+                                                    {entry.tracker ? (
+                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-500/15 text-teal-300 rounded-full capitalize">
+                                                            {entry.tracker}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-500">—</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
                                                     {entry.source === 'tracker' ? (
@@ -706,7 +710,14 @@ export default function WorkHoursReport({
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-bold text-emerald-400">{timeFormat(entry.hours)}</td>
+                                                <td className="px-4 py-3 text-sm font-bold text-emerald-400">
+                                                    {timeFormat(entry.hours)}
+                                                    {entry.entry_count > 1 && (
+                                                        <span className="ml-1.5 rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-200" title={`${entry.entry_count} entries merged into this row`}>
+                                                            ×{entry.entry_count}
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3 text-sm text-slate-300">
                                                     <div className="max-w-xs truncate" title={entry.description}>
                                                         {entry.description || '-'}

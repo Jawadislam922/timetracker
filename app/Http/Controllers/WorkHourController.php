@@ -469,7 +469,7 @@ class WorkHourController extends Controller
 
     public function report(Request $request, SlackReportService $slack)
     {
-        $query = WorkHour::with('user', 'client');
+        $query = WorkHour::query();
         $filter = $request->input('filter', 'all');
         $startDate = $request->input('startDate');
         $endDate = $request->input('endDate');
@@ -533,8 +533,36 @@ class WorkHourController extends Controller
             });
         }
 
-        // Implement pagination with dynamic per page
-        $workHours = $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        // Merge identical entries (same person · date · client · work type ·
+        // tracker · source) into one totalled row, so a client logged three
+        // times in a day shows once with the summed hours and an "×3" badge.
+        // `?detailed=1` falls back to one row per raw entry.
+        if ($request->boolean('detailed')) {
+            $workHours = $query->with('user', 'client')
+                ->orderByDesc('date')->orderByDesc('id')
+                ->paginate($perPage);
+        } else {
+            $workHours = $query
+                ->leftJoin('users', 'work_hours.user_id', '=', 'users.id')
+                ->leftJoin('clients', 'work_hours.client_id', '=', 'clients.id')
+                ->selectRaw("MIN(work_hours.id) as id, work_hours.date, work_hours.user_id, users.name as user_name, work_hours.client_id, clients.name as client_name, work_hours.work_type, work_hours.tracker, work_hours.source, SUM(work_hours.hours) as hours, COUNT(*) as entry_count, GROUP_CONCAT(NULLIF(work_hours.description, '') SEPARATOR ' · ') as description")
+                ->groupBy('work_hours.date', 'work_hours.user_id', 'users.name', 'work_hours.client_id', 'clients.name', 'work_hours.work_type', 'work_hours.tracker', 'work_hours.source')
+                ->orderByDesc('work_hours.date')->orderBy('users.name')->orderBy('clients.name')
+                ->paginate($perPage);
+
+            $workHours->through(fn ($r) => [
+                'id' => (int) $r->id,
+                'date' => substr((string) $r->date, 0, 10),
+                'user' => ['name' => $r->user_name],
+                'client' => $r->client_id ? ['name' => $r->client_name] : null,
+                'work_type' => $r->work_type,
+                'tracker' => $r->tracker,
+                'source' => $r->source,
+                'hours' => (float) $r->hours,
+                'entry_count' => (int) $r->entry_count,
+                'description' => $r->description,
+            ]);
+        }
 
         // Preserve query parameters in pagination links
         $workHours->appends($request->query());
