@@ -24,6 +24,40 @@ class TimeEntry extends Model
         'action_time' => 'datetime:H:i:s',
     ];
 
+    /**
+     * Announce every clock-in to the attendance Slack channel ("X clocked in").
+     * Fires for web, desktop auto-clock-in, and any other path that creates a
+     * clock_in entry. The post runs as a terminating callback so it never adds
+     * latency to the clock action itself.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (self $entry) {
+            if ($entry->action_type !== 'clock_in') {
+                return;
+            }
+            $channel = config('services.attendance.clockin_channel');
+            if (! $channel) {
+                return;
+            }
+
+            app()->terminating(function () use ($entry, $channel) {
+                try {
+                    app(\App\Services\SlackBotService::class)->postToChannel(
+                        $channel,
+                        sprintf(
+                            ':office: *%s* clocked in at %s.',
+                            $entry->user->name ?? 'Someone',
+                            $entry->action_timestamp->copy()->setTimezone('Asia/Karachi')->format('g:i A'),
+                        ),
+                    );
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Clock-in Slack post failed', ['message' => $e->getMessage()]);
+                }
+            });
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

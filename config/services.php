@@ -69,6 +69,13 @@ return [
         // Interactive Slack "still working?" check (DMs people past a threshold).
         'still_working_slack_enabled' => env('ATTENDANCE_STILL_WORKING_SLACK', false),
         'prompt_after_hours' => env('ATTENDANCE_PROMPT_AFTER_HOURS', 8),
+        // Clock out after this many unanswered "still working?" nudges.
+        'max_unanswered_prompts' => env('ATTENDANCE_MAX_PROMPTS', 4),
+        // Channel where "X clocked in" posts go (e.g. "#attendance").
+        'clockin_channel' => env('SLACK_CLOCKIN_CHANNEL'),
+        // Channel where "X was auto clocked-out" posts go (falls back to the
+        // clock-in channel when unset).
+        'lockout_channel' => env('SLACK_LOCKOUT_CHANNEL'),
     ],
 
 ];

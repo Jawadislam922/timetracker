@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AttendanceClockCheck;
+use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\AttendanceCloser;
 use App\Services\SlackBotService;
@@ -21,7 +22,7 @@ class StillWorkingCheck extends Command
 {
     protected $signature = 'attendance:still-working-check
         {--reprompt-minutes=10 : Minimum gap between nudges to the same person}
-        {--max-prompts=6 : Clock the person out after this many unanswered nudges}
+        {--max-prompts= : Clock the person out after this many unanswered nudges (default from config, 4)}
         {--snooze-hours=2 : How long a "yes, still working" keeps them clocked in before we ask again}
         {--user= : Limit to a single user id (for testing)}
         {--force : Ignore the hours threshold (testing — prompt even a fresh clock-in)}
@@ -33,11 +34,18 @@ class StillWorkingCheck extends Command
     {
         $thresholdHours = (float) config('services.attendance.prompt_after_hours', 8);
         $reprompt = (int) $this->option('reprompt-minutes');
-        $maxPrompts = (int) $this->option('max-prompts');
+        $maxPrompts = (int) ($this->option('max-prompts') ?? config('services.attendance.max_unanswered_prompts', 4));
         $snoozeHours = (float) $this->option('snooze-hours');
         $force = (bool) $this->option('force');
         $dry = (bool) $this->option('dry-run');
         $now = Carbon::now('Asia/Karachi');
+
+        // Anyone running the screenshot monitor right now is clearly active —
+        // we never nudge (or auto-close) them. One query, O(1) lookup.
+        $activeTrackerIds = array_flip(
+            TrackingSession::where('status', TrackingSession::STATUS_ACTIVE)
+                ->distinct()->pluck('user_id')->all()
+        );
 
         $users = User::query()
             ->when($this->option('user'), fn ($q) => $q->where('id', $this->option('user')))
@@ -55,6 +63,18 @@ class StillWorkingCheck extends Command
             $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
             $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
             if (! $force && $ageHours < $thresholdHours) {
+                continue;
+            }
+
+            // Running the desktop tracker = a live "still working" signal. Skip
+            // the nudge and snooze any open check so they're never auto-closed
+            // while actively tracking.
+            if (! $force && isset($activeTrackerIds[$user->id])) {
+                AttendanceClockCheck::where('clock_in_id', $clockIn->id)->update([
+                    'confirmed_until' => $now->copy()->addHours((int) ceil($snoozeHours)),
+                    'last_response_at' => $now,
+                ]);
+
                 continue;
             }
 
@@ -83,6 +103,7 @@ class StillWorkingCheck extends Command
                 if (! $dry) {
                     $closer->close($user->id, $now, $reason);
                     $check->update(['resolved_at' => $now, 'resolution' => 'no_response']);
+                    $this->announceLockout($slack, $user, $now, $reason);
                 }
                 $closed++;
 
@@ -151,6 +172,24 @@ class StillWorkingCheck extends Command
                 ],
             ],
         ];
+    }
+
+    /** Tell the team channel that someone was auto clocked-out, and why. */
+    private function announceLockout(SlackBotService $slack, User $user, Carbon $at, string $reason): void
+    {
+        $channel = config('services.attendance.lockout_channel')
+            ?: config('services.attendance.clockin_channel');
+
+        if (! $channel) {
+            return;
+        }
+
+        $slack->postToChannel($channel, sprintf(
+            ":lock: *%s* was automatically clocked out at %s.\n> %s",
+            $user->name,
+            $at->format('g:i A'),
+            $reason,
+        ));
     }
 
     private function humanHours(float $hours): string
