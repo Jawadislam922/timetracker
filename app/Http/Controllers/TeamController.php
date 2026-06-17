@@ -104,10 +104,12 @@ class TeamController extends Controller
             $manualSeconds = (int) round((float) ($manualByUser[$u->id] ?? collect())->sum('hours') * 3600);
             $totalSeconds = $trackedSeconds + $manualSeconds;
 
-            $activitySamples = $userSamples->filter(fn ($s) => ($s->keyboard_count + $s->mouse_count) > 0 && $s->idle_seconds < $sampleIntervalSeconds);
-            $trackedActivity = $userSamples->count() > 0
-                ? ($activitySamples->count() / $userSamples->count()) * 100
-                : 0;
+            // Activity = the tracker's own per-session activity score, weighted
+            // by each session's time on this day. Uses the session score (same
+            // number shown on each screenshot), which is delivered via
+            // heartbeats even when raw samples are sparse.
+            $weightedActivity = $userSessions->sum(fn ($s) => (int) $s->activity_percent * $daySeconds($s));
+            $trackedActivity = $trackedSeconds > 0 ? $weightedActivity / $trackedSeconds : 0;
 
             // Manual hours carry 0% activity, so they dilute the score in
             // proportion to their share of the day.

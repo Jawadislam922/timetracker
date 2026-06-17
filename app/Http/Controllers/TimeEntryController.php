@@ -192,18 +192,31 @@ class TimeEntryController extends Controller
     }
 
     /**
-     * Average activity % for today per user — the share of activity samples
-     * that had real keyboard/mouse input and weren't idle. One grouped query,
-     * computed in SQL so we never hydrate the (large) samples table.
+     * Day activity % per user, from the tracker's own per-session activity
+     * score weighted by tracked time. We use the session score (the same number
+     * shown on each screenshot) rather than raw samples, because it's delivered
+     * reliably via heartbeats even when the (large) samples table is sparse.
      */
     private function loadDayActivity(array $userIds, Carbon $now): Collection
     {
-        return \App\Models\TrackingActivitySample::query()
+        return \App\Models\TrackingSession::query()
             ->whereIn('user_id', $userIds)
-            ->whereBetween('captured_at', [$now->copy()->startOfDay(), $now])
-            ->selectRaw('user_id, AVG(CASE WHEN (keyboard_count + mouse_count) > 0 AND idle_seconds < 60 THEN 100 ELSE 0 END) AS activity')
+            ->where('total_seconds', '>', 0)
+            ->where(function ($q) use ($now) {
+                $q->where('started_at', '>=', $now->copy()->startOfDay())
+                    ->orWhere('status', \App\Models\TrackingSession::STATUS_ACTIVE);
+            })
+            ->get(['user_id', 'total_seconds', 'activity_percent'])
             ->groupBy('user_id')
-            ->pluck('activity', 'user_id');
+            ->map(function ($sessions) {
+                $tot = (int) $sessions->sum('total_seconds');
+                if ($tot <= 0) {
+                    return 0;
+                }
+                $weighted = $sessions->sum(fn ($s) => (int) $s->activity_percent * (int) $s->total_seconds);
+
+                return (int) round($weighted / $tot);
+            });
     }
 
     /**
