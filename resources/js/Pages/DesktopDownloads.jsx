@@ -1,9 +1,144 @@
 import { useState } from 'react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Apple, CheckCircle2, Copy, Download, Laptop, MonitorDown, ShieldAlert } from 'lucide-react';
+import { Apple, CheckCircle2, Copy, Download, FolderOpen, Laptop, MonitorDown, Network, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 const MAC_QUARANTINE_CMD = 'xattr -dr com.apple.quarantine "/Applications/Timetracker Desktop.app"';
+
+// Per-user install location (electron-builder NSIS, perMachine:false). The folder
+// is named after the app's productName — "SA Track" on current builds, but machines
+// first set up on an older build may still show "Timetracker Desktop".
+const WIN_INSTALL_PATH = '%LocalAppData%\\Programs\\SA Track';
+
+function CopyChip({ value }) {
+    const [copied, setCopied] = useState(false);
+
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            /* clipboard may be blocked; user can select manually */
+        }
+    };
+
+    return (
+        <div className="flex items-stretch gap-2">
+            <code className="min-w-0 flex-1 overflow-x-auto rounded bg-slate-900 px-3 py-2 font-mono text-xs text-emerald-200">
+                {value}
+            </code>
+            <button
+                type="button"
+                onClick={copy}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-slate-900 px-3 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+                <Copy className="h-3.5 w-3.5" />
+                {copied ? 'Copied' : 'Copy'}
+            </button>
+        </div>
+    );
+}
+
+function AntivirusHelp() {
+    return (
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-amber-600" />
+                <h2 className="text-base font-semibold text-slate-950">Antivirus blocking the install or sign-in? (Windows)</h2>
+            </div>
+            <p className="text-sm leading-6 text-slate-600">
+                SA Track is our own tracker, but because it’s an unsigned app that takes screenshots and samples
+                keyboard/mouse activity, antivirus can flag it as a false positive — the same exclusion every
+                monitoring tool (Hubstaff, Time Doctor) needs. Symptoms: the installer says
+                <span className="font-medium text-slate-800"> “cannot be closed,”</span> the app gets quarantined, or sign-in
+                shows <span className="font-medium text-slate-800"> “Could not reach the server.”</span> Add an exception once
+                per machine — the steps for the two most common are below.
+            </p>
+
+            <div className="mt-4 rounded-lg bg-slate-50 p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <FolderOpen className="h-4 w-4" />
+                    First: find the install folder (you’ll need its path below)
+                </div>
+                <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                    <li>Right-click the <span className="font-medium">SA Track</span> desktop or Start-menu shortcut → <span className="font-medium">Open file location</span>.</li>
+                    <li>In the address bar, click once to reveal the full path and copy it. That’s the folder to exclude.</li>
+                </ol>
+                <p className="mt-2 text-xs text-slate-500">It’s normally this (paste into the address bar to confirm — older installs may read “Timetracker Desktop”):</p>
+                <div className="mt-2">
+                    <CopyChip value={WIN_INSTALL_PATH} />
+                </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {/* Bitdefender */}
+                <div className="rounded-lg border border-rose-100 bg-rose-50/40 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-rose-600" />
+                        <div className="text-sm font-semibold text-slate-900">Bitdefender Total Security</div>
+                    </div>
+
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">A · Exclude the folder</div>
+                    <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                        <li>Open <span className="font-medium">Bitdefender</span> → left sidebar <span className="font-medium">Protection</span>.</li>
+                        <li>In the <span className="font-medium">Antivirus</span> tile click <span className="font-medium">Open</span>.</li>
+                        <li><span className="font-medium">Settings</span> tab → <span className="font-medium">Manage Exceptions</span> → <span className="font-medium">+ Add an Exception</span>.</li>
+                        <li>Paste the install-folder path and turn <span className="font-medium">ON</span> every toggle — especially <span className="font-semibold text-rose-700">Advanced Threat Defense</span> (this one blocks SA&nbsp;Track.exe) and <span className="font-medium">Online Threat Prevention</span>. Click <span className="font-medium">Save</span>.</li>
+                    </ol>
+
+                    <div className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">B · Allow it through the Firewall</div>
+                    <p className="mb-1 text-xs text-slate-500">Required, or sign-in fails with “Could not reach the server.”</p>
+                    <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                        <li><span className="font-medium">Protection</span> → <span className="font-medium">Firewall</span> → <span className="font-medium">Rules</span>.</li>
+                        <li>Search <span className="font-medium">SA Track</span>. Set the top <span className="font-medium">sa track.exe</span> rule’s <span className="font-medium">Access</span> to <span className="font-semibold text-emerald-700">ON</span> (Any network, Any protocol, Both). Use <span className="font-medium">Add rule</span> if none exists.</li>
+                    </ol>
+
+                    <div className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">C · If it was already blocked</div>
+                    <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                        <li>Open the <span className="font-medium">Notifications</span> bell → find the SA Track “Threat blocked” entry → <span className="font-medium">Allow / Restore</span>.</li>
+                        <li>Reinstall from this page, then sign in.</li>
+                    </ol>
+                </div>
+
+                {/* Windows Defender */}
+                <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                        <Network className="h-4 w-4 text-blue-600" />
+                        <div className="text-sm font-semibold text-slate-900">Windows Security (Defender)</div>
+                    </div>
+
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">A · Exclude the folder</div>
+                    <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                        <li>Press <span className="font-medium">Start</span>, type <span className="font-medium">Windows Security</span>, open it.</li>
+                        <li><span className="font-medium">Virus &amp; threat protection</span>.</li>
+                        <li>Under <span className="font-medium">Virus &amp; threat protection settings</span> click <span className="font-medium">Manage settings</span>.</li>
+                        <li>Scroll to <span className="font-medium">Exclusions</span> → <span className="font-medium">Add or remove exclusions</span> → <span className="font-medium">Add an exclusion</span> → <span className="font-medium">Folder</span>.</li>
+                        <li>Paste the install-folder path and confirm (approve the admin prompt).</li>
+                    </ol>
+
+                    <div className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">B · If it was already quarantined</div>
+                    <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                        <li><span className="font-medium">Virus &amp; threat protection</span> → <span className="font-medium">Protection history</span>.</li>
+                        <li>Find the SA Track item → <span className="font-medium">Actions</span> → <span className="font-medium">Restore</span> (or <span className="font-medium">Allow on device</span>), then reinstall.</li>
+                    </ol>
+
+                    <div className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">C · The blue “Windows protected your PC” box</div>
+                    <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-700">
+                        <li>This is SmartScreen, not a virus warning. Click <span className="font-medium">More info</span>.</li>
+                        <li>Click <span className="font-medium">Run anyway</span> to launch the installer.</li>
+                    </ol>
+                    <p className="mt-3 text-xs text-slate-500">Defender’s firewall allows the app’s outbound connection by default, so no firewall rule is usually needed here.</p>
+                </div>
+            </div>
+
+            <p className="mt-4 text-xs text-slate-500">
+                Also seen on some machines: <span className="font-medium text-slate-700">NordVPN Threat Protection</span> can block the connection too —
+                pause it or add SA Track to its exceptions if sign-in still can’t reach the server.
+            </p>
+        </div>
+    );
+}
 
 function MacInstallHelp() {
     const [copied, setCopied] = useState(false);
@@ -191,6 +326,8 @@ export default function DesktopDownloads({ auth, downloads }) {
                 </div>
 
                 {downloads.mac?.available && <MacInstallHelp />}
+
+                <AntivirusHelp />
 
                 <div className="mt-5 grid gap-4 lg:grid-cols-3">
                     <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">

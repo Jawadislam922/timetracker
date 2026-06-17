@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Sparkles, Trash2, X } from 'lucide-react';
@@ -73,6 +73,13 @@ function shiftDate(iso, deltaDays) {
 }
 
 function MonthStrip({ days, onPick }) {
+    const selRef = useRef(null);
+    // Center the selected day so you never have to scroll sideways hunting for
+    // it — the strip lands on the active date every time it changes.
+    useEffect(() => {
+        selRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }, [days]);
+
     return (
         <div className="overflow-x-auto">
             <div className="flex min-w-full gap-1 px-2 pb-3 pt-1">
@@ -81,6 +88,7 @@ function MonthStrip({ days, onPick }) {
                     return (
                         <button
                             key={d.date}
+                            ref={d.is_selected ? selRef : null}
                             type="button"
                             onClick={() => onPick(d.date)}
                             className={[
@@ -631,14 +639,17 @@ export default function TimelineIndex({
                         <div className="space-y-2">
                             <p className="text-xs uppercase tracking-wide text-slate-400">{data.day_label}</p>
                             <div className="flex items-end gap-3">
-                                <div className="text-4xl font-bold text-white">{fmtHm(data.totals?.day || 0)}</div>
+                                <div>
+                                    <div className="text-4xl font-bold text-white">{fmtHm(data.totals?.day || 0)}</div>
+                                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Tracked this day</div>
+                                </div>
                                 <div className="text-xs text-slate-400">
-                                    Week: <strong className="text-slate-200">{fmtHm(data.totals?.week || 0)}</strong>
+                                    This week: <strong className="text-slate-200">{fmtHm(data.totals?.week || 0)}</strong>
                                     <span className="mx-2">·</span>
-                                    Month: <strong className="text-slate-200">{fmtHm(data.totals?.month || 0)}</strong>
+                                    This month: <strong className="text-slate-200">{fmtHm(data.totals?.month || 0)}</strong>
                                 </div>
                             </div>
-                            <p className="text-xs text-slate-500">Week starts on {weekStartsOn === 'sunday' ? 'Sunday' : 'Monday'}</p>
+                            <p className="text-xs text-slate-500">Desktop-tracker time. Week starts {weekStartsOn === 'sunday' ? 'Sunday' : 'Monday'}.</p>
                             {aiEnabled && (
                                 <div className="space-y-2 pt-1">
                                     <button

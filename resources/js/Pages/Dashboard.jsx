@@ -223,11 +223,24 @@ export default function Dashboard({ auth }) {
     const myTracked = employeesData.find((e) => e.user_id === auth.user.id)?.tracked_hours;
 
     const metrics = [
-        { label: 'In Office', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-        { label: 'Tracked Work', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-        { label: 'Break Time', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-        { label: 'Actions', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+        { label: 'In Office', sub: 'Clocked-in time · today', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10', title: 'Time clocked in today (clock-in to clock-out, minus breaks). This is attendance/presence — not the desktop tracker.' },
+        { label: 'Tracked Work', sub: 'Tracker active · today', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10', title: 'Active work recorded by the desktop tracker today (plus any manual work-diary hours). Can be lower than In Office if the tracker is off or idle.' },
+        { label: 'Break Time', sub: 'On break · today', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10', title: 'Total time on break today.' },
+        { label: 'Actions', sub: 'Clock punches · today', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10', title: 'Number of clock in / out / break-start / break-end punches today.' },
     ];
+
+    // Team table order: working people first, on-break in the middle, clocked
+    // out at the bottom; within a status, earliest shift first, then name.
+    const STATUS_ORDER = { Working: 0, 'On Break': 1, 'Clocked Out': 2 };
+    const sortedEmployees = [...employeesData].sort((a, b) => {
+        const ra = STATUS_ORDER[a.current_status] ?? 1.5;
+        const rb = STATUS_ORDER[b.current_status] ?? 1.5;
+        if (ra !== rb) return ra - rb;
+        const sa = a.shift_start_time || '99:99';
+        const sb = b.shift_start_time || '99:99';
+        if (sa !== sb) return sa < sb ? -1 : 1;
+        return (a.user_name || '').localeCompare(b.user_name || '');
+    });
 
     return (
         <AuthenticatedLayout user={auth.user}>
@@ -268,14 +281,15 @@ export default function Dashboard({ auth }) {
                         {metrics.map((metric) => {
                             const Icon = metric.icon;
                             return (
-                                <div key={metric.label} className="rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-sm">
+                                <div key={metric.label} title={metric.title} className="rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-sm">
                                     <div className="flex items-center gap-3">
-                                        <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${metric.bg}`}>
+                                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${metric.bg}`}>
                                             <Icon className={`h-5 w-5 ${metric.color}`} />
                                         </span>
-                                        <div>
+                                        <div className="min-w-0">
                                             <div className="text-xl font-bold text-white">{metric.value}</div>
-                                            <div className="text-sm text-slate-400">{metric.label}</div>
+                                            <div className="text-sm font-medium text-slate-200">{metric.label}</div>
+                                            <div className="text-[11px] text-slate-500">{metric.sub}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -366,7 +380,7 @@ export default function Dashboard({ auth }) {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
-                                        {employeesData.map((employee) => {
+                                        {sortedEmployees.map((employee) => {
                                             const status = statusFromAction(
                                                 employee.current_status === 'On Break'
                                                     ? 'break_start'

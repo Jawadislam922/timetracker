@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Avatar from '@/Components/Avatar';
-import { ChevronLeft, ChevronRight, Eye, Send } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Search, Send } from 'lucide-react';
 
 function fmtHm(seconds) {
     const s = Math.max(0, Math.floor(seconds || 0));
@@ -45,8 +45,28 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
     DISPLAY = usePage().props.display || DISPLAY;
     const [activeDate, setActiveDate] = useState(date);
     const [sending, setSending] = useState(false);
+    const [query, setQuery] = useState('');
+    const [nowTs, setNowTs] = useState(Date.now());
     const flash = usePage().props.flash || {};
     const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
+
+    // Tick once a second so a Live member's tracked time counts up in place
+    // instead of sitting frozen at the last server render.
+    useEffect(() => {
+        const t = setInterval(() => setNowTs(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    const q = query.trim().toLowerCase();
+    const visibleRows = q
+        ? rows.filter((r) => r.name.toLowerCase().includes(q) || (r.designation || '').toLowerCase().includes(q))
+        : rows;
+
+    // For a live row, show the running session age so "Live" never reads 0m.
+    const trackedSecondsFor = (row) =>
+        row.is_live && row.live?.started_at
+            ? Math.max(row.total_seconds, Math.floor((nowTs - new Date(row.live.started_at).getTime()) / 1000))
+            : row.total_seconds;
 
     const reload = (nextDate) => {
         router.get(route('team.index'), { date: nextDate }, {
@@ -95,6 +115,16 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                 >
                                     Apps &amp; URLs
                                 </Link>
+                            </div>
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-2 top-1.5 h-3.5 w-3.5 text-slate-500" />
+                                <input
+                                    type="text"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Search member…"
+                                    className="w-44 rounded-md border border-slate-700 bg-slate-900 py-1 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-500 focus:border-orange-500 focus:outline-none"
+                                />
                             </div>
                             <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
                                 {totals.people_live} live now
@@ -153,7 +183,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
-                                {rows.map((row) => (
+                                {visibleRows.map((row) => (
                                     <tr key={row.id} className="hover:bg-white/5">
                                         <td className="px-4 py-3">
                                             {canViewReports ? (
@@ -201,7 +231,7 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-slate-100">
-                                            {fmtHm(row.total_seconds)}
+                                            {fmtHm(trackedSecondsFor(row))}
                                             {row.manual_seconds > 0 && (
                                                 <div className="text-[10px] font-sans text-amber-300/90" title="Manually logged work-diary hours — count as time but 0% activity">
                                                     {fmtHm(row.manual_seconds)} manual
@@ -233,10 +263,10 @@ export default function TeamIndex({ auth, date, rows, totals, permissions, slack
                                         </td>
                                     </tr>
                                 ))}
-                                {rows.length === 0 && (
+                                {visibleRows.length === 0 && (
                                     <tr>
                                         <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
-                                            No team members tracked today.
+                                            {q ? `No members match “${query}”.` : 'No team members tracked today.'}
                                         </td>
                                     </tr>
                                 )}

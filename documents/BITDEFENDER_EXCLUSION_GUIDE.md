@@ -32,6 +32,14 @@ or run `echo %USERNAME%` in Command Prompt). On most machines you can also paste
    - **Online Threat Prevention**
 8. Click **Save**.
 
+## Allow it through the Bitdefender Firewall (required for sign-in)
+The exception above stops the *scanner*, but Bitdefender's **Firewall** can still
+block the app's connection to the server ("Could not reach the server").
+1. **Protection → Firewall → Rules**.
+2. Search **SA Track** (or "sa track.exe"). Set the top rule's **Access** to **ON**
+   (Any network, Any protocol, Both, Any ports/IP). Add a rule if none exists.
+3. (Optional) Also allow **sa track setup … .exe** so installs/updates can run.
+
 ## Clear the existing block / quarantine
 If it already got blocked or quarantined:
 - Open **Notifications** (the bell), find the **SA Track** "Threat blocked"

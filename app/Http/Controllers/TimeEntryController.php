@@ -161,14 +161,17 @@ class TimeEntryController extends Controller
 
         if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {
             $employees = User::all();
-            $entriesByUser = $this->loadSummaryEntries($employees->pluck('id')->all(), $now, $weekStart, $monthStart);
-            $trackedByUserDate = $this->loadTrackedHours($employees->pluck('id')->all(), $now);
+            $ids = $employees->pluck('id')->all();
+            $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
+            $trackedByUserDate = $this->loadTrackedHours($ids, $now);
+            $liveByUser = $this->loadLiveSessions($ids);
 
-            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser, $trackedByUserDate) {
-                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate);
+            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser, $trackedByUserDate, $liveByUser) {
+                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser);
             })->filter(function ($employee) {
-                // Only show employees who have entries today
-                return $employee['total_entries'] > 0;
+                // Show anyone with attendance entries today OR a live tracker
+                // session (so someone tracking without clocking in still shows).
+                return $employee['total_entries'] > 0 || $employee['is_live'];
             });
 
             return response()->json([
@@ -178,11 +181,26 @@ class TimeEntryController extends Controller
             // Regular users see only their own data
             $entriesByUser = $this->loadSummaryEntries([$user->id], $now, $weekStart, $monthStart);
             $trackedByUserDate = $this->loadTrackedHours([$user->id], $now);
+            $liveByUser = $this->loadLiveSessions([$user->id]);
 
             return response()->json([
-                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate)],
+                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser)],
             ]);
         }
+    }
+
+    /**
+     * Currently-running tracker sessions keyed by user_id, so the dashboard's
+     * "Tracked" column counts in-progress work instead of reading 0 until the
+     * session stops. One query for the whole team.
+     */
+    private function loadLiveSessions(array $userIds): Collection
+    {
+        return \App\Models\TrackingSession::query()
+            ->whereIn('user_id', $userIds)
+            ->where('status', \App\Models\TrackingSession::STATUS_ACTIVE)
+            ->get(['user_id', 'started_at', 'total_seconds'])
+            ->keyBy('user_id');
     }
 
     /**
@@ -228,7 +246,7 @@ class TimeEntryController extends Controller
      * @param  Collection  $entries  this user's entries, chronological
      * @return array<string, mixed>
      */
-    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart, ?Collection $trackedByUserDate = null): array
+    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart, ?Collection $trackedByUserDate = null, ?Collection $liveByUser = null): array
     {
         $today = $employee->attendanceDateFor($now);
         $weekStartDate = $weekStart->toDateString();
@@ -246,6 +264,16 @@ class TimeEntryController extends Controller
             (float) ($trackedByUserDate?->get($employee->id.'|'.$today) ?? collect())->sum('hours'),
             2
         );
+
+        // Add the live session's running time so a currently-tracking person
+        // shows real progress instead of 0 until their session syncs. Capped at
+        // 16h to bound a forgotten session the stale-sweep hasn't closed.
+        $live = $liveByUser?->get($employee->id);
+        if ($live) {
+            $liveSeconds = min(16 * 3600, max((int) $live->total_seconds, (int) $live->started_at->diffInSeconds($now)));
+            $stats['tracked_hours'] = round($stats['tracked_hours'] + $liveSeconds / 3600, 2);
+        }
+        $stats['is_live'] = (bool) $live;
 
         return $stats;
     }
@@ -276,6 +304,7 @@ class TimeEntryController extends Controller
             'last_action' => $todayStats['lastAction'],
             'current_status' => $todayStats['status'],
             'last_action_time' => $todayEntries->last()?->formatted_action_time,
+            'shift_start_time' => $employee->shift_start_time?->format('H:i'),
         ];
     }
 

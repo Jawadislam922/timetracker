@@ -61,14 +61,30 @@ class TeamController extends Controller
         // Active sessions snapshot (anyone running right now, regardless of date).
         $activeNow = TrackingSession::active()
             ->with('client:id,name')
-            ->get(['id', 'user_id', 'client_id', 'task_note', 'started_at', 'last_heartbeat_at', 'activity_percent'])
+            ->get(['id', 'user_id', 'client_id', 'task_note', 'started_at', 'last_heartbeat_at', 'activity_percent', 'total_seconds'])
             ->keyBy('user_id');
 
         $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow, $manualByUser) {
             $userSessions = $sessionsByUser[$u->id] ?? collect();
             $userSamples = $samplesByUser[$u->id] ?? collect();
+            $live = $activeNow[$u->id] ?? null;
 
-            $trackedSeconds = (int) $userSessions->sum('total_seconds');
+            // Tracked = completed sessions' stored (idle-adjusted) seconds PLUS
+            // the live session's running time. Without the live term, "tracked"
+            // only reflects finalized heartbeats, so a person who's been live
+            // for an hour reads 0m until their session stops. We add the greater
+            // of the live session's last-reported seconds and its wall-clock
+            // age, capped at 16h to bound a forgotten session the stale-sweep
+            // hasn't closed yet.
+            $trackedSeconds = (int) $userSessions
+                ->where('status', '!=', TrackingSession::STATUS_ACTIVE)
+                ->sum('total_seconds');
+            if ($live) {
+                $trackedSeconds += min(
+                    16 * 3600,
+                    max((int) $live->total_seconds, (int) $live->started_at->diffInSeconds(now()))
+                );
+            }
             $manualSeconds = (int) round((float) ($manualByUser[$u->id] ?? collect())->sum('hours') * 3600);
             $totalSeconds = $trackedSeconds + $manualSeconds;
 
@@ -102,8 +118,6 @@ class TeamController extends Controller
                 ->sortDesc()
                 ->first();
 
-            $live = $activeNow[$u->id] ?? null;
-
             return [
                 'id' => $u->id,
                 'name' => $u->name,
@@ -126,7 +140,13 @@ class TeamController extends Controller
                     'activity_percent' => (int) $live->activity_percent,
                 ] : null,
             ];
-        })->sortByDesc('total_seconds')->values();
+        })->sort(function ($a, $b) {
+            // Live workers first, then most tracked time, then name — so the
+            // people working right now sit at the top regardless of how much
+            // others logged earlier in the day.
+            return [$b['is_live'], $b['total_seconds'], $a['name']]
+                <=> [$a['is_live'], $a['total_seconds'], $b['name']];
+        })->values();
 
         $totals = [
             'day' => (int) $rows->sum('total_seconds'),
