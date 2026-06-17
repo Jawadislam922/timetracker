@@ -165,9 +165,10 @@ class TimeEntryController extends Controller
             $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
             $trackedByUserDate = $this->loadTrackedHours($ids, $now);
             $liveByUser = $this->loadLiveSessions($ids);
+            $activityByUser = $this->loadDayActivity($ids, $now);
 
-            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser, $trackedByUserDate, $liveByUser) {
-                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser);
+            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser, $trackedByUserDate, $liveByUser, $activityByUser) {
+                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser);
             })->filter(function ($employee) {
                 // Show anyone with attendance entries today OR a live tracker
                 // session (so someone tracking without clocking in still shows).
@@ -182,11 +183,27 @@ class TimeEntryController extends Controller
             $entriesByUser = $this->loadSummaryEntries([$user->id], $now, $weekStart, $monthStart);
             $trackedByUserDate = $this->loadTrackedHours([$user->id], $now);
             $liveByUser = $this->loadLiveSessions([$user->id]);
+            $activityByUser = $this->loadDayActivity([$user->id], $now);
 
             return response()->json([
-                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser)],
+                'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser)],
             ]);
         }
+    }
+
+    /**
+     * Average activity % for today per user — the share of activity samples
+     * that had real keyboard/mouse input and weren't idle. One grouped query,
+     * computed in SQL so we never hydrate the (large) samples table.
+     */
+    private function loadDayActivity(array $userIds, Carbon $now): Collection
+    {
+        return \App\Models\TrackingActivitySample::query()
+            ->whereIn('user_id', $userIds)
+            ->whereBetween('captured_at', [$now->copy()->startOfDay(), $now])
+            ->selectRaw('user_id, AVG(CASE WHEN (keyboard_count + mouse_count) > 0 AND idle_seconds < 60 THEN 100 ELSE 0 END) AS activity')
+            ->groupBy('user_id')
+            ->pluck('activity', 'user_id');
     }
 
     /**
@@ -246,7 +263,7 @@ class TimeEntryController extends Controller
      * @param  Collection  $entries  this user's entries, chronological
      * @return array<string, mixed>
      */
-    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart, ?Collection $trackedByUserDate = null, ?Collection $liveByUser = null): array
+    private function summaryStatsFor(User $employee, $entries, Carbon $now, Carbon $weekStart, Carbon $monthStart, ?Collection $trackedByUserDate = null, ?Collection $liveByUser = null, ?Collection $activityByUser = null): array
     {
         $today = $employee->attendanceDateFor($now);
         $weekStartDate = $weekStart->toDateString();
@@ -277,6 +294,10 @@ class TimeEntryController extends Controller
             $stats['tracked_hours'] = round($stats['tracked_hours'] + $liveSeconds / 3600, 2);
         }
         $stats['is_live'] = (bool) $live;
+
+        // Day-level activity: how active they actually were while tracked
+        // (replaces the confusing tracked-vs-clocked "coverage" ratio).
+        $stats['activity_percent'] = (int) round((float) ($activityByUser[$employee->id] ?? 0));
 
         return $stats;
     }
