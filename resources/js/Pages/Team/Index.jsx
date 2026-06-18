@@ -128,13 +128,13 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                                 </Link>
                             </div>
                             <div className="relative">
-                                <Search className="pointer-events-none absolute left-2 top-1.5 h-3.5 w-3.5 text-slate-500" />
+                                <Search className="pointer-events-none absolute left-2 top-1.5 h-3.5 w-3.5 text-slate-400" />
                                 <input
                                     type="text"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     placeholder="Search member…"
-                                    className="w-44 rounded-md border border-slate-700 bg-slate-900 py-1 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-500 focus:border-orange-500 focus:outline-none"
+                                    className="w-44 rounded-md border border-slate-700 bg-slate-900 py-1 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-400 focus:border-orange-500 focus:outline-none"
                                 />
                             </div>
                             <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
@@ -166,7 +166,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                                     key={key}
                                     type="button"
                                     onClick={() => go({ range: key })}
-                                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${range === key ? 'bg-orange-500 text-white' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${range === key ? 'bg-orange-500 text-slate-950' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'}`}
                                 >
                                     {label}
                                 </button>
@@ -178,7 +178,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                                 className="rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark]"
                                 aria-label="Range start"
                             />
-                            <span className="text-slate-500">→</span>
+                            <span className="text-slate-400">→</span>
                             <input
                                 type="date"
                                 value={customEnd || ''}
@@ -189,7 +189,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                             <button
                                 type="button"
                                 onClick={applyCustom}
-                                className={`rounded-md px-2 py-1 text-xs font-medium ${range === 'custom' ? 'bg-orange-500 text-white' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+                                className={`rounded-md px-2 py-1 text-xs font-medium ${range === 'custom' ? 'bg-orange-500 text-slate-950' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'}`}
                             >
                                 Apply
                             </button>
@@ -252,7 +252,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                                             ) : row.total_seconds > 0 ? (
                                                 <span className="text-xs text-slate-400">Tracked earlier</span>
                                             ) : (
-                                                <span className="text-xs text-slate-500">Idle</span>
+                                                <span className="text-xs text-slate-400">Idle</span>
                                             )}
                                             {row.is_live && row.live?.client && (
                                                 <div className="mt-1 text-[11px] text-slate-400 truncate max-w-[220px]">{row.live.client}</div>
@@ -276,7 +276,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                                         </td>
                                         <td className="px-4 py-3 text-xs text-slate-300">
                                             {row.top_client ? (
-                                                <span>{row.top_client.name} <span className="text-slate-500">· {fmtHm(row.top_client.total_seconds)}</span></span>
+                                                <span>{row.top_client.name} <span className="text-slate-400">· {fmtHm(row.top_client.total_seconds)}</span></span>
                                             ) : '—'}
                                         </td>
                                         <td className="px-4 py-3 text-xs text-slate-300">{row.top_app || '—'}</td>

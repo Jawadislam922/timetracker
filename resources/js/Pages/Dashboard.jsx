@@ -289,7 +289,7 @@ export default function Dashboard({ auth }) {
                                         <div className="min-w-0">
                                             <div className="text-xl font-bold text-white">{metric.value}</div>
                                             <div className="text-sm font-medium text-slate-200">{metric.label}</div>
-                                            <div className="text-[11px] text-slate-500">{metric.sub}</div>
+                                            <div className="text-[11px] text-slate-400">{metric.sub}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -303,7 +303,7 @@ export default function Dashboard({ auth }) {
                                 <h2 className="text-base font-bold text-white">Time Tracking</h2>
                                 <p className="text-sm text-slate-400">Last action: {actionLabel(todayStats.lastAction)}</p>
                             </div>
-                            <div className="text-sm text-slate-500">Available actions follow your current status.</div>
+                            <div className="text-sm text-slate-400">Available actions follow your current status.</div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
@@ -410,7 +410,7 @@ export default function Dashboard({ auth }) {
                                                     <td className="whitespace-nowrap px-4 py-3">
                                                         {(() => {
                                                             const hasData = employee.is_live || (Number(employee.tracked_hours) || 0) > 0;
-                                                            if (!hasData) return <span className="text-xs text-slate-500">—</span>;
+                                                            if (!hasData) return <span className="text-xs text-slate-400">—</span>;
                                                             const pct = Math.max(0, Math.min(100, Number(employee.activity_percent) || 0));
                                                             const cls = pct >= 60
                                                                 ? 'bg-emerald-500/15 text-emerald-300'

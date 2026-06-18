@@ -740,7 +740,7 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                                 <span className="flex-1 text-sm text-slate-700">{user.name}</span>
                                 {isExempt && (
                                     <span
-                                        className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500"
+                                        className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
                                         title="Super Admins aren't monitored, so team/individual tracking settings don't apply to them."
                                     >
                                         Exempt · Super Admin
@@ -809,7 +809,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
                                             <Icon className="h-4 w-4 text-slate-400" />
                                             {item.label}
                                         </span>
-                                        <span className="text-xs text-slate-400">{item.summary}</span>
+                                        <span className="text-xs text-slate-500">{item.summary}</span>
                                     </button>
                                 );
                             })}

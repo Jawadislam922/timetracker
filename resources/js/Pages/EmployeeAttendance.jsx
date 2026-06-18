@@ -123,7 +123,7 @@ const EmployeeIdentity = ({ employee, size = 'small' }) => {
             )}
             <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-slate-100">{employee.user_name}</div>
-                <div className="truncate text-xs text-slate-500">{employee.designation || 'Member'}</div>
+                <div className="truncate text-xs text-slate-400">{employee.designation || 'Member'}</div>
             </div>
         </div>
     );
