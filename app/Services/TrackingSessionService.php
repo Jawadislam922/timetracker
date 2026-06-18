@@ -48,9 +48,20 @@ class TrackingSessionService
     /**
      * Mirror a finished tracking session into the work_hours table so the
      * existing Report sheet auto-populates without manual entry.
+     *
+     * An overnight session is split into one row per calendar day it spans,
+     * each day getting its wall-clock share of the tracked time — the exact
+     * same allocation the Timeline uses (inDaySeconds). Without this, a night
+     * shift that started at 9:47 PM would dump all its hours on the start date,
+     * so the next day's Report/Diary/Dashboard would be missing them while the
+     * Timeline showed them. We delete-then-recreate so re-syncs (e.g. after a
+     * screenshot deletion changes the total) stay idempotent. Manual entries
+     * (no tracking_session_id) are never touched.
      */
     public function syncWorkHour(TrackingSession $session): void
     {
+        WorkHour::where('tracking_session_id', $session->id)->delete();
+
         if (! $session->total_seconds || $session->total_seconds < 60) {
             return;
         }
@@ -59,19 +70,63 @@ class TrackingSessionService
             ? UpworkProfile::query()->where('id', $session->upwork_profile_id)->value('name')
             : null;
 
-        WorkHour::updateOrCreate(
-            ['tracking_session_id' => $session->id],
-            [
-                'user_id' => $session->user_id,
-                'date' => $session->started_at?->toDateString() ?? now()->toDateString(),
-                'hours' => round($session->total_seconds / 3600, 4),
-                'description' => $session->task_note ?: 'Tracked via desktop',
-                'work_type' => $this->normaliseWorkType($session->work_type) ?: 'tracker',
-                'client_id' => $session->client_id,
-                'tracker' => $trackerName,
-                'source' => 'tracker',
-            ]
-        );
+        $base = [
+            'user_id' => $session->user_id,
+            'description' => $session->task_note ?: 'Tracked via desktop',
+            'work_type' => $this->normaliseWorkType($session->work_type) ?: 'tracker',
+            'client_id' => $session->client_id,
+            'tracker' => $trackerName,
+            'source' => 'tracker',
+            'tracking_session_id' => $session->id,
+        ];
+
+        foreach ($this->dailySeconds($session) as $date => $seconds) {
+            if ($seconds < 1) {
+                continue;
+            }
+            WorkHour::create($base + [
+                'date' => $date,
+                'hours' => round($seconds / 3600, 4),
+            ]);
+        }
+    }
+
+    /**
+     * Split a session's tracked (idle-adjusted) seconds across the calendar
+     * days it spans, each day getting its wall-clock share. Mirrors
+     * TimelineController::inDaySeconds so every page agrees.
+     *
+     * @return array<string, int>  [Y-m-d => seconds]
+     */
+    private function dailySeconds(TrackingSession $session): array
+    {
+        $start = $session->started_at;
+        $end = $session->stopped_at ?? $session->last_heartbeat_at ?? $start;
+        $total = (int) $session->total_seconds;
+
+        if (! $start) {
+            return [now()->toDateString() => $total];
+        }
+        if (! $end || $end->lessThanOrEqualTo($start)) {
+            return [$start->toDateString() => $total];
+        }
+
+        $duration = max(1, $start->diffInSeconds($end));
+        $result = [];
+        $cursor = $start->copy()->startOfDay();
+
+        while ($cursor->lt($end)) {
+            $next = $cursor->copy()->addDay();
+            $segStart = $start->greaterThan($cursor) ? $start : $cursor;
+            $segEnd = $end->lessThan($next) ? $end : $next;
+            $overlap = max(0, $segStart->diffInSeconds($segEnd));
+            if ($overlap > 0) {
+                $result[$cursor->toDateString()] = (int) round($total * ($overlap / $duration));
+            }
+            $cursor = $next;
+        }
+
+        return $result ?: [$start->toDateString() => $total];
     }
 
     /**
