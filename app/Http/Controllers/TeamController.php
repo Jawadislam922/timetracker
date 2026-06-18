@@ -23,8 +23,11 @@ class TeamController extends Controller
         $authUser = $request->user();
         abort_unless($authUser->hasPermission('timeline.view_others'), 403);
 
-        $date = $this->resolveDate($request);
-        [$dayStart, $dayEnd] = BusinessTime::utcRange($date->copy()->startOfDay(), $date->copy()->endOfDay());
+        // A range (preset like today/week/month or a custom start+end). The
+        // per-session day-clamp below uses these bounds, so a single day and a
+        // multi-day range share the same code path.
+        [$rangeStart, $rangeEnd] = $this->resolveRange($request, $request->input('range', 'today'));
+        [$dayStart, $dayEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
 
         $users = User::orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
 
@@ -60,7 +63,7 @@ class TeamController extends Controller
         // but contribute 0% activity, so a half-manual day dilutes the
         // activity score instead of hiding the manual time entirely.
         $manualByUser = \App\Models\WorkHour::query()
-            ->whereDate('date', $date->toDateString())
+            ->whereBetween('date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
             ->where(function ($q) {
                 $q->whereNull('source')->orWhere('source', '!=', 'tracker');
             })
@@ -174,7 +177,9 @@ class TeamController extends Controller
         ];
 
         return Inertia::render('Team/Index', [
-            'date' => $date->toDateString(),
+            'start' => $rangeStart->toDateString(),
+            'end' => $rangeEnd->toDateString(),
+            'range' => $request->input('range', $rangeStart->toDateString() === $rangeEnd->toDateString() ? 'today' : 'custom'),
             'rows' => $rows,
             'totals' => $totals,
             'permissions' => [
@@ -273,6 +278,9 @@ class TeamController extends Controller
 
         return match ($range) {
             'today' => [$today->copy(), $today->copy()->endOfDay()],
+            'yesterday' => [$today->copy()->subDay(), $today->copy()->subDay()->endOfDay()],
+            'week' => [$today->copy()->startOfWeek(MonitoringSetting::weekStartDay()), $today->copy()->endOfDay()],
+            'month' => [$today->copy()->startOfMonth(), $today->copy()->endOfDay()],
             '30d' => [$today->copy()->subDays(29), $today->copy()->endOfDay()],
             default => [$today->copy()->subDays(6), $today->copy()->endOfDay()],
         };
@@ -283,10 +291,10 @@ class TeamController extends Controller
         $actor = $request->user();
         abort_unless($actor->hasPermission('reports.send_slack'), 403);
 
-        $date = $this->resolveDate($request);
+        [$rangeStart, $rangeEnd] = $this->resolveRange($request, $request->input('range', 'today'));
 
         try {
-            $summary = $service->sendRange($date->copy()->startOfDay(), $date->copy()->endOfDay());
+            $summary = $service->sendRange($rangeStart, $rangeEnd);
         } catch (RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
