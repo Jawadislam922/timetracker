@@ -499,6 +499,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                         className="justify-between items-center"
                                         preserveState={true}
                                         preserveScroll={false}
+                                        dark
                                     />
                                 </div>
                             )}

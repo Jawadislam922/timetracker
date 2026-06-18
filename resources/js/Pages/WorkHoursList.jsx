@@ -686,10 +686,11 @@ export default function WorkHoursList({
                                         Showing {workHours.from || 0} to {workHours.to || 0} of {workHours.total || 0} entries
                                     </div>
                                 </div>
-                                <TraditionalPagination 
+                                <TraditionalPagination
                                     pagination={workHours}
                                     preserveState={true}
                                     preserveScroll={false}
+                                    dark
                                 />
                             </div>
                         )}

@@ -59,25 +59,35 @@ export const LoadMorePagination = ({
 };
 
 // Traditional Pagination Component
-export const TraditionalPagination = ({ 
-    pagination, 
+export const TraditionalPagination = ({
+    pagination,
     className = "",
     preserveState = true,
-    preserveScroll = false 
+    preserveScroll = false,
+    dark = false,
 }) => {
     if (!pagination) return null;
-    
-    const { links, current_page, last_page, from, to, total } = pagination;
-    
+
+    const { links, from, to, total } = pagination;
+    // Theme-aware: this component is used on both dark data pages (Report,
+    // Work Diary, Clients) and the light Users page, so colors switch on `dark`.
+    const labelCls = dark ? 'text-slate-400' : 'text-slate-600';
+    const numCls = dark ? 'text-slate-100' : 'text-slate-950';
+    const disabledCls = dark ? 'text-slate-600' : 'text-slate-400';
+    const activeCls = dark ? 'bg-orange-500 text-white' : 'bg-slate-900 text-white';
+    const linkCls = dark
+        ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-600 focus:ring-orange-500'
+        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950 hover:border-slate-300 focus:ring-blue-500 focus:ring-offset-2';
+
     return (
         <div className={`flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}>
             {/* Results Info */}
-            <div className="text-sm font-medium text-slate-400">
-                Showing <span className="font-semibold text-slate-100">{from}</span> to{' '}
-                <span className="font-semibold text-slate-100">{to}</span> of{' '}
-                <span className="font-semibold text-slate-100">{total}</span> results
+            <div className={`text-sm font-medium ${labelCls}`}>
+                Showing <span className={`font-semibold ${numCls}`}>{from}</span> to{' '}
+                <span className={`font-semibold ${numCls}`}>{to}</span> of{' '}
+                <span className={`font-semibold ${numCls}`}>{total}</span> results
             </div>
-            
+
             {/* Pagination Links */}
             <div className="flex items-center space-x-1">
                 {links?.map((link, index) => {
@@ -85,29 +95,29 @@ export const TraditionalPagination = ({
                         return (
                             <span
                                 key={index}
-                                className="px-3 py-2 text-slate-500 cursor-not-allowed"
+                                className={`px-3 py-2 cursor-not-allowed ${disabledCls}`}
                                 dangerouslySetInnerHTML={{ __html: link.label }}
                             />
                         );
                     }
-                    
+
                     if (link.active) {
                         return (
                             <span
                                 key={index}
-                                className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold shadow-sm"
+                                className={`px-4 py-2 rounded-lg font-semibold shadow-sm ${activeCls}`}
                                 dangerouslySetInnerHTML={{ __html: link.label }}
                             />
                         );
                     }
-                    
+
                     return (
                         <Link
                             key={index}
                             href={link.url}
                             preserveState={preserveState}
                             preserveScroll={preserveScroll}
-                            className="px-4 py-2 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 font-medium transition hover:bg-slate-700 hover:text-white hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            className={`px-4 py-2 rounded-lg border font-medium transition focus:outline-none focus:ring-2 ${linkCls}`}
                             dangerouslySetInnerHTML={{ __html: link.label }}
                         />
                     );
