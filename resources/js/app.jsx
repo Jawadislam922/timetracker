@@ -9,6 +9,18 @@ import ErrorBoundary from '@/Components/ErrorBoundary';
 
 const appName = import.meta.env.VITE_APP_NAME || 'SA Track';
 
+// Auto-recover from stale code chunks after a deploy: when a release ships new
+// asset hashes, a browser that still holds the old page references will 404 on
+// a dynamic import and render blank. Reload once to fetch the fresh assets
+// instead. Guarded by a short cooldown so a genuinely-missing chunk can't loop.
+window.addEventListener('vite:preloadError', () => {
+    const last = Number(sessionStorage.getItem('vitePreloadReloadAt') || 0);
+    if (Date.now() - last > 10000) {
+        sessionStorage.setItem('vitePreloadReloadAt', String(Date.now()));
+        window.location.reload();
+    }
+});
+
 createInertiaApp({
     title: (title) => title ? `${title} - ${appName}` : appName,
     resolve: (name) => resolvePageComponent(`./Pages/${name}.tsx`, import.meta.glob('./Pages/**/*.tsx'))

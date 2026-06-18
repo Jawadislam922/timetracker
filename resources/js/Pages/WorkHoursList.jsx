@@ -340,6 +340,23 @@ export default function WorkHoursList({
 
     const totalHours = filteredData.reduce((sum, entry) => sum + Number(entry.hours || 0), 0);
 
+    // Surface a subtotal for any client logged more than once on the same day
+    // (the confusing "same client, three rows" case) — without touching the
+    // editable rows below, which stay individually editable/deletable.
+    const dailyGroups = (() => {
+        const map = new Map();
+        for (const e of filteredData) {
+            const key = `${e.date}|${e.client?.name || 'No Client'}`;
+            if (!map.has(key)) {
+                map.set(key, { key, date: e.date, client: e.client?.name || 'No Client', count: 0, total: 0 });
+            }
+            const g = map.get(key);
+            g.count += 1;
+            g.total += Number(e.hours || 0);
+        }
+        return [...map.values()].filter((g) => g.count > 1).sort((a, b) => (a.date < b.date ? 1 : -1));
+    })();
+
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Work Diary" />
@@ -549,6 +566,25 @@ export default function WorkHoursList({
 
                         <ActiveFilterChips chips={activeFilterChips} onClearAll={activeFilterChips.length ? clearFilters : null} />
                     </div>
+
+                    {dailyGroups.length > 0 && (
+                        <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900 p-4 shadow-sm">
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                Totals by client · day{' '}
+                                <span className="font-normal normal-case text-slate-500">— clients you logged more than once on this page</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {dailyGroups.map((g) => (
+                                    <span key={g.key} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs">
+                                        <span className="text-slate-400">{g.date}</span>
+                                        <span className="font-medium text-slate-200">{g.client}</span>
+                                        <span className="font-bold text-emerald-300">{timeFormat(g.total)}</span>
+                                        <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">×{g.count}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Table Card */}
                     <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm overflow-hidden">
