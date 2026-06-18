@@ -78,6 +78,19 @@ const gridStatusStyles = {
     empty: 'bg-slate-800/40 text-slate-600 border-slate-800',
 };
 
+// Code → meaning for the monthly-grid legend (so the colored codes are readable).
+const gridLegend = [
+    ['P', 'Present'],
+    ['A', 'Absent'],
+    ['LC', 'Late coming'],
+    ['LI', 'Before joining'],
+    ['L', 'Leave'],
+    ['H', 'Holiday'],
+    ['PH', 'Public holiday'],
+    ['WFH', 'Work from home'],
+    ['HD', 'Half day'],
+];
+
 const actionMeta = (actionType) => {
     if (actionType === 'clock_in') return { label: 'Clocked In', icon: PlayCircle, className: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
     if (actionType === 'clock_out') return { label: 'Clocked Out', icon: Square, className: 'bg-rose-50 text-rose-800 border-rose-200' };
@@ -1271,7 +1284,17 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
     };
 
     return (
-        <div className="overflow-x-auto">
+        <div>
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-300">
+                <span className="font-semibold uppercase tracking-wide text-slate-400">Legend:</span>
+                {gridLegend.map(([code, label]) => (
+                    <span key={code} className="inline-flex items-center gap-1.5">
+                        <span className={`inline-flex h-5 min-w-7 items-center justify-center rounded border px-1 text-[10px] font-bold ${gridStatusStyles[code]}`}>{code}</span>
+                        {label}
+                    </span>
+                ))}
+            </div>
+            <div className="overflow-x-auto">
             <table className="min-w-max border-separate border-spacing-0 text-sm">
                 <thead>
                     <tr>
@@ -1392,6 +1415,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                     ))}
                 </tbody>
             </table>
+            </div>
         </div>
     );
 }
