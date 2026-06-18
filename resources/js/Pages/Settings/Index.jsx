@@ -12,6 +12,7 @@ import {
     DollarSign,
     Globe,
     Laptop,
+    MessageSquare,
     PauseCircle,
     Timer,
     Clock3,
@@ -32,6 +33,7 @@ const CATEGORIES = [
     { key: 'auto_pause', label: 'Auto-pause tracking after', icon: PauseCircle, summary: (t) => `${t.auto_pause_minutes} min` },
     { key: 'offline_time', label: 'Allow adding Offline Time', icon: Clock, summary: (t) => (t.allow_offline_time ? 'Yes' : 'No') },
     { key: 'notify_screenshot', label: 'Notify when screenshot is taken', icon: Bell, summary: (t) => (t.notify_on_screenshot ? 'Yes' : 'No') },
+    { key: 'attendance_slack', label: 'Attendance Slack alerts', icon: MessageSquare, summary: (t) => [t.slack_clockin_enabled && 'in', t.slack_clockout_enabled && 'out'].filter(Boolean).join(' + ') || 'Off' },
     { key: 'week_starts_on', label: 'Week starts on', icon: Calendar, summary: (t) => (t.week_starts_on === 'sunday' ? 'Sun' : 'Mon') },
     { key: 'currency', label: 'Currency symbol', icon: DollarSign, summary: (t) => t.currency_symbol },
     { key: 'desktop_app', label: 'Employee desktop application settings', icon: Laptop, summary: () => '' },
@@ -596,7 +598,17 @@ function CurrencySection({ team, setTeam }) {
 
 function DesktopAppSection({ team, users, setTeam }) {
     return (
-        <SectionShell title="Employee desktop application settings" blurb="Controls how the desktop tracker behaves on the employee's machine.">
+        <SectionShell
+            title="Employee desktop application settings"
+            blurb="Default behaviour for the desktop tracker on employees' machines."
+        >
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+                <strong>How these apply:</strong> each employee also has a “Launch on startup” switch
+                inside the desktop app itself, which they control on their own machine. Central enforcement
+                of the options below reaches a machine only after that employee updates to the latest
+                desktop app. “Force quit on prolonged idle” is not enforced by the app yet — tracking
+                already auto-pauses on idle (see <em>Auto-pause</em>).
+            </div>
             <div className="space-y-3 text-sm">
                 <label className="flex items-center gap-3">
                     <Toggle
@@ -607,7 +619,7 @@ function DesktopAppSection({ team, users, setTeam }) {
                             patchTeam(next);
                         }}
                     />
-                    Launch on system startup
+                    Launch on system startup (default)
                 </label>
                 <label className="flex items-center gap-3">
                     <Toggle
@@ -658,6 +670,45 @@ function DesktopAppSection({ team, users, setTeam }) {
     );
 }
 
+function AttendanceSlackSection({ team, setTeam }) {
+    const set = (patch) => {
+        const next = { ...team, ...patch };
+        setTeam(next);
+        patchTeam(next);
+    };
+    return (
+        <SectionShell
+            title="Attendance Slack alerts"
+            blurb={<>Post a short message to a Slack channel when someone clocks in or out. Turn each on independently.<br />The SA Track Slack bot must be a member of the channel you choose.</>}
+        >
+            <div className="space-y-4 text-sm">
+                <label className="flex items-center gap-3">
+                    <Toggle checked={!!team.slack_clockin_enabled} onChange={(v) => set({ slack_clockin_enabled: v })} />
+                    <span>Post to Slack when someone <strong>clocks in</strong></span>
+                </label>
+                <label className="flex items-center gap-3">
+                    <Toggle checked={!!team.slack_clockout_enabled} onChange={(v) => set({ slack_clockout_enabled: v })} />
+                    <span>Post to Slack when someone <strong>clocks out</strong></span>
+                </label>
+                <div className="pt-2">
+                    <label className="flex flex-col gap-1">
+                        <span className="text-xs font-medium text-slate-500">Attendance channel</span>
+                        <input
+                            type="text"
+                            value={team.slack_attendance_channel || ''}
+                            onChange={(e) => setTeam({ ...team, slack_attendance_channel: e.target.value })}
+                            onBlur={() => patchTeam(team)}
+                            placeholder="#attendance"
+                            className="w-64 rounded border-slate-300 text-sm"
+                        />
+                        <span className="text-xs text-slate-500">Channel name (e.g. #attendance) or ID. Leave blank to use the server default.</span>
+                    </label>
+                </div>
+            </div>
+        </SectionShell>
+    );
+}
+
 function IndividualSettings({ category, users, flagKey, defaultValues, editor }) {
     const updateOverrides = useContext(OverridesDispatchContext);
     return (
@@ -669,7 +720,11 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                     <p className="py-4 text-sm text-slate-500">No team members yet.</p>
                 )}
                 {users.map((user) => {
-                    const enabled = !!user.overrides?.[flagKey];
+                    // Super Admins aren't tracked, so monitoring overrides never
+                    // apply to them — they're shown read-only so the owner still
+                    // sees the full roster (and isn't left wondering who's missing).
+                    const isExempt = user.role === 'super_admin';
+                    const enabled = !isExempt && !!user.overrides?.[flagKey];
                     const setEnabled = (en) => {
                         updateOverrides(user.id, { [flagKey]: en, ...(en ? defaultValues : {}) });
                         patchUser(user, category, en, en ? defaultValues : {});
@@ -681,10 +736,18 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                     return (
                         <div key={user.id} className="space-y-2 py-3">
                             <div className="flex items-center gap-3">
-                                <Toggle checked={enabled} onChange={setEnabled} />
+                                <Toggle checked={enabled} onChange={setEnabled} disabled={isExempt} />
                                 <span className="flex-1 text-sm text-slate-700">{user.name}</span>
+                                {isExempt && (
+                                    <span
+                                        className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500"
+                                        title="Super Admins aren't monitored, so team/individual tracking settings don't apply to them."
+                                    >
+                                        Exempt · Super Admin
+                                    </span>
+                                )}
                             </div>
-                            {enabled && editor && (
+                            {!isExempt && enabled && editor && (
                                 <div className="ml-12 rounded-md bg-slate-50 px-3 py-2">
                                     {editor(user.overrides || {}, setValues)}
                                 </div>
@@ -804,6 +867,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
                                     offLabel="Do not notify"
                                 />
                             )}
+                            {active === 'attendance_slack' && <AttendanceSlackSection team={team} setTeam={setTeam} />}
                             {active === 'display' && <DisplaySection team={team} users={users} setTeam={setTeam} />}
                             {active === 'week_starts_on' && <WeekStartsSection team={team} setTeam={setTeam} />}
                             {active === 'currency' && <CurrencySection team={team} setTeam={setTeam} />}

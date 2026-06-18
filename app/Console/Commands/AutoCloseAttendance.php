@@ -81,9 +81,17 @@ class AutoCloseAttendance extends Command
                 continue;
             }
 
+            // A person with a long configured shift gets a proportionally longer
+            // safety cap (shift + 2h buffer), so a genuine 10h shift is never
+            // force-closed on the default 12h backstop. Falls back to the global
+            // cap when no per-person shift length is set.
+            $userCap = $user->shift_hours
+                ? max($capHours, (float) $user->shift_hours + 2)
+                : $capHours;
+
             $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
             $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
-            $capAt = $clockInTs->copy()->addMinutes((int) round($capHours * 60));
+            $capAt = $clockInTs->copy()->addMinutes((int) round($userCap * 60));
 
             // Presence is the CLOCK, not the tracker: a person can keep working
             // (or do non-tracker work) after their tracker goes quiet and clock
@@ -93,7 +101,7 @@ class AutoCloseAttendance extends Command
             // still present and clocked out manually hours later). We only
             // force-close at the hard cap; the Slack "still working?" check ASKS
             // the person at ~8h and handles genuinely forgotten clock-outs.
-            if ($ageHours < $capHours) {
+            if ($ageHours < $userCap) {
                 $skipped++; // still within the day's window — leave them alone
                 continue;
             }
@@ -101,7 +109,7 @@ class AutoCloseAttendance extends Command
             $closeAt = $capAt->copy();
             $reason = sprintf(
                 'Auto clock-out: no manual clock-out; capped at %dh maximum.',
-                (int) round($capHours)
+                (int) round($userCap)
             );
 
             $spanHours = $clockInTs->diffInMinutes($closeAt, false) / 60;

@@ -30,6 +30,9 @@ class MonitoringSetting extends Model
         'desktop_force_quit_on_idle',
         'display_timezone',
         'time_format',
+        'slack_clockin_enabled',
+        'slack_clockout_enabled',
+        'slack_attendance_channel',
         'branding_logo_path',
     ];
 
@@ -52,6 +55,8 @@ class MonitoringSetting extends Model
         'notify_on_screenshot' => 'boolean',
         'desktop_auto_start' => 'boolean',
         'desktop_force_quit_on_idle' => 'boolean',
+        'slack_clockin_enabled' => 'boolean',
+        'slack_clockout_enabled' => 'boolean',
     ];
 
     /**
@@ -104,6 +109,9 @@ class MonitoringSetting extends Model
                 'desktop_force_quit_on_idle' => false,
                 'display_timezone' => 'Asia/Karachi',
                 'time_format' => '12',
+                'slack_clockin_enabled' => false,
+                'slack_clockout_enabled' => false,
+                'slack_attendance_channel' => null,
             ]
         ));
     }
@@ -180,6 +188,19 @@ class MonitoringSetting extends Model
             'desktop_force_quit_on_idle' => $this->desktop_force_quit_on_idle,
             'display_timezone' => $this->display_timezone ?: 'Asia/Karachi',
             'time_format' => $this->time_format ?: '12',
+            'slack_clockin_enabled' => (bool) $this->slack_clockin_enabled,
+            'slack_clockout_enabled' => (bool) $this->slack_clockout_enabled,
+            'slack_attendance_channel' => $this->slack_attendance_channel,
         ];
+    }
+
+    /**
+     * The Slack channel attendance posts (clock-in/out) should go to: the
+     * UI-managed channel if set, otherwise the env fallback. Null = nowhere.
+     */
+    public function attendanceChannel(): ?string
+    {
+        return $this->slack_attendance_channel
+            ?: config('services.attendance.clockin_channel');
     }
 }

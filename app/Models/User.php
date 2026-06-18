@@ -31,6 +31,8 @@ class User extends Authenticatable
         'joining_date',
         'shift_start_time',
         'shift_grace_minutes',
+        'shift_hours',
+        'clockout_reminder_hours',
         'allow_multiple_devices',
     ];
 
@@ -68,6 +70,8 @@ class User extends Authenticatable
         'joining_date' => 'date',
         'shift_start_time' => 'datetime:H:i',
         'shift_grace_minutes' => 'integer',
+        'shift_hours' => 'decimal:2',
+        'clockout_reminder_hours' => 'decimal:2',
         'allow_multiple_devices' => 'boolean',
     ];
 

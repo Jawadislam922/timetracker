@@ -62,7 +62,13 @@ class StillWorkingCheck extends Command
 
             $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
             $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
-            if (! $force && $ageHours < $thresholdHours) {
+
+            // Per-person reminder threshold overrides the global default, so a
+            // 10h-shift person can be nudged at, say, 9h instead of the team's 8h.
+            $userThreshold = $user->clockout_reminder_hours !== null
+                ? (float) $user->clockout_reminder_hours
+                : $thresholdHours;
+            if (! $force && $ageHours < $userThreshold) {
                 continue;
             }
 

@@ -33,6 +33,8 @@ export default function UserForm({
         joining_date: user?.joining_date || '',
         shift_start_time: user?.shift_start_time || '',
         shift_grace_minutes: user?.shift_grace_minutes ?? 15,
+        shift_hours: user?.shift_hours ?? '',
+        clockout_reminder_hours: user?.clockout_reminder_hours ?? '',
         role: user?.role || 'member',
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
@@ -184,6 +186,30 @@ export default function UserForm({
                                     </option>
                                 ))}
                             </select>
+                        </Field>
+                        <Field label="Shift length (hours)" hint="Expected length of this person's shift, e.g. 10. Widens their forgotten-clock-out safety cap. Blank = team default." error={form.errors.shift_hours}>
+                            <input
+                                type="number"
+                                min={0}
+                                max={24}
+                                step={0.5}
+                                value={form.data.shift_hours}
+                                onChange={(event) => form.setData('shift_hours', event.target.value)}
+                                placeholder="e.g. 10"
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
+                        </Field>
+                        <Field label="Clock-out reminder after (hours)" hint="When the Slack “still working?” check pings this person. Blank = team default." error={form.errors.clockout_reminder_hours}>
+                            <input
+                                type="number"
+                                min={0}
+                                max={24}
+                                step={0.5}
+                                value={form.data.clockout_reminder_hours}
+                                onChange={(event) => form.setData('clockout_reminder_hours', event.target.value)}
+                                placeholder="e.g. 8"
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            />
                         </Field>
                     </div>
                 </div>

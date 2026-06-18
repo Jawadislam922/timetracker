@@ -33,8 +33,11 @@ class SettingsController extends Controller
     {
         $team = MonitoringSetting::current();
 
-        $users = User::where('role', '!=', 'super_admin')
-            ->orderBy('name')
+        // Everyone is listed, including Super Admins, so the owner sees the full
+        // roster. Super Admins are exempt from monitoring overrides (the tracker
+        // doesn't apply them), so their rows render read-only/"Exempt" and
+        // updateUser() refuses to write an override for them.
+        $users = User::orderBy('name')
             ->get(['id', 'name', 'email', 'role']);
 
         $overrides = UserMonitoringSetting::whereIn('user_id', $users->pluck('id'))
@@ -73,6 +76,9 @@ class SettingsController extends Controller
             'desktop_force_quit_on_idle' => ['required', 'boolean'],
             'display_timezone' => ['required', 'timezone'],
             'time_format' => ['required', Rule::in(['12', '24'])],
+            'slack_clockin_enabled' => ['required', 'boolean'],
+            'slack_clockout_enabled' => ['required', 'boolean'],
+            'slack_attendance_channel' => ['nullable', 'string', 'max:100'],
         ]);
 
         $team = MonitoringSetting::current();

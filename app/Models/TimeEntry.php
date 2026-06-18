@@ -25,37 +25,81 @@ class TimeEntry extends Model
     ];
 
     /**
-     * Announce every clock-in to the attendance Slack channel ("X clocked in").
-     * Fires for web, desktop auto-clock-in, and any other path that creates a
-     * clock_in entry. The post runs as a terminating callback so it never adds
-     * latency to the clock action itself.
+     * Announce clock-ins and clock-outs to the attendance Slack channel, when
+     * those posts are switched on in Settings. Fires for web, desktop, and any
+     * other path that creates the entry. The post runs as a terminating
+     * callback so it never adds latency to the clock action itself.
+     *
+     * System-generated clock-outs (the auto clock-out cap and the "still
+     * working?" auto-close) are skipped here — those paths announce their own
+     * worded lockout message, so re-posting would double up.
      */
     protected static function booted(): void
     {
         static::created(function (self $entry) {
-            if ($entry->action_type !== 'clock_in') {
+            if (! in_array($entry->action_type, ['clock_in', 'clock_out'], true)) {
                 return;
             }
-            $channel = config('services.attendance.clockin_channel');
+
+            $settings = \App\Models\MonitoringSetting::current();
+            $enabled = $entry->action_type === 'clock_in'
+                ? $settings->slack_clockin_enabled
+                : $settings->slack_clockout_enabled;
+            if (! $enabled) {
+                return;
+            }
+
+            $channel = $settings->attendanceChannel();
             if (! $channel) {
                 return;
             }
 
-            app()->terminating(function () use ($entry, $channel) {
+            // Don't echo the system's own auto clock-outs.
+            if ($entry->action_type === 'clock_out'
+                && str_starts_with((string) $entry->notes, 'Auto clock-out')) {
+                return;
+            }
+
+            $at = $entry->action_timestamp->copy()->setTimezone('Asia/Karachi');
+            $name = $entry->user->name ?? 'Someone';
+            $message = $entry->action_type === 'clock_in'
+                ? sprintf(':office: *%s* clocked in at %s.', $name, $at->format('g:i A'))
+                : sprintf(':waving_black_flag: *%s* clocked out at %s.%s', $name, $at->format('g:i A'), self::workedSuffix($entry));
+
+            app()->terminating(function () use ($channel, $message) {
                 try {
-                    app(\App\Services\SlackBotService::class)->postToChannel(
-                        $channel,
-                        sprintf(
-                            ':office: *%s* clocked in at %s.',
-                            $entry->user->name ?? 'Someone',
-                            $entry->action_timestamp->copy()->setTimezone('Asia/Karachi')->format('g:i A'),
-                        ),
-                    );
+                    app(\App\Services\SlackBotService::class)->postToChannel($channel, $message);
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Clock-in Slack post failed', ['message' => $e->getMessage()]);
+                    \Illuminate\Support\Facades\Log::warning('Attendance Slack post failed', ['message' => $e->getMessage()]);
                 }
             });
         });
+    }
+
+    /**
+     * " (worked 8h 12m)" for a clock-out, computed from the matching clock-in
+     * on the same attendance day, or '' when it can't be determined cheaply.
+     */
+    private static function workedSuffix(self $clockOut): string
+    {
+        $clockIn = static::where('user_id', $clockOut->user_id)
+            ->where('action_type', 'clock_in')
+            ->where('action_timestamp', '<=', $clockOut->action_timestamp)
+            ->orderByDesc('action_timestamp')->orderByDesc('id')
+            ->first();
+
+        if (! $clockIn) {
+            return '';
+        }
+
+        $mins = $clockIn->action_timestamp->diffInMinutes($clockOut->action_timestamp);
+        if ($mins <= 0) {
+            return '';
+        }
+
+        return $mins >= 60
+            ? sprintf(' (worked %dh %dm)', intdiv($mins, 60), $mins % 60)
+            : sprintf(' (worked %dm)', $mins);
     }
 
     public function user()
