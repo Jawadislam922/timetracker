@@ -358,7 +358,7 @@ export default function WorkHoursList({
                                 <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Add Entry
+                                Add Manual Time
                             </Link>
                         )}
                     />
@@ -592,7 +592,7 @@ export default function WorkHoursList({
                                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                                         </svg>
-                                                        Add First Entry
+                                                        Add Manual Time
                                                     </Link>
                                                 </div>
                                             </td>
@@ -635,7 +635,7 @@ export default function WorkHoursList({
                                                             Auto
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200" title="Logged by hand in the web app (Add Entry)">
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200" title="Logged by hand in the web app (Add Manual Time)">
                                                             Logged
                                                         </span>
                                                     )}

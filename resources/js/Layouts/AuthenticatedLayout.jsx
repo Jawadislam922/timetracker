@@ -163,7 +163,7 @@ export default function Authenticated({ user, header, children }) {
                                     className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:from-orange-600 hover:to-amber-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-slate-950"
                                 >
                                     <Plus className="h-4 w-4" />
-                                    <span className="hidden md:inline">Add Entry</span>
+                                    <span className="hidden md:inline">Add Manual Time</span>
                                 </Link>
                             )}
 
@@ -249,7 +249,7 @@ export default function Authenticated({ user, header, children }) {
                                     className="mt-3 flex items-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/25"
                                 >
                                     <Plus className="h-4 w-4" />
-                                    Add Entry
+                                    Add Manual Time
                                 </Link>
                             )}
                         </div>
