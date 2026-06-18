@@ -705,7 +705,7 @@ export default function WorkHoursReport({
                                                             Auto
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300" title="Logged by hand in the web app (Add Entry)">
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200" title="Logged by hand in the web app (Add Entry)">
                                                             Logged
                                                         </span>
                                                     )}

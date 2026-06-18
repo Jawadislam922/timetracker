@@ -309,6 +309,7 @@ export default function WorkHoursList({
                 'Client': entry.client?.name || 'No Client',
                 'Work Type': formatWorkType(entry.work_type),
                 'Tracker': entry.tracker,
+                'Source': entry.source === 'tracker' ? 'Auto' : 'Logged',
                 'Hours': timeFormat(entry.hours),
                 'Description': entry.description || ''
             }));
@@ -568,6 +569,7 @@ export default function WorkHoursList({
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Client</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Work Type</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Tracker</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Source</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Hours</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Description</th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Actions</th>
@@ -576,7 +578,7 @@ export default function WorkHoursList({
                                 <tbody className="divide-y divide-slate-800">
                                     {filteredData.length === 0 ? (
                                         <tr>
-                                            <td colSpan="9" className="px-0 py-12 text-center">
+                                            <td colSpan="10" className="px-0 py-12 text-center">
                                                 <div className="sticky left-0 flex w-[calc(100vw-4rem)] flex-col items-center px-4 sm:w-auto">
                                                     <svg className="w-12 h-12 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -609,7 +611,7 @@ export default function WorkHoursList({
                                                         className="w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500"
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-emerald-600">{entry.id}</td>
+                                                <td className="px-4 py-3 text-sm font-semibold text-emerald-400">{entry.id}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-100 font-medium">{entry.date}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-300">{entry.client?.name || 'No Client'}</td>
                                                 <td className="px-4 py-3 text-sm">
@@ -618,12 +620,28 @@ export default function WorkHoursList({
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-500/15 text-teal-300 rounded-full border border-teal-500/20 capitalize">
-                                                        {entry.tracker}
-                                                    </span>
+                                                    {entry.tracker ? (
+                                                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-teal-500/15 text-teal-300 rounded-full border border-teal-500/20 capitalize">
+                                                            {entry.tracker}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-500">—</span>
+                                                    )}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-bold text-green-700">{timeFormat(entry.hours)}</td>
-                                                <td className="px-4 py-3 text-sm text-slate-700">
+                                                <td className="px-4 py-3 text-sm">
+                                                    {entry.source === 'tracker' ? (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-300" title="Auto-captured from the desktop tracker">
+                                                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                            Auto
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200" title="Logged by hand in the web app (Add Entry)">
+                                                            Logged
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm font-bold text-emerald-400">{timeFormat(entry.hours)}</td>
+                                                <td className="px-4 py-3 text-sm text-slate-300">
                                                     <div className="max-w-xs truncate" title={entry.description}>
                                                         {entry.description || '-'}
                                                     </div>
