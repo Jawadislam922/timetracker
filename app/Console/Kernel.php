@@ -62,6 +62,15 @@ class Kernel extends ConsoleKernel
                 ->withoutOverlapping();
         }
 
+        // Capture-health watchdog: a tracker can send heartbeats (looks "live")
+        // while its screenshot/sample helpers are blocked by antivirus, so the
+        // person looks tracked but the report is empty. Alert in real time.
+        if (config('services.attendance.tracker_health_slack_enabled')) {
+            $schedule->command('monitoring:silent-tracker-check')
+                ->everyFifteenMinutes()
+                ->withoutOverlapping();
+        }
+
         // Hostinger's git auto-deploy re-clones the tree and wipes
         // bootstrap/cache, dropping the config cache (a large chunk of TTFB
         // on shared hosting). Rebuild it whenever it's found missing.

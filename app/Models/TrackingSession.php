@@ -26,12 +26,14 @@ class TrackingSession extends Model
         'platform',
         'app_version',
         'client_uuid',
+        'health_alerted_at',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'stopped_at' => 'datetime',
         'last_heartbeat_at' => 'datetime',
+        'health_alerted_at' => 'datetime',
         'total_seconds' => 'integer',
         'activity_percent' => 'integer',
     ];

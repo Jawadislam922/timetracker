@@ -76,6 +76,10 @@ return [
         // Channel where "X was auto clocked-out" posts go (falls back to the
         // clock-in channel when unset).
         'lockout_channel' => env('SLACK_LOCKOUT_CHANNEL'),
+        // Capture-health watchdog: alert when a live tracker sends heartbeats
+        // but no screenshots/samples (likely antivirus block).
+        'tracker_health_slack_enabled' => env('TRACKER_HEALTH_SLACK', false),
+        'tracker_health_channel' => env('SLACK_TRACKER_HEALTH_CHANNEL'),
     ],
 
 ];
