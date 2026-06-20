@@ -97,6 +97,7 @@ export default function WorkHoursReport({
     slackConfigured = false,
     slackWeeklyEnabled = false,
     search = '',
+    perPage = 15,
 }) {
     const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.export');
     const canSendSlack = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.send_slack');
@@ -111,6 +112,7 @@ export default function WorkHoursReport({
     const [selectedTrackers, setSelectedTrackers] = useState(selectedFilters.trackers || []);
     const [selectedDesignations, setSelectedDesignations] = useState(selectedFilters.designations || []);
     const [searchTerm, setSearchTerm] = useState(search);
+    const [rowsPerPage, setRowsPerPage] = useState(String(perPage));
     const [isExporting, setIsExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showSlackDialog, setShowSlackDialog] = useState(false);
@@ -167,12 +169,15 @@ export default function WorkHoursReport({
         const currentTrackers = overrides.selectedTrackers !== undefined ? overrides.selectedTrackers : selectedTrackers;
         const currentDesignations = overrides.selectedDesignations !== undefined ? overrides.selectedDesignations : selectedDesignations;
         const currentSearch = overrides.searchTerm !== undefined ? overrides.searchTerm : searchTerm;
+        const currentPerPage = overrides.rowsPerPage !== undefined ? overrides.rowsPerPage : rowsPerPage;
 
         const params = {
             filter: currentDateFilter,
         };
 
         if (currentSearch && currentSearch.trim() !== '') params.search = currentSearch.trim();
+        // Carry the page size across filter changes (omit the default to keep URLs clean).
+        if (currentPerPage && String(currentPerPage) !== '15') params.perPage = currentPerPage;
 
         if (currentUsers.length) params.userIds = currentUsers;
         if (currentWorkTypes.length) params.workTypes = currentWorkTypes;
@@ -198,6 +203,12 @@ export default function WorkHoursReport({
             preserveState: true,
             preserveScroll: true,
         });
+    };
+
+    // Change rows-per-page: reload (back to page 1) with the new size + current filters.
+    const changeRowsPerPage = (value) => {
+        setRowsPerPage(value);
+        applyFilters({ rowsPerPage: value });
     };
 
     const clearFilters = () => {
@@ -746,6 +757,19 @@ export default function WorkHoursReport({
                                     <div className="text-slate-300 text-sm font-medium">
                                         Showing {workHours.from || 0} to {workHours.to || 0} of {workHours.total || 0} entries
                                     </div>
+                                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                                        <span>Rows per page</span>
+                                        <select
+                                            value={rowsPerPage}
+                                            onChange={(e) => changeRowsPerPage(e.target.value)}
+                                            className="rounded-md border-slate-700 bg-slate-900 text-sm text-slate-100 focus:border-orange-500 focus:ring-orange-500"
+                                        >
+                                            {['10', '15', '20', '30', '40', '50', '100'].map((n) => (
+                                                <option key={n} value={n}>{n}</option>
+                                            ))}
+                                            <option value="all">All</option>
+                                        </select>
+                                    </label>
                                 </div>
                                 <TraditionalPagination
                                     pagination={workHours}

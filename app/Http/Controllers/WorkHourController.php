@@ -481,7 +481,7 @@ class WorkHourController extends Controller
         $selectedDesignations = $this->filterValues($request, 'designations', 'designation');
         $selectedTrackers = $this->filterValues($request, 'trackers', 'tracker');
         $selectedClients = $this->filterValues($request, 'clients', 'client');
-        $perPage = $request->input('perPage', 15);
+        $perPageInput = (string) $request->input('perPage', 15);
 
         // Fetch all available designation filter options.
         $availableDesignations = User::whereNotNull('designation')
@@ -504,10 +504,18 @@ class WorkHourController extends Controller
             ->pluck('name')
             ->values();
 
-        // Validate perPage to prevent abuse
-        $allowedPerPage = [15, 25, 50, 100];
-        if (! in_array($perPage, $allowedPerPage)) {
+        // Page size. "all" shows everything on one page, capped so a huge
+        // unfiltered report can't hang the browser; otherwise validate against
+        // the allowed sizes (default 15).
+        $allowedPerPage = [10, 15, 20, 30, 40, 50, 100];
+        $allRowsCap = 1000;
+        if ($perPageInput === 'all') {
+            $perPage = $allRowsCap;
+        } elseif (in_array((int) $perPageInput, $allowedPerPage, true)) {
+            $perPage = (int) $perPageInput;
+        } else {
             $perPage = 15;
+            $perPageInput = '15';
         }
 
         // Apply date filter - only apply if both dates are provided
@@ -584,7 +592,7 @@ class WorkHourController extends Controller
             'designation' => $this->firstLegacyValue($selectedDesignations),
             'tracker' => $this->firstLegacyValue($selectedTrackers),
             'client' => $this->firstLegacyValue($selectedClients),
-            'perPage' => $perPage,
+            'perPage' => $perPageInput,
             'availableDesignations' => $availableDesignations,
             'availableTrackers' => $availableTrackers,
             'availableClients' => $availableClients,
