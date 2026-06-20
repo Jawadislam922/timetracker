@@ -81,12 +81,15 @@ class WorkHourController extends Controller
 
     private function applyCommonFilters($query, array $filters): void
     {
+        // Columns are table-qualified because the Report query joins `clients`
+        // (and `users`), and `clients` also has a `work_type` column — an
+        // unqualified `work_type` is ambiguous there and throws SQL 1052 (500).
         if (! empty($filters['workTypes'])) {
-            $query->whereIn('work_type', $filters['workTypes']);
+            $query->whereIn('work_hours.work_type', $filters['workTypes']);
         }
 
         if (! empty($filters['trackers'])) {
-            $query->whereIn('tracker', $filters['trackers']);
+            $query->whereIn('work_hours.tracker', $filters['trackers']);
         }
 
         if (! empty($filters['clients'])) {
@@ -96,7 +99,7 @@ class WorkHourController extends Controller
         }
 
         if (! empty($filters['userIds'])) {
-            $query->whereIn('user_id', $filters['userIds']);
+            $query->whereIn('work_hours.user_id', $filters['userIds']);
         }
 
         if (! empty($filters['designations'])) {
