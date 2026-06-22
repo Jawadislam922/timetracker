@@ -4,6 +4,7 @@ const os = require('node:os');
 const { ipcMain, BrowserWindow, app, safeStorage } = require('electron');
 const api = require('./api');
 const store = require('./store');
+const queue = require('./queue');
 const tracker = require('./trackerService');
 const tray = require('./tray');
 const updater = require('./updater');
@@ -51,9 +52,16 @@ function register() {
     const user = await api.login(payload);
     if (payload?.remember) saveCredentials(payload.email, payload.password);
     else store.delete('savedLogin');
+    // Point the queue at THIS employee's own store, then flush any backlog of
+    // theirs left from a previous shift. Never touches another employee's lane.
+    try { queue.setUser(user.id); } catch { /* ignore */ }
+    tracker.drainOnce().catch(() => {});
     return user;
   });
   ipcMain.handle('auth:logout', async () => {
+    // Best-effort: upload this employee's backlog while their token is still
+    // valid, so they hand the PC over with as little pending as possible.
+    try { await tracker.drainOnce(); } catch { /* ignore */ }
     await api.logout();
     return { ok: true };
   });
@@ -163,6 +171,13 @@ function register() {
   setInterval(() => {
     if (!tracker.status().running) syncSettings();
   }, 120_000);
+
+  // Background uploader: drain the signed-in employee's queue every 20s even
+  // when they're not actively tracking, so a handed-over backlog clears without
+  // waiting for a new session to start.
+  setInterval(() => {
+    if (store.get('token')) tracker.drainOnce().catch(() => {});
+  }, 20_000);
 }
 
 module.exports = { register };

@@ -37,7 +37,11 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    queue.init();
+    // If a previous sign-in is remembered, open THAT employee's own queue lane
+    // right away so their backlog can drain on launch.
+    const remembered = store.get('user');
+    if (remembered && remembered.id) queue.setUser(remembered.id);
+    else queue.init();
     ipc.register();
     createWindow();
     updater.init();

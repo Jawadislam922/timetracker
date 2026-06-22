@@ -23,12 +23,28 @@ const DEFAULTS = {
 
 const paths = {
   userData: app.getPath('userData'),
+  // Legacy shared locations (pre-0.3.7). Kept only so old data can be cleaned up;
+  // the live queue is now per-employee (see userPaths below).
   queueDb: path.join(app.getPath('userData'), 'queue.sqlite'),
   screenshotsDir: path.join(app.getPath('userData'), 'pending-screenshots'),
 };
+
+// Per-employee storage (0.3.7+): each signed-in user gets their OWN queue +
+// screenshot folder under users/<id>/, so on a shared PC one employee's pending
+// items can never be touched (or jammed) by the next employee who logs in.
+function userPaths(userId) {
+  const safe = String(userId || 'anonymous').replace(/[^A-Za-z0-9_-]/g, '_');
+  const base = path.join(app.getPath('userData'), 'users', safe);
+  return {
+    base,
+    queueDb: path.join(base, 'queue.sqlite'),
+    screenshotsDir: path.join(base, 'pending-screenshots'),
+  };
+}
 
 module.exports = {
   isDev,
   DEFAULTS,
   paths,
+  userPaths,
 };

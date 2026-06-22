@@ -22,6 +22,22 @@ class ScreenshotController extends Controller
         abort_unless($session->user_id === $user->id, 403);
 
         $capturedAt = BusinessTime::fromClient($data['captured_at']) ?? now();
+
+        // Idempotency: the desktop app retries failed uploads, so a request whose
+        // response was lost in transit can arrive twice. A screenshot is uniquely
+        // identified by its session + capture time (captures are minutes apart),
+        // so if one already exists, return it instead of storing a duplicate.
+        $existing = TrackingScreenshot::where('tracking_session_id', $session->id)
+            ->where('captured_at', $capturedAt)
+            ->first();
+        if ($existing) {
+            return response()->json([
+                'id' => $existing->id,
+                'captured_at' => $existing->captured_at->toIso8601String(),
+                'duplicate' => true,
+            ], 200);
+        }
+
         $file = $request->file('image');
 
         $dir = sprintf(

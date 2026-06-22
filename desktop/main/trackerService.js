@@ -12,11 +12,18 @@ const queue = require('./queue');
 const store = require('./store');
 const screenshotService = require('./screenshotService');
 const activityService = require('./activityService');
+const diag = require('./diag');
 const { DEFAULTS } = require('./config');
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const SYNC_INTERVAL_MS = 15_000;
 const SETTINGS_REFRESH_MS = 120_000;
+// How many oldest screenshots to attempt per drain pass.
+const SCREENSHOT_BATCH = 10;
+// An item the server permanently refuses (403/404/422) is retried this many
+// times, then discarded so it can never jam the queue (owner's call: retry a
+// while, then discard). With per-employee queues this should be near-zero.
+const MAX_ATTEMPTS = 25;
 
 class Tracker extends EventEmitter {
   constructor() {
@@ -154,6 +161,16 @@ class Tracker extends EventEmitter {
 
     activityService.start();
     this._startTimers();
+
+    // DIAGNOSTIC (0.3.6): take one capture right away and log the effective
+    // settings, so capture.log shows the result within seconds instead of after
+    // the 5-10 min interval. Best-effort; never blocks session start.
+    diag.log('session started id=' + this.session.id,
+      '| settings capture_enabled=' + this.settings.capture_enabled,
+      'screenshots_per_hour=' + this.settings.screenshots_per_hour,
+      'min/max=' + this.settings.screenshot_interval_min_seconds + '/' + this.settings.screenshot_interval_max_seconds);
+    this._captureScreenshot().catch((err) => diag.log('initial capture: ERROR', err && err.message ? err.message : String(err)));
+
     this.emit('changed', this.status());
   }
 
@@ -283,6 +300,8 @@ class Tracker extends EventEmitter {
     // capture_enabled=false or screenshots_per_hour=0 disables screenshots entirely.
     if (this.settings.capture_enabled === false || this.settings.screenshots_per_hour === 0) {
       this.timers.screenshot = null;
+      diag.log('schedule: SKIPPED by settings — capture_enabled=' + this.settings.capture_enabled,
+        'screenshots_per_hour=' + this.settings.screenshots_per_hour);
       return;
     }
 
@@ -290,9 +309,14 @@ class Tracker extends EventEmitter {
     const maxS = Math.max(minS, this.settings.screenshot_interval_max_seconds || minS);
     const jitter = Math.floor(Math.random() * (maxS - minS + 1));
     const delayMs = (minS + jitter) * 1000;
+    diag.log('schedule: next screenshot in ' + Math.round(delayMs / 1000) + 's');
 
     this.timers.screenshot = setTimeout(async () => {
-      try { await this._captureScreenshot(); } catch (err) { console.warn('screenshot failed:', err.message); }
+      try {
+        await this._captureScreenshot();
+      } catch (err) {
+        diag.log('capture timer: ERROR', err && err.message ? err.message : String(err));
+      }
       this._scheduleNextScreenshot();
     }, delayMs);
   }
@@ -371,12 +395,17 @@ class Tracker extends EventEmitter {
   }
 
   async _captureScreenshot() {
-    if (!this.session) return;
-    if (this.session.paused_at_ms) return; // no capture while paused
-    if (this.settings.capture_enabled === false || this.settings.screenshots_per_hour === 0) return;
+    if (!this.session) { diag.log('capture: skip — no session'); return; }
+    if (this.session.paused_at_ms) { diag.log('capture: skip — session paused'); return; }
+    if (this.settings.capture_enabled === false || this.settings.screenshots_per_hour === 0) {
+      diag.log('capture: skip — settings capture_enabled=' + this.settings.capture_enabled,
+        'screenshots_per_hour=' + this.settings.screenshots_per_hour);
+      return;
+    }
 
     const capturedAt = new Date().toISOString();
     const { localPath } = await screenshotService.capture({ sessionId: this.session.id });
+    diag.log('capture: enqueued screenshot ->', localPath);
     const appUrlOn = this.settings.app_url_tracking_enabled !== false;
     const winInfo = appUrlOn
       ? await activityService.activeWindowInfo()
@@ -423,75 +452,133 @@ class Tracker extends EventEmitter {
     this.emit('changed', this.status());
   }
 
-  async _drainQueue() {
-    // Heartbeats first (cheap & most useful).
-    for (const h of queue.nextHeartbeats()) {
-      try {
-        await api.heartbeat(h.tracking_session_id, {
-          total_seconds: h.total_seconds,
-          activity_percent: h.activity_percent,
-          heartbeat_at: h.heartbeat_at,
-        });
-        queue.deleteHeartbeat(h.id);
-      } catch (err) {
-        queue.markHeartbeatError(h.id, err.message);
-        return; // bail until next tick
-      }
-    }
+  /** Public, concurrency-guarded entry point used by the background drainer. */
+  async drainOnce() {
+    return this._drainQueue();
+  }
 
-    // Activity samples in batches.
-    const samples = queue.nextActivityBatch(100);
-    if (samples.length) {
-      // All samples must belong to the same session for the batch endpoint.
-      const bySession = new Map();
-      for (const s of samples) {
-        if (!bySession.has(s.tracking_session_id)) bySession.set(s.tracking_session_id, []);
-        bySession.get(s.tracking_session_id).push(s);
-      }
-      for (const [sessionId, rows] of bySession.entries()) {
+  /**
+   * Push queued heartbeats, activity samples and screenshots to the server.
+   *
+   * Resilient by design (0.3.7): a single un-uploadable item NEVER blocks the
+   * rest. Errors are classified — offline / auth / server problems stop the
+   * pass (retry later); an item-specific 4xx (403 not-yours, 404 gone, 422
+   * invalid) is retried a while then discarded so it can't jam the queue.
+   * Runs against the CURRENT employee's own queue only.
+   */
+  async _drainQueue() {
+    if (this._draining) return;
+    this._draining = true;
+    try {
+      // Heartbeats first (cheap & most useful).
+      for (const h of queue.nextHeartbeats()) {
         try {
-          await api.sendActivityBatch({
-            tracking_session_id: sessionId,
-            samples: rows.map((r) => ({
-              captured_at: r.captured_at,
-              keyboard_count: r.keyboard_count,
-              mouse_count: r.mouse_count,
-              idle_seconds: r.idle_seconds,
-              active_app: r.active_app,
-              active_window_title: r.active_window_title,
-              url_domain: r.url_domain,
-            })),
+          await api.heartbeat(h.tracking_session_id, {
+            total_seconds: h.total_seconds,
+            activity_percent: h.activity_percent,
+            heartbeat_at: h.heartbeat_at,
           });
-          queue.deleteActivitySamples(rows.map((r) => r.id));
+          queue.deleteHeartbeat(h.id);
         } catch (err) {
-          queue.markActivityError(rows.map((r) => r.id), err.message);
-          return;
+          if (!this._handleDrainError('heartbeat', err, h,
+            () => queue.markHeartbeatError(h.id, err.message),
+            () => queue.deleteHeartbeat(h.id))) {
+            return; // global error — stop this pass
+          }
         }
       }
-    }
 
-    // Screenshots (one at a time, with file cleanup on success).
-    for (const s of queue.nextScreenshots(3)) {
-      try {
-        await api.uploadScreenshot(s.image_path, {
-          tracking_session_id: s.tracking_session_id,
-          captured_at: s.captured_at,
-          activity_percent: s.activity_percent,
-          keyboard_count: s.keyboard_count,
-          mouse_count: s.mouse_count,
-          active_app: s.active_app,
-          active_window_title: s.active_window_title,
-          url_domain: s.url_domain,
-        });
-        queue.deleteScreenshot(s.id);
-        try { fs.unlinkSync(s.image_path); } catch { /* ignore */ }
-      } catch (err) {
-        queue.markScreenshotError(s.id, err.message);
-        return;
+      // Activity samples in batches, grouped by session for the batch endpoint.
+      const samples = queue.nextActivityBatch(100);
+      if (samples.length) {
+        const bySession = new Map();
+        for (const s of samples) {
+          if (!bySession.has(s.tracking_session_id)) bySession.set(s.tracking_session_id, []);
+          bySession.get(s.tracking_session_id).push(s);
+        }
+        for (const [sessionId, rows] of bySession.entries()) {
+          const ids = rows.map((r) => r.id);
+          try {
+            await api.sendActivityBatch({
+              tracking_session_id: sessionId,
+              samples: rows.map((r) => ({
+                captured_at: r.captured_at,
+                keyboard_count: r.keyboard_count,
+                mouse_count: r.mouse_count,
+                idle_seconds: r.idle_seconds,
+                active_app: r.active_app,
+                active_window_title: r.active_window_title,
+                url_domain: r.url_domain,
+              })),
+            });
+            queue.deleteActivitySamples(ids);
+          } catch (err) {
+            const maxAttempts = Math.max(...rows.map((r) => r.attempts || 0));
+            if (!this._handleDrainError('activity', err, { attempts: maxAttempts },
+              () => queue.markActivityError(ids, err.message),
+              () => queue.deleteActivitySamples(ids))) {
+              return;
+            }
+          }
+        }
       }
+
+      // Screenshots — attempt the oldest batch, skipping/continuing on failure.
+      for (const s of queue.nextScreenshots(SCREENSHOT_BATCH)) {
+        try {
+          await api.uploadScreenshot(s.image_path, {
+            tracking_session_id: s.tracking_session_id,
+            captured_at: s.captured_at,
+            activity_percent: s.activity_percent,
+            keyboard_count: s.keyboard_count,
+            mouse_count: s.mouse_count,
+            active_app: s.active_app,
+            active_window_title: s.active_window_title,
+            url_domain: s.url_domain,
+          });
+          queue.deleteScreenshot(s.id);
+          try { fs.unlinkSync(s.image_path); } catch { /* ignore */ }
+        } catch (err) {
+          if (!this._handleDrainError('screenshot', err, s,
+            () => queue.markScreenshotError(s.id, err.message),
+            () => { queue.deleteScreenshot(s.id); try { fs.unlinkSync(s.image_path); } catch { /* ignore */ } })) {
+            return; // global error — stop this pass
+          }
+        }
+      }
+    } finally {
+      this._draining = false;
+      this.emit('changed', this.status());
+    }
+  }
+
+  /**
+   * Decide what an upload error means.
+   * @returns {boolean} true → CONTINUE to the next item (item-specific 4xx,
+   *   retried-or-discarded); false → STOP the whole pass (offline/auth/server).
+   */
+  _handleDrainError(kind, err, row, onRetry, onDiscard) {
+    const status = err && err.response ? err.response.status : null;
+
+    // No HTTP response = offline/network → stop and retry later; don't blame the item.
+    if (!status) { diag.log('drain: ' + kind + ' offline, will retry'); return false; }
+    // Auth expired, rate-limited, or server error = global → stop the pass.
+    if (status === 401 || status === 429 || status >= 500) {
+      diag.log('drain: ' + kind + ' stop status=' + status);
+      return false;
     }
 
-    this.emit('changed', this.status());
+    // Item-specific 4xx (403/404/422): this row can never upload. Retry a while,
+    // then discard it so it cannot jam everything behind it.
+    const attempts = (row && row.attempts) || 0;
+    if (attempts + 1 >= MAX_ATTEMPTS) {
+      diag.log('drain: DISCARD ' + kind + ' after ' + (attempts + 1) + ' tries status=' + status);
+      try { onDiscard(); } catch { /* ignore */ }
+    } else {
+      diag.log('drain: ' + kind + ' retry status=' + status + ' attempts=' + (attempts + 1));
+      try { onRetry(); } catch { /* ignore */ }
+    }
+    return true; // keep going
   }
 }
 

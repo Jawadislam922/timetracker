@@ -3,16 +3,36 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
-const { paths } = require('./config');
+const { userPaths } = require('./config');
 
-let db;
+let db = null;
+let active = null; // { userId, queueDb, screenshotsDir }
+
+// Point the queue at a specific employee's own store. Called on login + startup
+// so each user reads/writes ONLY their own queue + screenshots — the next person
+// on a shared PC gets a different file and can never see (or jam) the last one's.
+function setUser(userId) {
+  const id = String(userId || 'anonymous');
+  if (active && active.userId === id && db) return;
+  if (db) { try { db.close(); } catch { /* ignore */ } db = null; }
+  active = { userId: id, ...userPaths(id) };
+  init();
+}
+
+function currentScreenshotsDir() {
+  init();
+  return active.screenshotsDir;
+}
 
 function init() {
   if (db) return db;
-  fs.mkdirSync(path.dirname(paths.queueDb), { recursive: true });
-  fs.mkdirSync(paths.screenshotsDir, { recursive: true });
+  // No user set yet (shouldn't happen once logged in) — fall back to an
+  // anonymous lane so calls never crash.
+  if (!active) active = { userId: 'anonymous', ...userPaths('anonymous') };
+  fs.mkdirSync(path.dirname(active.queueDb), { recursive: true });
+  fs.mkdirSync(active.screenshotsDir, { recursive: true });
 
-  db = new Database(paths.queueDb);
+  db = new Database(active.queueDb);
   db.pragma('journal_mode = WAL');
 
   db.exec(`
@@ -157,6 +177,8 @@ function counts() {
 
 module.exports = {
   init,
+  setUser,
+  currentScreenshotsDir,
   enqueueScreenshot,
   enqueueActivitySample,
   enqueueHeartbeat,
