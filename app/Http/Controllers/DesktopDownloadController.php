@@ -8,9 +8,9 @@ use Inertia\Inertia;
 
 class DesktopDownloadController extends Controller
 {
-    private const WINDOWS_INSTALLER = 'SA Track Setup 0.3.4.exe';
+    private const WINDOWS_INSTALLER = 'SA Track Setup 0.3.7.exe';
 
-    private const WINDOWS_VERSION = '0.3.4';
+    private const WINDOWS_VERSION = '0.3.7';
 
     private const MAC_VERSION = '0.3.2';
 
