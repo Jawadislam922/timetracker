@@ -196,7 +196,9 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [busy, setBusy] = useState(false);
-  const [ticker, setTicker] = useState(0);
+  // Running active-seconds for the live clock, pushed every second by the main
+  // process (onTick) and re-synced whenever a full status arrives.
+  const [liveTick, setLiveTick] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [autoLaunch, setAutoLaunch] = useState(false);
   const [prefs, setPrefs] = useState({});
@@ -236,6 +238,11 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     try {
       const next = await window.tt.timeclock.act(actionType);
       setTimeClock(next);
+      // Starting a break pauses tracking in the main process. Ending a break
+      // does NOT auto-resume — prompt the user to press Resume.
+      if (actionType === 'break_end' && status.running && status.paused) {
+        setWarning('Break ended — press Resume to continue tracking.');
+      }
     } catch (err) {
       setError(err?.message || 'Time clock action failed');
     } finally {
@@ -376,14 +383,13 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   };
   const workTypeLabel = (value) => WORK_TYPE_LABELS[value] || value || '—';
 
-  const liveSeconds = useMemo(() => {
-    if (!status.session) return 0;
-    const frozen = Number(status.session.frozen_seconds || 0);
-    if (status.paused) return frozen;
-    const last = Date.parse(status.session.last_change_at || status.session.started_at);
-    if (Number.isNaN(last)) return Number(status.session.total_seconds || 0);
-    return frozen + Math.max(0, Math.floor((Date.now() - last) / 1000));
-  }, [status.session, status.paused, ticker]);
+  // The main process counts only ACTIVE seconds (idle is never added) and
+  // pulses the running total every second via onTick, so the clock advances
+  // while you work and holds steady the instant you go idle — no client-side
+  // wall-clock guessing that would re-introduce idle time.
+  const liveSeconds = status.session ? Number(liveTick) : 0;
+
+  const onBreak = status.session?.pause_reason === 'break';
 
   const runningClient = clients.find((client) => Number(client.id) === Number(status.session?.client_id));
   const currentTitle = status.running
@@ -601,11 +607,18 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     return () => off?.();
   }, [clients]);
 
+  // Drive the live clock from the main process's per-second active-time pulse.
   useEffect(() => {
-    if (!status.running || status.paused) return undefined;
-    const t = setInterval(() => setTicker((x) => x + 1), 1000);
-    return () => clearInterval(t);
-  }, [status.running, status.paused]);
+    if (typeof window.tt?.tracker?.onTick !== 'function') return undefined;
+    const off = window.tt.tracker.onTick((seconds) => setLiveTick(Number(seconds) || 0));
+    return () => off?.();
+  }, []);
+
+  // Re-sync the clock whenever a full status lands (start, heartbeat, pause,
+  // resume, stop) so onTick and the authoritative total never drift.
+  useEffect(() => {
+    setLiveTick(status.session ? Number(status.session.total_seconds || 0) : 0);
+  }, [status.session?.id, status.session?.total_seconds, status.paused]);
 
   // Warnings behave like toasts: auto-dismiss after 10s. The main process
   // also sends an empty warning to clear the idle banner the moment
@@ -661,6 +674,19 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
       await refreshToday();
     } catch (err) {
       setError(err?.message || 'Could not stop session');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResume = async () => {
+    if (typeof window.tt?.tracker?.resume !== 'function') return;
+    setBusy(true);
+    setWarning('');
+    try {
+      setStatus(await window.tt.tracker.resume());
+    } catch (err) {
+      setError(err?.message || 'Could not resume session');
     } finally {
       setBusy(false);
     }
@@ -856,11 +882,11 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
             </svg>
             <div className="ring-center">
               <div className="ring-time">{fmtClock(totalTodaySeconds)}</div>
-              <div className="ring-label">{status.paused ? 'paused' : status.running ? 'tracking' : 'today'}</div>
+              <div className="ring-label">{status.paused ? (onBreak ? 'on break' : 'paused') : status.running ? 'tracking' : 'today'}</div>
               {status.running && (
                 <div className={['ring-live', status.paused ? 'paused' : ''].join(' ').trim()}>
                   <span className="ring-live-dot" />
-                  {status.paused ? 'Paused' : 'Live'}
+                  {status.paused ? (onBreak ? 'On break' : 'Paused') : 'Live'}
                 </div>
               )}
             </div>
@@ -923,14 +949,39 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
             ) : (
               <div className="running-title">{currentTitle}</div>
             )}
-            <button
-              className={status.running ? 'round-action stop' : 'round-action start'}
-              onClick={status.running ? handleStop : handleStart}
-              disabled={busy || (!status.running && (!selectedClient || !descriptionValid))}
-              aria-label={status.running ? 'Stop tracking' : 'Start tracking'}
-            >
-              {status.running ? <span className="stop-square" /> : <span className="play-triangle" />}
-            </button>
+            {status.paused ? (
+              // Paused (break/idle/manual): Resume is primary, Stop stays
+              // available so the session can still be ended.
+              <div className="round-action-group">
+                <button
+                  className="round-action start"
+                  onClick={handleResume}
+                  disabled={busy}
+                  aria-label="Resume tracking"
+                  title={onBreak ? 'Resume after break' : 'Resume tracking'}
+                >
+                  <span className="play-triangle" />
+                </button>
+                <button
+                  className="round-action stop secondary"
+                  onClick={handleStop}
+                  disabled={busy}
+                  aria-label="Stop tracking"
+                  title="Stop tracking"
+                >
+                  <span className="stop-square" />
+                </button>
+              </div>
+            ) : (
+              <button
+                className={status.running ? 'round-action stop' : 'round-action start'}
+                onClick={status.running ? handleStop : handleStart}
+                disabled={busy || (!status.running && (!selectedClient || !descriptionValid))}
+                aria-label={status.running ? 'Stop tracking' : 'Start tracking'}
+              >
+                {status.running ? <span className="stop-square" /> : <span className="play-triangle" />}
+              </button>
+            )}
           </div>
         </section>
 

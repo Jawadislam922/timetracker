@@ -24,6 +24,13 @@ const SCREENSHOT_BATCH = 10;
 // times, then discarded so it can never jam the queue (owner's call: retry a
 // while, then discard). With per-employee queues this should be near-zero.
 const MAX_ATTEMPTS = 25;
+// Worked time counts a second only when the user has had input within this
+// many seconds. Past it, the second is treated as idle and NOT counted, so
+// idle time never inflates the tracked total — the clock simply stops while
+// you're away and resumes the moment you move. Kept short on purpose ("a few
+// seconds' grace") so stepping away stops the clock quickly, independent of the
+// longer auto-pause that also stops screenshots.
+const IDLE_GRACE_SECONDS = 20;
 
 class Tracker extends EventEmitter {
   constructor() {
@@ -33,6 +40,7 @@ class Tracker extends EventEmitter {
     this.timers = {
       heartbeat: null,
       activitySample: null,
+      activeTick: null,
       screenshot: null,
       sync: null,
       idleWatch: null,
@@ -65,6 +73,9 @@ class Tracker extends EventEmitter {
         // The renderer uses these to tick smoothly without polling the main
         // process every second.
         frozen_seconds: this.session.frozen_seconds,
+        // Why the session is paused: 'idle' (auto, resumes on activity),
+        // 'break' or 'manual' (stay paused until the user presses Resume).
+        pause_reason: this.session.pause_reason ?? null,
         last_change_at: new Date(this.session.last_change_at_ms).toISOString(),
         activity_percent: this.session.activity_percent,
         task_note: this.session.task_note,
@@ -79,19 +90,36 @@ class Tracker extends EventEmitter {
 
   _currentSeconds() {
     if (!this.session) return 0;
-    if (this.session.paused_at_ms) {
-      return Math.max(0, Math.floor(this.session.frozen_seconds));
-    }
-    const delta = Math.floor((Date.now() - this.session.last_change_at_ms) / 1000);
-    return Math.max(0, this.session.frozen_seconds + delta);
+    // frozen_seconds is the accumulated ACTIVE time: _tickActive adds one
+    // second only while the user is active, so idle is never included. It is
+    // therefore the whole truth whether the session is running or paused — no
+    // wall-clock delta to add (that would re-introduce idle).
+    return Math.max(0, Math.floor(this.session.frozen_seconds));
   }
 
-  _pauseSession(reason = null) {
+  /**
+   * Freeze the timer and stop screenshots without ending the session.
+   *
+   * @param {string|null} reason  Human warning shown in the renderer banner.
+   * @param {object} opts
+   * @param {'idle'|'break'|'manual'} [opts.pauseReason='manual']  Why we paused.
+   *   'idle' auto-resumes when activity returns; 'break'/'manual' wait for a
+   *   manual Resume.
+   * @param {number} [opts.deductIdleSeconds=0]  Idle seconds to clip OFF the
+   *   banked time so an idle stretch is never counted as worked time. Used by
+   *   idle auto-pause; a break freezes at the moment pressed (no deduction).
+   */
+  _pauseSession(reason = null, opts = {}) {
     if (!this.session || this.session.paused_at_ms) return;
-    const now = Date.now();
-    this.session.frozen_seconds += Math.max(0, Math.floor((now - this.session.last_change_at_ms) / 1000));
-    this.session.paused_at_ms = now;
-    this.session.last_change_at_ms = now;
+    // Idle is already excluded continuously by _tickActive, so pausing just
+    // freezes the active counter (the tick stops while paused_at_ms is set) and
+    // stops screenshots — there is no banked idle time to deduct.
+    this.session.paused_at_ms = Date.now();
+    this.session.last_change_at_ms = this.session.paused_at_ms;
+    this.session.pause_reason = opts.pauseReason || 'manual';
+    // Stop screenshots while paused. Heartbeats and the sync drain KEEP running
+    // on purpose: continued heartbeats refresh last_heartbeat_at so the server's
+    // stale-session sweep (10-min) won't close the session during a long break.
     if (this.timers.screenshot) {
       clearTimeout(this.timers.screenshot);
       this.timers.screenshot = null;
@@ -102,12 +130,46 @@ class Tracker extends EventEmitter {
 
   _resumeSession(reason = null) {
     if (!this.session || !this.session.paused_at_ms) return;
-    const now = Date.now();
     this.session.paused_at_ms = null;
-    this.session.last_change_at_ms = now;
+    this.session.last_change_at_ms = Date.now();
+    this.session.pause_reason = null;
     this._scheduleNextScreenshot();
     if (reason) this.emit('warning', reason);
     this.emit('changed', this.status());
+  }
+
+  /**
+   * Once a second, count the second as worked ONLY if the user has had input
+   * within IDLE_GRACE_SECONDS. Idle seconds are simply never added, so the
+   * tracked total can never include idle time — the clock stops while you're
+   * away and resumes the instant you move. A lightweight 'tick' event keeps the
+   * renderer's live clock in step without rebuilding the full status each
+   * second.
+   */
+  _tickActive() {
+    if (!this.session || this.session.paused_at_ms) return;
+    if (activityService.getSystemIdleSeconds() < IDLE_GRACE_SECONDS) {
+      this.session.frozen_seconds += 1;
+      this.session.total_seconds = this.session.frozen_seconds;
+      this.emit('tick', this.session.frozen_seconds);
+    }
+  }
+
+  /**
+   * Pause for a break (manual or detected from the web dashboard). Idempotent —
+   * a no-op if already paused, so racing the heartbeat reconcile is safe.
+   */
+  pauseForBreak() {
+    if (!this.session || this.session.paused_at_ms) return this.status();
+    this._pauseSession('On break — tracking paused.', { pauseReason: 'break' });
+    return this.status();
+  }
+
+  /** Manually resume a paused session (the Resume button / break end). */
+  resume() {
+    if (!this.session || !this.session.paused_at_ms) return this.status();
+    this._resumeSession('Resumed.');
+    return this.status();
   }
 
   async start(opts) {
@@ -152,6 +214,7 @@ class Tracker extends EventEmitter {
       frozen_seconds: 0,
       last_change_at_ms: started_at.getTime(),
       paused_at_ms: null,
+      pause_reason: null,
       activity_percent: 0,
       task_note: opts.task_note ?? null,
       client_id: opts.client_id ?? null,
@@ -206,6 +269,9 @@ class Tracker extends EventEmitter {
     this._scheduleNextScreenshot();
 
     this.timers.activitySample = setInterval(() => this._sampleActivity().catch(() => {}), this._activityIntervalSec * 1000);
+    // Active-time accounting runs every second so idle never sneaks into the
+    // total (it counts only when the user is active — see _tickActive).
+    this.timers.activeTick = setInterval(() => this._tickActive(), 1000);
     this.timers.heartbeat = setInterval(() => this._sendHeartbeat().catch(() => {}), HEARTBEAT_INTERVAL_MS);
     this.timers.sync = setInterval(() => this._drainQueue().catch(() => {}), SYNC_INTERVAL_MS);
     this.timers.idleWatch = setInterval(() => this._checkIdleWarning(), 15_000);
@@ -253,6 +319,9 @@ class Tracker extends EventEmitter {
 
   _checkIdleWarning() {
     if (!this.session) return;
+    // Already paused (break/idle/manual) — no point warning about an upcoming
+    // auto-pause.
+    if (this.session.paused_at_ms) return;
     const autoPauseSec = Number(this.settings.auto_pause_minutes || 0) * 60;
     if (autoPauseSec <= 0) return;
 
@@ -347,11 +416,12 @@ class Tracker extends EventEmitter {
     const hasInput = (snap.keyboard_count + snap.mouse_count) > 0;
     const looksActiveNow = hasInput || activityService.getSystemIdleSeconds() < 5;
 
-    // Auto-resume: if currently paused and the user came back, resume before
-    // doing anything else (sampling, screenshots) so the new active period
-    // starts cleanly.
+    // Auto-resume ONLY idle-pauses when the user comes back. A break or manual
+    // pause must wait for an explicit Resume (owner decision), so it survives
+    // activity. Either way, while paused we record nothing further this tick —
+    // this also prevents an idle auto-pause from re-firing on top of a break.
     if (this.session.paused_at_ms) {
-      if (looksActiveNow) {
+      if (this.session.pause_reason === 'idle' && looksActiveNow) {
         this._resumeSession('Resumed — activity detected.');
       } else {
         // Stay paused; no point recording an empty sample for an empty room.
@@ -387,7 +457,13 @@ class Tracker extends EventEmitter {
     // reach a multi-minute threshold; use the raw system idle clock here.
     const autoPauseMin = Number(this.settings.auto_pause_minutes || 0);
     if (autoPauseMin > 0 && activityService.getSystemIdleSeconds() >= autoPauseMin * 60) {
-      this._pauseSession(`Auto-paused after ${autoPauseMin} min of inactivity. Tracking resumes when you're back.`);
+      // Idle seconds are already uncounted by _tickActive, so this longer
+      // auto-pause exists only to STOP SCREENSHOTS and show a paused state
+      // during a sustained absence. Auto-resumes when the user returns.
+      this._pauseSession(
+        `Auto-paused after ${autoPauseMin} min of inactivity. Tracking resumes when you're back.`,
+        { pauseReason: 'idle' },
+      );
       return;
     }
 
@@ -473,12 +549,20 @@ class Tracker extends EventEmitter {
       // Heartbeats first (cheap & most useful).
       for (const h of queue.nextHeartbeats()) {
         try {
-          await api.heartbeat(h.tracking_session_id, {
+          const resp = await api.heartbeat(h.tracking_session_id, {
             total_seconds: h.total_seconds,
             activity_percent: h.activity_percent,
             heartbeat_at: h.heartbeat_at,
           });
           queue.deleteHeartbeat(h.id);
+          // A break started on the web dashboard pauses the tracker too. We
+          // only act on the pause edge; break end is a MANUAL resume, so an
+          // on_break=false response never auto-resumes.
+          if (resp && resp.on_break && this.session
+            && this.session.id === h.tracking_session_id
+            && this.session.pause_reason !== 'break') {
+            this.pauseForBreak();
+          }
         } catch (err) {
           if (!this._handleDrainError('heartbeat', err, h,
             () => queue.markHeartbeatError(h.id, err.message),

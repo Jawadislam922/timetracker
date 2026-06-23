@@ -57,6 +57,7 @@ const api = {
   tracker: {
     start: (opts) => ipcRenderer.invoke('tracker:start', opts),
     stop: (opts) => ipcRenderer.invoke('tracker:stop', opts),
+    resume: () => ipcRenderer.invoke('tracker:resume'),
     status: () => ipcRenderer.invoke('tracker:status'),
     onChanged: (cb) => {
       const listener = (_e, status) => cb(status);
@@ -67,6 +68,11 @@ const api = {
       const listener = (_e, session) => cb(session);
       ipcRenderer.on('tracker:stopped', listener);
       return () => ipcRenderer.removeListener('tracker:stopped', listener);
+    },
+    onTick: (cb) => {
+      const listener = (_e, seconds) => cb(seconds);
+      ipcRenderer.on('tracker:tick', listener);
+      return () => ipcRenderer.removeListener('tracker:tick', listener);
     },
     onWarning: (cb) => {
       const listener = (_e, message) => cb(message);

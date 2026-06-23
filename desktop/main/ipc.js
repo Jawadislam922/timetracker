@@ -139,7 +139,13 @@ function register() {
 
   // ---- Attendance clock (clock in/out, breaks) ----
   ipcMain.handle('timeclock:status', async () => api.timeClockStatus());
-  ipcMain.handle('timeclock:act', async (_evt, actionType) => api.timeClockAct(actionType));
+  ipcMain.handle('timeclock:act', async (_evt, actionType) => {
+    const res = await api.timeClockAct(actionType);
+    // Starting a break pauses tracking too (screenshots + timer freeze). Break
+    // end does NOT auto-resume — the user must press Resume (owner decision).
+    if (actionType === 'break_start') tracker.pauseForBreak();
+    return res;
+  });
 
   // ---- Tracker ----
   ipcMain.handle('tracker:start', async (_evt, opts) => {
@@ -150,11 +156,15 @@ function register() {
     await tracker.stop(opts || {});
     return tracker.status();
   });
+  ipcMain.handle('tracker:resume', () => tracker.resume());
   ipcMain.handle('tracker:status', () => tracker.status());
 
   tracker.on('changed', (status) => broadcast('tracker:changed', status));
   tracker.on('stopped', (session) => broadcast('tracker:stopped', session));
   tracker.on('warning', (msg) => broadcast('tracker:warning', msg));
+  // Lightweight per-second active-time pulse so the renderer clock ticks
+  // without rebuilding (and re-querying) the full status every second.
+  tracker.on('tick', (seconds) => broadcast('tracker:tick', seconds));
 
   // Pull the latest server-driven settings at boot, then keep the settings
   // panel in sync while the app is idle (the tracker refreshes on its own

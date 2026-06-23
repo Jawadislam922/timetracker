@@ -768,6 +768,10 @@ input, textarea, select { user-select: text; }
 .round-action.start { background: var(--success); box-shadow: 0 10px 24px -8px var(--success); }
 .round-action.stop { background: var(--danger); box-shadow: 0 10px 24px -8px var(--danger); }
 
+/* When paused, Resume (primary) sits next to a smaller Stop (secondary). */
+.round-action-group { display: inline-flex; align-items: center; gap: 8px; }
+.round-action.secondary { width: 52px; height: 52px; opacity: 0.85; }
+
 .play-triangle {
   width: 0;
   height: 0;
