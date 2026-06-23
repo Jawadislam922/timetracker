@@ -402,7 +402,7 @@ class TimelineController extends Controller
 
         // No samples (e.g. capture blocked) or a single active run → one block.
         if (count($segments) <= 1) {
-            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey)];
+            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, $session->stopped_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey)];
         }
 
         $totalSamples = max(1, array_sum(array_map(fn ($s) => $s['samples']->count(), $segments)));
@@ -434,6 +434,10 @@ class TimelineController extends Controller
                 $seg['samples'],
                 (int) round($dayTotal * ($seg['samples']->count() / $totalSamples)),
                 $isFirst ? $session->started_at : $seg['start'],
+                // A finished block ends where its active run ended (the idle
+                // gap); only the current/last block keeps the session's own end
+                // (null while it's still live).
+                $i === $last ? $session->stopped_at : $seg['end'],
                 $prevEnd ? (int) $prevEnd->diffInSeconds($seg['start']) : 0,
                 ! $isFirst,
                 $isFirst,
@@ -484,7 +488,7 @@ class TimelineController extends Controller
     }
 
     /** Build a single Timeline block payload (whole session, or one segment). */
-    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey): array
+    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, ?Carbon $blockEnd, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey): array
     {
         return [
             'id' => $session->id,
@@ -493,7 +497,7 @@ class TimelineController extends Controller
             'work_type' => $session->work_type,
             'tracker' => $session->upworkProfile?->name,
             'started_at' => ($blockStart ?? $session->started_at)?->toIso8601String(),
-            'stopped_at' => $session->stopped_at?->toIso8601String(),
+            'stopped_at' => $blockEnd?->toIso8601String(),
             // A resumed block shows only its own slice; a single (un-split) block
             // keeps the session total so the overnight "X of Y" label still works.
             'total_seconds' => $isResumed ? $daySeconds : (int) $session->total_seconds,

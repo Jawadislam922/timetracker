@@ -297,7 +297,7 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
         <section className="space-y-3">
             <header className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                <span className="text-orange-400">{fmtTime(session.started_at)} - {fmtTime(session.stopped_at)}</span>
+                <span className="text-orange-400">{fmtTime(session.started_at)} - {session.stopped_at ? fmtTime(session.stopped_at) : 'now'}</span>
                 <span className="text-slate-200">• {sessionLabel(session)}</span>
                 {session.started_before_day && (
                     <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-300">

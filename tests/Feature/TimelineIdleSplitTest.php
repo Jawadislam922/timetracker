@@ -67,8 +67,13 @@ class TimelineIdleSplitTest extends TestCase
                 ->has('initialData.sessions', 2)
                 ->where('initialData.sessions.0.is_resumed', false)
                 ->where('initialData.sessions.1.is_resumed', true)
-                // Second block starts at the resume time, not the session start.
+                // First block ends where ITS run ended (~09:04), not at the
+                // session's stop time — that was the missing end-time bug.
+                ->where('initialData.sessions.0.stopped_at', fn ($iso) => str_contains((string) $iso, '09:04'))
+                // Second block starts at the resume time, not the session start,
+                // and ends at the session's real stop (09:13).
                 ->where('initialData.sessions.1.started_at', fn ($iso) => str_contains((string) $iso, '09:11'))
+                ->where('initialData.sessions.1.stopped_at', fn ($iso) => str_contains((string) $iso, '09:13'))
                 ->where('initialData.sessions.1.idle_before_seconds', fn ($v) => (int) $v >= 6 * 60)
                 // Each block carries its own screenshot.
                 ->has('initialData.sessions.0.screenshots', 1)
