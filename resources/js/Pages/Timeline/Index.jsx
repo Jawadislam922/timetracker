@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Flag, Globe, History, Laptop, MonitorPlay, Plus, Search, Sparkles, Trash2, X } from 'lucide-react';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOTS_PER_HOUR = 10;
@@ -400,6 +400,79 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
     );
 }
 
+// Searchable person picker — replaces the native <select> so you can type to
+// find someone instead of scrolling, and the chosen name shows immediately.
+function UserPicker({ users, value, onSelect, loading }) {
+    const [open, setOpen] = useState(false);
+    const [q, setQ] = useState('');
+    const ref = useRef(null);
+    const current = users.find((u) => Number(u.id) === Number(value));
+
+    useEffect(() => {
+        if (!open) return undefined;
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener('mousedown', onDoc);
+        return () => document.removeEventListener('mousedown', onDoc);
+    }, [open]);
+
+    const term = q.trim().toLowerCase();
+    const filtered = users.filter((u) => !term
+        || (u.name || '').toLowerCase().includes(term)
+        || (u.email || '').toLowerCase().includes(term));
+
+    const pick = (id) => { setOpen(false); setQ(''); if (Number(id) !== Number(value)) onSelect(id); };
+
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="flex items-center gap-2 rounded border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 [color-scheme:dark]"
+            >
+                <span className="max-w-[12rem] truncate">{current?.name || 'Select person'}</span>
+                {loading
+                    ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
+                    : <ChevronDown className="h-4 w-4 text-slate-400" />}
+            </button>
+            {open && (
+                <div className="absolute z-30 mt-1 w-64 rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-xl">
+                    <div className="relative mb-2">
+                        <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-slate-500" />
+                        <input
+                            autoFocus
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && filtered[0]) pick(filtered[0].id);
+                                if (e.key === 'Escape') setOpen(false);
+                            }}
+                            placeholder="Search people…"
+                            className="w-full rounded border-slate-700 bg-slate-950 py-1.5 pl-8 pr-2 text-sm text-slate-200 placeholder-slate-500"
+                        />
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                        {filtered.length === 0 && (
+                            <div className="px-2 py-3 text-center text-xs text-slate-500">No match</div>
+                        )}
+                        {filtered.map((u) => (
+                            <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => pick(u.id)}
+                                className={['flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-800',
+                                    Number(u.id) === Number(value) ? 'font-semibold text-orange-400' : 'text-slate-200'].join(' ')}
+                            >
+                                <span className="truncate">{u.name}</span>
+                                {Number(u.id) === Number(value) && <Check className="h-4 w-4 flex-shrink-0" />}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function TimelineIndex({
     auth,
     targetUser,
@@ -617,15 +690,12 @@ export default function TimelineIndex({
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
                         <div className="flex items-center gap-3">
                             {showUserPicker ? (
-                                <select
+                                <UserPicker
+                                    users={userOptions}
                                     value={activeUserId}
-                                    onChange={(e) => reload(activeDate, Number(e.target.value))}
-                                    className="rounded border-slate-700 bg-slate-900 text-sm font-semibold text-slate-200 [color-scheme:dark]"
-                                >
-                                    {userOptions.map((u) => (
-                                        <option key={u.id} value={u.id}>{u.name}</option>
-                                    ))}
-                                </select>
+                                    loading={loading}
+                                    onSelect={(id) => reload(activeDate, Number(id))}
+                                />
                             ) : (
                                 <h1 className="text-base font-semibold text-white">{targetUser.name}</h1>
                             )}
