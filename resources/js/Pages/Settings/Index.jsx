@@ -720,11 +720,11 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                     <p className="py-4 text-sm text-slate-500">No team members yet.</p>
                 )}
                 {users.map((user) => {
-                    // Super Admins aren't tracked, so monitoring overrides never
-                    // apply to them — they're shown read-only so the owner still
-                    // sees the full roster (and isn't left wondering who's missing).
-                    const isExempt = user.role === 'super_admin';
-                    const enabled = !isExempt && !!user.overrides?.[flagKey];
+                    // Everyone — including Super Admins — can have an individual
+                    // override. Super Admins are tracked too, and the desktop
+                    // applies their overrides (effectiveForUser), so the toggle is
+                    // editable for them like anyone else.
+                    const enabled = !!user.overrides?.[flagKey];
                     const setEnabled = (en) => {
                         updateOverrides(user.id, { [flagKey]: en, ...(en ? defaultValues : {}) });
                         patchUser(user, category, en, en ? defaultValues : {});
@@ -736,18 +736,10 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                     return (
                         <div key={user.id} className="space-y-2 py-3">
                             <div className="flex items-center gap-3">
-                                <Toggle checked={enabled} onChange={setEnabled} disabled={isExempt} />
+                                <Toggle checked={enabled} onChange={setEnabled} />
                                 <span className="flex-1 text-sm text-slate-700">{user.name}</span>
-                                {isExempt && (
-                                    <span
-                                        className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
-                                        title="Super Admins aren't monitored, so team/individual tracking settings don't apply to them."
-                                    >
-                                        Exempt · Super Admin
-                                    </span>
-                                )}
                             </div>
-                            {!isExempt && enabled && editor && (
+                            {enabled && editor && (
                                 <div className="ml-12 rounded-md bg-slate-50 px-3 py-2">
                                     {editor(user.overrides || {}, setValues)}
                                 </div>

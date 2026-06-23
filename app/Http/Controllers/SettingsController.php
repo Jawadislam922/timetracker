@@ -33,10 +33,10 @@ class SettingsController extends Controller
     {
         $team = MonitoringSetting::current();
 
-        // Everyone is listed, including Super Admins, so the owner sees the full
-        // roster. Super Admins are exempt from monitoring overrides (the tracker
-        // doesn't apply them), so their rows render read-only/"Exempt" and
-        // updateUser() refuses to write an override for them.
+        // Everyone is listed and editable, including Super Admins — they are
+        // tracked too and the desktop honours their per-user overrides
+        // (effectiveForUser), so the owner can configure individual settings for
+        // anyone on the roster.
         $users = User::orderBy('name')
             ->get(['id', 'name', 'email', 'role']);
 
@@ -127,8 +127,6 @@ class SettingsController extends Controller
             'values.display_timezone' => ['nullable', 'timezone'],
             'values.time_format' => ['nullable', Rule::in(['12', '24'])],
         ]);
-
-        abort_if($user->isSuperAdmin(), 422, 'Super Admins are not subject to overrides.');
 
         $override = UserMonitoringSetting::firstOrNew(['user_id' => $user->id]);
 
