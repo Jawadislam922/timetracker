@@ -309,6 +309,14 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                         continues past midnight
                     </span>
                 )}
+                {session.automation?.suspected && (
+                    <span
+                        className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30"
+                        title={`Review: input looks automated — heavy mouse movement, almost no keyboard (${Math.round((session.automation.keyboard_ratio ?? 0) * 100)}% of samples), and low activity. Not a confirmed jiggler; check the screenshots.`}
+                    >
+                        ⚠ Review: possible auto-mouse
+                    </span>
+                )}
                 <span className="ml-auto flex items-center gap-2 text-xs font-normal text-slate-400">
                     {fmtHm(daySeconds)}{isSplit ? ` this day of ${fmtHm(session.total_seconds)}` : ''} · activity {session.activity_percent ?? 0}%
                     {canDeleteScreenshots && view !== 'apps' && (session.screenshots || []).length > 0 && (

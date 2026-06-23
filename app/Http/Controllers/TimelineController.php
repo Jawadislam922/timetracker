@@ -9,6 +9,7 @@ use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Support\BusinessTime;
+use App\Support\InputPattern;
 use App\Support\WebDomain;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -250,6 +251,9 @@ class TimelineController extends Controller
                 'screenshot_count_hidden' => $canViewScreenshots ? 0 : (int) $rows->count(),
                 'apps' => $this->rollupBy($sessionSamples, 'active_app', $sampleIntervalSeconds),
                 'urls' => $this->rollupBy($sessionSamples, 'url_domain', $sampleIntervalSeconds),
+                // Review-only signal: does the input look machine-generated
+                // (jiggler)? Never cuts time — just flags for a human to check.
+                'automation' => InputPattern::suspectedAutomation($sessionSamples, (int) $session->activity_percent),
             ];
         })
             // Hide ghost rows: sessions that merely brush the day with under
