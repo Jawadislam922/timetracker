@@ -12,15 +12,17 @@ class DesktopDownloadController extends Controller
 
     private const WINDOWS_VERSION = '0.3.9';
 
-    private const MAC_VERSION = '0.3.2';
+    private const MAC_VERSION = '0.3.9';
 
     /**
      * Accepted macOS artifact names, preferred first. A DMG is preferred, but
      * a zipped .app bundle is a perfectly valid distribution too (download,
-     * unzip, drag to Applications). The SA Track-branded 0.3.2 build is the
+     * unzip, drag to Applications). The SA Track-branded 0.3.9 build is the
      * current one; older names are kept as fallbacks.
      */
     private const MAC_INSTALLERS = [
+        'SA Track-0.3.9-arm64.dmg',
+        'SA Track-0.3.9-arm64-mac.zip',
         'SA Track-0.3.3-arm64.dmg',
         'SA Track-0.3.3-arm64-mac.zip',
         'SA Track-0.3.2-arm64.dmg',
