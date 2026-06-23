@@ -7,6 +7,7 @@ use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\UpworkProfile;
 use App\Models\WorkHour;
+use App\Support\BusinessTime;
 use Carbon\CarbonInterface;
 
 class TrackingSessionService
@@ -92,9 +93,42 @@ class TrackingSessionService
     }
 
     /**
-     * Split a session's tracked (idle-adjusted) seconds across the calendar
-     * days it spans, each day getting its wall-clock share. Mirrors
-     * TimelineController::inDaySeconds so every page agrees.
+     * Portion of a session's tracked (idle-adjusted) seconds that falls inside
+     * the given day (or range), allocated proportionally to the wall-clock
+     * overlap. An overnight session therefore splits cleanly at midnight and
+     * the daily shares always sum back to total_seconds.
+     *
+     * This is the SINGLE source of truth for "how much of a session counts on
+     * this day". Timeline, Team, Dashboard, and the work_hours mirror
+     * (dailySeconds, below) all run through it so the pages can never drift
+     * apart again. A still-running session is measured up to now().
+     */
+    public function inDaySeconds(TrackingSession $session, CarbonInterface $dayStart, CarbonInterface $dayEnd): int
+    {
+        $start = $session->started_at;
+        $end = $session->stopped_at ?? now(BusinessTime::tz());
+
+        if (! $start || $end->lessThanOrEqualTo($start)) {
+            return 0;
+        }
+
+        $overlapStart = $start->greaterThan($dayStart) ? $start : $dayStart;
+        $overlapEnd = $end->lessThan($dayEnd) ? $end : $dayEnd;
+        $overlap = max(0, $overlapStart->diffInSeconds($overlapEnd, false));
+
+        if ($overlap <= 0) {
+            return 0;
+        }
+
+        $duration = max(1, $start->diffInSeconds($end));
+
+        return (int) round((int) $session->total_seconds * ($overlap / $duration));
+    }
+
+    /**
+     * Split a session's tracked seconds across the calendar days it spans, each
+     * day getting its wall-clock share via inDaySeconds() — so the work_hours
+     * mirror agrees with the live Timeline/Team/Dashboard computation.
      *
      * @return array<string, int>  [Y-m-d => seconds]
      */
@@ -111,19 +145,15 @@ class TrackingSessionService
             return [$start->toDateString() => $total];
         }
 
-        $duration = max(1, $start->diffInSeconds($end));
         $result = [];
         $cursor = $start->copy()->startOfDay();
 
         while ($cursor->lt($end)) {
-            $next = $cursor->copy()->addDay();
-            $segStart = $start->greaterThan($cursor) ? $start : $cursor;
-            $segEnd = $end->lessThan($next) ? $end : $next;
-            $overlap = max(0, $segStart->diffInSeconds($segEnd));
-            if ($overlap > 0) {
-                $result[$cursor->toDateString()] = (int) round($total * ($overlap / $duration));
+            $seconds = $this->inDaySeconds($session, $cursor->copy()->startOfDay(), $cursor->copy()->endOfDay());
+            if ($seconds > 0) {
+                $result[$cursor->toDateString()] = $seconds;
             }
-            $cursor = $next;
+            $cursor->addDay();
         }
 
         return $result ?: [$start->toDateString() => $total];

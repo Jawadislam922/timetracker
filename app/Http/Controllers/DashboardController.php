@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\MonitoringSetting;
+use App\Models\TrackingSession;
 use App\Models\User;
 use App\Models\WorkHour;
+use App\Services\TrackingSessionService;
+use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +92,39 @@ class DashboardController extends Controller
                 $this->dateSums[$date] = ($this->dateSums[$date] ?? 0) + $hours;
             });
 
+        $this->addLiveSessionHours();
+
         $this->sumsLoaded = true;
+    }
+
+    /**
+     * Fold currently-running sessions into the per-day sums. work_hours is only
+     * written when a session stops (syncWorkHour), so without this the Dashboard
+     * under-counts live work and disagrees with Timeline/Team while someone is
+     * tracking. Active sessions never have a work_hours row, so there is no
+     * double counting. We attribute to today and yesterday only (an overnight
+     * session straddles the two) using the SAME shared in-day allocation, so all
+     * pages agree to the second.
+     */
+    private function addLiveSessionHours(): void
+    {
+        $svc = app(TrackingSessionService::class);
+        $days = [BusinessTime::today()->subDay(), BusinessTime::today()];
+
+        TrackingSession::active()
+            ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds'])
+            ->each(function (TrackingSession $session) use ($svc, $days) {
+                foreach ($days as $day) {
+                    $seconds = $svc->inDaySeconds($session, $day->copy()->startOfDay(), $day->copy()->endOfDay());
+                    if ($seconds < 1) {
+                        continue;
+                    }
+                    $hours = $seconds / 3600;
+                    $key = $day->toDateString();
+                    $this->userDateSums[$session->user_id][$key] = ($this->userDateSums[$session->user_id][$key] ?? 0) + $hours;
+                    $this->dateSums[$key] = ($this->dateSums[$key] ?? 0) + $hours;
+                }
+            });
     }
 
     private function userHoursOn(int $userId, Carbon|string $date): float

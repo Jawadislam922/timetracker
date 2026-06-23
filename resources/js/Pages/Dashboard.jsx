@@ -6,6 +6,7 @@ import {
     CalendarDays,
     Coffee,
     Download,
+    Loader2,
     PauseCircle,
     PlayCircle,
     RotateCcw,
@@ -106,6 +107,10 @@ export default function Dashboard({ auth }) {
     const [entries, setEntries] = useState([]);
     const [employeesData, setEmployeesData] = useState([]);
     const [loading, setLoading] = useState(false);
+    // Distinguishes "still loading the first time" from "loaded, genuinely
+    // empty" so the team table never flashes "No activity recorded today"
+    // before its data arrives.
+    const [dashboardLoaded, setDashboardLoaded] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
     // Seed the clock state from the server-rendered page props so the action
     // buttons are correct on first paint — no "Clock In" flash while the
@@ -121,18 +126,30 @@ export default function Dashboard({ auth }) {
     }, []);
 
     const loadDashboard = async (notifyOnError = true) => {
-        try {
-            const [entriesResponse, summaryResponse] = await Promise.all([
-                axios.get('/time-entries/today'),
-                axios.get('/time-entries/today-summary'),
-            ]);
-            const nextEntries = entriesResponse.data.entries || [];
+        // Settle the two independently: the team table only needs the summary,
+        // so a hiccup on /time-entries/today must NOT blank it (and vice-versa).
+        // Previously both shared one try/Promise.all, so any single failure wiped
+        // the whole "Team Activity Today" table — the intermittent "No activity
+        // recorded today" people saw on a perfectly good day.
+        const [entriesResult, summaryResult] = await Promise.allSettled([
+            axios.get('/time-entries/today'),
+            axios.get('/time-entries/today-summary'),
+        ]);
+
+        if (entriesResult.status === 'fulfilled') {
+            const nextEntries = entriesResult.value.data.entries || [];
             setEntries(nextEntries);
             setTodayStats(calculateStats(nextEntries));
-            setEmployeesData(summaryResponse.data.employees || []);
-        } catch (error) {
-            console.error('Dashboard load failed:', error);
-            if (notifyOnError) showError('Unable to load dashboard data.');
+        }
+        if (summaryResult.status === 'fulfilled') {
+            setEmployeesData(summaryResult.value.data.employees || []);
+        }
+
+        setDashboardLoaded(true);
+
+        if (entriesResult.status === 'rejected' || summaryResult.status === 'rejected') {
+            console.error('Dashboard load failed:', entriesResult.reason || summaryResult.reason);
+            if (notifyOnError) showError('Some dashboard data could not be refreshed.');
         }
     };
 
@@ -363,7 +380,12 @@ export default function Dashboard({ auth }) {
                             </div>
                         </div>
 
-                        {employeesData.length === 0 ? (
+                        {!dashboardLoaded ? (
+                            <div className="px-5 py-12 text-center">
+                                <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+                                <p className="mt-3 text-sm text-slate-400">Loading team activity…</p>
+                            </div>
+                        ) : employeesData.length === 0 ? (
                             <div className="px-5 py-12 text-center">
                                 <UserRound className="mx-auto h-10 w-10 text-slate-600" />
                                 <h3 className="mt-3 font-semibold text-white">No activity recorded today</h3>

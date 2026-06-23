@@ -147,7 +147,22 @@ class SessionController extends Controller
             'last_heartbeat_at' => BusinessTime::fromClient($data['heartbeat_at'] ?? null) ?? now(),
         ]);
 
-        return response()->json(['status' => 'ok']);
+        // Tell the desktop the user's current clock state so a break started on
+        // the web dashboard also pauses the tracker (the desktop pauses when it
+        // sees on_break). Mirrors TimeClockController::status — break_start is
+        // the canonical "on break" marker; break_end/clock_in mean working.
+        $user = $request->user();
+        $now = Carbon::now('Asia/Karachi');
+        $lastAction = TimeEntry::forUser($user->id)
+            ->forDate($user->attendanceDateFor($now))
+            ->orderByDesc('action_timestamp')->orderByDesc('id')
+            ->value('action_type');
+
+        return response()->json([
+            'status' => 'ok',
+            'last_action' => $lastAction,
+            'on_break' => $lastAction === 'break_start',
+        ]);
     }
 
     public function stop(StopSessionRequest $request, TrackingSession $session): JsonResponse

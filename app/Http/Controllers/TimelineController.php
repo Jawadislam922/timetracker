@@ -407,24 +407,8 @@ class TimelineController extends Controller
 
     private function inDaySeconds(TrackingSession $session, Carbon $dayStart, Carbon $dayEnd): int
     {
-        $start = $session->started_at;
-        $end = $session->stopped_at ?? now(BusinessTime::tz());
-
-        if (! $start || $end->lte($start)) {
-            return 0;
-        }
-
-        $overlapStart = $start->greaterThan($dayStart) ? $start : $dayStart;
-        $overlapEnd = $end->lessThan($dayEnd) ? $end : $dayEnd;
-        $overlap = max(0, $overlapStart->diffInSeconds($overlapEnd, false));
-
-        if ($overlap <= 0) {
-            return 0;
-        }
-
-        $duration = max(1, $start->diffInSeconds($end));
-
-        return (int) round((int) $session->total_seconds * ($overlap / $duration));
+        return app(\App\Services\TrackingSessionService::class)
+            ->inDaySeconds($session, $dayStart, $dayEnd);
     }
 
     /** @return array<int, array<string, mixed>> */

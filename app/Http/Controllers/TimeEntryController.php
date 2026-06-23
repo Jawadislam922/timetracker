@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
+use App\Models\TrackingSession;
 use App\Models\User;
+use App\Models\WorkHour;
+use App\Services\TrackingSessionService;
+use App\Support\BusinessTime;
 use App\Support\TimeClockRules;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -238,19 +242,57 @@ class TimeEntryController extends Controller
     }
 
     /**
-     * Work-diary hours (tracker-synced + manual) per user per date for the
-     * dashboard's "in office vs tracked work" comparison. One grouped query;
-     * yesterday is included so an overnight shift's attendance day resolves.
+     * Tracked hours for TODAY (the current calendar day, business tz) per user,
+     * computed the SAME way as the Timeline and Team pages so the three never
+     * disagree: every tracking session overlapping today is split by the shared
+     * inDaySeconds helper (this includes live sessions and the today-portion of
+     * an overnight session), plus any manual work-diary hours logged today.
+     *
+     * The previous version read work_hours bucketed by calendar date but looked
+     * them up by the user's attendance date — for a night-shift worker those two
+     * dates differ, so the lookup missed every row and the column read 0 even
+     * though the Timeline showed hours.
      *
      * @param  array<int>  $userIds
+     * @return Collection  keyed by user_id => float hours
      */
     private function loadTrackedHours(array $userIds, Carbon $now): Collection
     {
-        return \App\Models\WorkHour::query()
+        $dayStart = $now->copy()->startOfDay();
+        $dayEnd = $now->copy()->endOfDay();
+        $svc = app(TrackingSessionService::class);
+
+        // Tracker time: sessions overlapping today, each split to its in-day
+        // share. Skip deletion crumbs (<60s) but always keep a live session.
+        $trackerSeconds = TrackingSession::query()
             ->whereIn('user_id', $userIds)
-            ->whereDate('date', '>=', $now->copy()->subDay()->toDateString())
-            ->get(['user_id', 'date', 'hours'])
-            ->groupBy(fn ($r) => $r->user_id.'|'.substr((string) $r->date, 0, 10));
+            ->where('started_at', '<=', $dayEnd)
+            ->where(function ($q) use ($dayStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $dayStart);
+            })
+            ->where(function ($q) {
+                $q->where('total_seconds', '>=', 60)
+                    ->orWhere('status', TrackingSession::STATUS_ACTIVE);
+            })
+            ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds', 'status'])
+            ->groupBy('user_id')
+            ->map(fn ($sessions) => (int) $sessions->sum(fn ($s) => $svc->inDaySeconds($s, $dayStart, $dayEnd)));
+
+        // Manual work-diary hours logged for today (anything not synced from the
+        // tracker), so hand-entered time still shows beside tracked work.
+        $manualHours = WorkHour::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('date', $dayStart->toDateString())
+            ->where(function ($q) {
+                $q->whereNull('source')->orWhere('source', '!=', 'tracker');
+            })
+            ->get(['user_id', 'hours'])
+            ->groupBy('user_id')
+            ->map(fn ($rows) => (float) $rows->sum('hours'));
+
+        return collect($userIds)->mapWithKeys(fn ($id) => [
+            $id => round(((int) ($trackerSeconds[$id] ?? 0)) / 3600 + (float) ($manualHours[$id] ?? 0), 2),
+        ]);
     }
 
     /**
@@ -292,25 +334,15 @@ class TimeEntryController extends Controller
 
         $stats = $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
 
-        // Actual work product for the same attendance day (tracker + manual
-        // work-diary entries) — shown beside the clock-based presence hours.
-        $stats['tracked_hours'] = round(
-            (float) ($trackedByUserDate?->get($employee->id.'|'.$today) ?? collect())->sum('hours'),
-            2
-        );
+        // Today's tracked work (tracker sessions split to their in-day share +
+        // manual hours), computed exactly like the Timeline/Team pages so the
+        // "Tracked" column always agrees with them — including live sessions and
+        // the today-portion of an overnight session. See loadTrackedHours.
+        $stats['tracked_hours'] = round((float) ($trackedByUserDate?->get($employee->id) ?? 0), 2);
 
-        // Add the live session's running time so a currently-tracking person
-        // shows real progress instead of 0 until their session syncs — but only
-        // the part that falls on today's calendar date, so a night shift's
-        // pre-midnight hours don't inflate today. Capped at 16h.
-        $live = $liveByUser?->get($employee->id);
-        if ($live) {
-            $sinceMidnight = (int) $now->copy()->startOfDay()->diffInSeconds($now);
-            $liveWall = (int) $live->started_at->diffInSeconds($now);
-            $liveSeconds = min(16 * 3600, $liveWall, max(0, $sinceMidnight));
-            $stats['tracked_hours'] = round($stats['tracked_hours'] + $liveSeconds / 3600, 2);
-        }
-        $stats['is_live'] = (bool) $live;
+        // Live flag drives the "Working" badge / sort; the running time is
+        // already included in tracked_hours above via inDaySeconds.
+        $stats['is_live'] = (bool) $liveByUser?->get($employee->id);
 
         // Day-level activity: how active they actually were while tracked
         // (replaces the confusing tracked-vs-clocked "coverage" ratio).

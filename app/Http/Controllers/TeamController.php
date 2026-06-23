@@ -76,24 +76,13 @@ class TeamController extends Controller
             ->get(['id', 'user_id', 'client_id', 'task_note', 'started_at', 'last_heartbeat_at', 'activity_percent', 'total_seconds'])
             ->keyBy('user_id');
 
-        // Seconds a session contributes to THIS day. A session fully inside the
-        // day keeps its idle-adjusted total (accurate); one that straddles
-        // midnight (or is still running) is attributed by its wall-clock overlap
-        // with the day, capped at 16h to bound a forgotten session.
-        $now = now();
-        $daySeconds = function ($session) use ($dayStart, $dayEnd, $now): int {
-            $start = $session->started_at;
-            $end = $session->stopped_at ?? $now;
-            $oStart = $start->greaterThan($dayStart) ? $start : $dayStart;
-            $oEnd = $end->lessThan($dayEnd) ? $end : $dayEnd;
-            $overlap = $oEnd->getTimestamp() - $oStart->getTimestamp();
-            if ($overlap <= 0) {
-                return 0;
-            }
-            $fullyInside = $start->greaterThanOrEqualTo($dayStart) && $end->lessThanOrEqualTo($dayEnd);
-
-            return $fullyInside ? (int) $session->total_seconds : (int) min($overlap, 16 * 3600);
-        };
+        // Seconds a session contributes to THIS range, allocated by wall-clock
+        // overlap via the shared helper — the SAME math Timeline and Dashboard
+        // use, so the three pages can't disagree. A session fully inside the
+        // range keeps its idle-adjusted total; one that straddles the edges (or
+        // is still running) gets its proportional share.
+        $svc = app(\App\Services\TrackingSessionService::class);
+        $daySeconds = fn ($session): int => $svc->inDaySeconds($session, $dayStart, $dayEnd);
 
         $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow, $manualByUser, $daySeconds) {
             $userSessions = $sessionsByUser[$u->id] ?? collect();
