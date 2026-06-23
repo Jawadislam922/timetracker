@@ -217,45 +217,21 @@ class TimelineController extends Controller
 
         $dateKey = $date->toDateString();
 
-        $sessionPayload = $sessions->map(function (TrackingSession $session) use ($shotsBySession, $samplesBySession, $sampleIntervalSeconds, $canViewScreenshots, $dayStart, $dayEnd, $dateKey) {
-            $rows = ($shotsBySession[$session->id] ?? collect());
-            $sessionSamples = $samplesBySession[$session->id] ?? collect();
-
-            return [
-                'id' => $session->id,
-                'client_name' => $session->client?->name,
-                'task_note' => $session->task_note,
-                'work_type' => $session->work_type,
-                'tracker' => $session->upworkProfile?->name,
-                'started_at' => $session->started_at?->toIso8601String(),
-                'stopped_at' => $session->stopped_at?->toIso8601String(),
-                'total_seconds' => (int) $session->total_seconds,
-                'day_seconds' => $this->inDaySeconds($session, $dayStart, $dayEnd),
-                'started_before_day' => BusinessTime::dateKey($session->started_at) < $dateKey,
-                'continues_after_day' => $session->stopped_at !== null && BusinessTime::dateKey($session->stopped_at) > $dateKey,
-                'activity_percent' => (int) $session->activity_percent,
-                'status' => $session->status,
-                'screenshots' => $canViewScreenshots
-                    ? $rows->map(fn (TrackingScreenshot $s) => [
-                        'id' => $s->id,
-                        'captured_at' => $s->captured_at?->toIso8601String(),
-                        'thumbnail_url' => $s->thumbnail_url,
-                        'image_url' => $s->image_url,
-                        'activity_percent' => (int) $s->activity_percent,
-                        'active_app' => $s->active_app,
-                        'active_window_title' => $s->active_window_title,
-                        'url_domain' => $s->url_domain,
-                        'is_flagged' => (bool) $s->is_flagged,
-                    ])->values()
-                    : [],
-                'screenshot_count_hidden' => $canViewScreenshots ? 0 : (int) $rows->count(),
-                'apps' => $this->rollupBy($sessionSamples, 'active_app', $sampleIntervalSeconds),
-                'urls' => $this->rollupBy($sessionSamples, 'url_domain', $sampleIntervalSeconds),
-                // Review-only signal: does the input look machine-generated
-                // (jiggler)? Never cuts time — just flags for a human to check.
-                'automation' => InputPattern::suspectedAutomation($sessionSamples, (int) $session->activity_percent),
-            ];
-        })
+        // A session is split into one block per continuous active period —
+        // when the tracker idle-pauses (sampling stops) and later resumes, the
+        // resumed work shows as its own block from the resume time, instead of
+        // one block merged across the break. Display-only; the underlying
+        // session is untouched.
+        $sessionPayload = $sessions->flatMap(fn (TrackingSession $session) => $this->sessionBlocks(
+            $session,
+            $shotsBySession[$session->id] ?? collect(),
+            $samplesBySession[$session->id] ?? collect(),
+            $canViewScreenshots,
+            $sampleIntervalSeconds,
+            $dayStart,
+            $dayEnd,
+            $dateKey,
+        ))
             // Hide ghost rows: sessions that merely brush the day with under
             // a minute and left no screenshots or activity here only confuse
             // the view (e.g. a stale orphan closed just after midnight).
@@ -407,6 +383,147 @@ class TimelineController extends Controller
         }
 
         return 'Unassigned';
+    }
+
+    /**
+     * Split one session into display blocks at idle gaps. The tracker stops
+     * sampling while idle-paused, so a gap between consecutive samples longer
+     * than the threshold marks a break: the run after it becomes a new block
+     * starting at the resume time. Sessions with no gaps render as one block,
+     * exactly as before.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function sessionBlocks(TrackingSession $session, Collection $rows, Collection $samples, bool $canViewScreenshots, int $interval, Carbon $dayStart, Carbon $dayEnd, string $dateKey): array
+    {
+        $dayTotal = $this->inDaySeconds($session, $dayStart, $dayEnd);
+        $gap = max(150, $interval * 3);
+        $segments = $this->activeSegments($samples, $gap);
+
+        // No samples (e.g. capture blocked) or a single active run → one block.
+        if (count($segments) <= 1) {
+            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey)];
+        }
+
+        $totalSamples = max(1, array_sum(array_map(fn ($s) => $s['samples']->count(), $segments)));
+        $starts = array_map(fn ($s) => $s['start'], $segments);
+        $last = count($segments) - 1;
+
+        $blocks = [];
+        $prevEnd = null;
+        foreach ($segments as $i => $seg) {
+            $isFirst = $i === 0;
+            $nextStart = $i < $last ? $starts[$i + 1] : null;
+
+            // Screenshots from this block's start up to the next block's start,
+            // so every shot lands in exactly one block.
+            $blockShots = $rows->filter(function (TrackingScreenshot $s) use ($isFirst, $seg, $nextStart) {
+                $t = $s->captured_at;
+                if (! $t) {
+                    return false;
+                }
+                $afterStart = $isFirst || $t->greaterThanOrEqualTo($seg['start']);
+                $beforeNext = $nextStart === null || $t->lessThan($nextStart);
+
+                return $afterStart && $beforeNext;
+            })->values();
+
+            $blocks[] = $this->sessionBlock(
+                $session,
+                $blockShots,
+                $seg['samples'],
+                (int) round($dayTotal * ($seg['samples']->count() / $totalSamples)),
+                $isFirst ? $session->started_at : $seg['start'],
+                $prevEnd ? (int) $prevEnd->diffInSeconds($seg['start']) : 0,
+                ! $isFirst,
+                $isFirst,
+                $i === $last,
+                $canViewScreenshots,
+                $interval,
+                $dateKey,
+            );
+            $prevEnd = $seg['end'];
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Group a session's samples into continuous active runs, breaking wherever
+     * consecutive samples are more than $gap seconds apart (an idle pause).
+     *
+     * @return array<int, array{start: Carbon, end: Carbon, samples: Collection}>
+     */
+    private function activeSegments(Collection $samples, int $gap): array
+    {
+        $sorted = $samples->filter(fn ($s) => $s->captured_at)
+            ->sortBy(fn ($s) => $s->captured_at->getTimestamp())->values();
+        if ($sorted->isEmpty()) {
+            return [];
+        }
+
+        $segments = [];
+        $cur = [];
+        $curStart = $sorted->first()->captured_at;
+        $prev = $sorted->first()->captured_at;
+        foreach ($sorted as $s) {
+            // Earlier->later so the diff is positive (Carbon 3 diffs are signed).
+            if ($prev->diffInSeconds($s->captured_at) > $gap && $cur) {
+                $segments[] = ['start' => $curStart, 'end' => $prev, 'samples' => collect($cur)];
+                $cur = [];
+                $curStart = $s->captured_at;
+            }
+            $cur[] = $s;
+            $prev = $s->captured_at;
+        }
+        if ($cur) {
+            $segments[] = ['start' => $curStart, 'end' => $prev, 'samples' => collect($cur)];
+        }
+
+        return $segments;
+    }
+
+    /** Build a single Timeline block payload (whole session, or one segment). */
+    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey): array
+    {
+        return [
+            'id' => $session->id,
+            'client_name' => $session->client?->name,
+            'task_note' => $session->task_note,
+            'work_type' => $session->work_type,
+            'tracker' => $session->upworkProfile?->name,
+            'started_at' => ($blockStart ?? $session->started_at)?->toIso8601String(),
+            'stopped_at' => $session->stopped_at?->toIso8601String(),
+            // A resumed block shows only its own slice; a single (un-split) block
+            // keeps the session total so the overnight "X of Y" label still works.
+            'total_seconds' => $isResumed ? $daySeconds : (int) $session->total_seconds,
+            'day_seconds' => $daySeconds,
+            'started_before_day' => $isFirst && BusinessTime::dateKey($session->started_at) < $dateKey,
+            'continues_after_day' => $isLast && $session->stopped_at !== null && BusinessTime::dateKey($session->stopped_at) > $dateKey,
+            'is_resumed' => $isResumed,
+            'idle_before_seconds' => $idleBefore,
+            'activity_percent' => (int) $session->activity_percent,
+            'status' => $session->status,
+            'screenshots' => $canViewScreenshots
+                ? $rows->map(fn (TrackingScreenshot $s) => [
+                    'id' => $s->id,
+                    'captured_at' => $s->captured_at?->toIso8601String(),
+                    'thumbnail_url' => $s->thumbnail_url,
+                    'image_url' => $s->image_url,
+                    'activity_percent' => (int) $s->activity_percent,
+                    'active_app' => $s->active_app,
+                    'active_window_title' => $s->active_window_title,
+                    'url_domain' => $s->url_domain,
+                    'is_flagged' => (bool) $s->is_flagged,
+                ])->values()
+                : [],
+            'screenshot_count_hidden' => $canViewScreenshots ? 0 : (int) $rows->count(),
+            'apps' => $this->rollupBy($samples, 'active_app', $interval),
+            'urls' => $this->rollupBy($samples, 'url_domain', $interval),
+            // Review-only signal: does the input look machine-generated
+            // (jiggler)? Never cuts time — just flags for a human to check.
+            'automation' => InputPattern::suspectedAutomation($samples, (int) $session->activity_percent),
+        ];
     }
 
     private function inDaySeconds(TrackingSession $session, Carbon $dayStart, Carbon $dayEnd): int

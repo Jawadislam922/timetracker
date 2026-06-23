@@ -309,6 +309,14 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                         continues past midnight
                     </span>
                 )}
+                {session.is_resumed && (
+                    <span
+                        className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300 ring-1 ring-sky-500/30"
+                        title="A new work block after an idle break — the idle time in between was not counted."
+                    >
+                        resumed{session.idle_before_seconds ? ` after ${fmtHm(session.idle_before_seconds)} idle` : ''}
+                    </span>
+                )}
                 {session.automation?.suspected && (
                     <span
                         className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30"
