@@ -507,6 +507,19 @@ export default function TimelineIndex({
     const [deleteReason, setDeleteReason] = useState('');
     const [deleting, setDeleting] = useState(false);
 
+    // Whenever Inertia resolves a different person/day (picker, date controls,
+    // or a direct URL), mirror the FRESH server props into local state. We key
+    // off the component's own props — not the navigation callback's page object,
+    // which can lag — so the session list and screenshots can never keep showing
+    // the previously viewed person's data.
+    useEffect(() => {
+        setData(initialData);
+        setActiveUserId(targetUser.id);
+        setActiveDate(date);
+        setSelectedShots(new Set());
+        setAiSummary(null);
+    }, [targetUser.id, date, initialData]);
+
     const toggleShot = (id) => {
         setSelectedShots((prev) => {
             const next = new Set(prev);
@@ -598,15 +611,9 @@ export default function TimelineIndex({
             route('timeline.index'),
             { date: d, user_id: u },
             {
-                preserveState: true,
                 preserveScroll: true,
-                onSuccess: (page) => {
-                    const props = page.props;
-                    setActiveDate(props.date);
-                    setActiveUserId(props.targetUser.id);
-                    setData(props.initialData);
-                    setAiSummary(null);
-                },
+                // State (data/person/day) is synced from the resolved props by
+                // the effect above — no manual copy here, so it can't go stale.
                 onFinish: () => setLoading(false),
             }
         );
