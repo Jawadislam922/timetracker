@@ -27,6 +27,7 @@ class TrackingSession extends Model
         'app_version',
         'client_uuid',
         'health_alerted_at',
+        'health_probe_seconds',
     ];
 
     protected $casts = [

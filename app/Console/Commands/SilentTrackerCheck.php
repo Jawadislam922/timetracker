@@ -58,16 +58,41 @@ class SilentTrackerCheck extends Command
             }
 
             $user = User::find($s->user_id);
-            $ageMin = (int) round($s->started_at->diffInMinutes($now));
-            $this->line(sprintf('%-22s live %dm, no capture %s', $user?->name ?? ('#'.$s->user_id), $ageMin, $dry ? '[dry-run]' : ''));
-            $flagged++;
+            $name = $user?->name ?? ('#'.$s->user_id);
+
+            // Distinguish a PAUSED tracker (idle/break — legitimately captures
+            // nothing) from an AV-BLOCKED one (working but capture blocked). The
+            // desktop freezes total_seconds while paused and keeps advancing it
+            // while active, so compare it to the snapshot from the previous run:
+            //   unchanged  → paused/idle → no alert
+            //   advanced   → working but not capturing → antivirus block → alert
+            // The first time we see a silent session we only record the baseline.
+            $prev = $s->health_probe_seconds;
+            $cur = (int) $s->total_seconds;
+            $advanced = $prev !== null && $cur > ((int) $prev + 60);
 
             if ($dry) {
+                $state = $prev === null ? 'baseline' : ($advanced ? 'AV-block → would alert' : 'paused/idle → skip');
+                $this->line(sprintf('%-22s no capture, %s [dry-run]', $name, $state));
                 continue;
             }
 
+            // Snapshot this run's total for the next comparison, always.
+            $s->health_probe_seconds = $cur;
+
+            if (! $advanced) {
+                // No prior baseline yet, or frozen (paused) — record and wait.
+                $s->save();
+                continue;
+            }
+
+            $ageMin = (int) round($s->started_at->diffInMinutes($now));
+            $this->line(sprintf('%-22s live %dm, working but no capture (AV block)', $name, $ageMin));
+            $flagged++;
+
             $this->announce($slack, $user, $s, $last);
-            $s->update(['health_alerted_at' => $now]);
+            $s->health_alerted_at = $now;
+            $s->save();
         }
 
         $this->info(sprintf('%s %d silent tracker(s).', $dry ? 'Would flag' : 'Flagged', $flagged));

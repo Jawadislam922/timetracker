@@ -15,17 +15,14 @@ class Kernel extends ConsoleKernel
     {
         $timezone = config('services.slack_reports.timezone', 'Asia/Karachi');
 
+        // One weekly per-person digest (tracked + activity, in-office hours, the
+        // in-office-vs-tracked gap, and late days) — replaces the old daily
+        // activity-table digest and the client work-hours report on the
+        // schedule. The on-demand "Send to Slack" buttons for those still work.
         if (config('services.slack_reports.weekly_enabled')) {
-            $schedule->command('reports:send-weekly-slack')
+            $schedule->command('reports:weekly-digest')
                 ->sundays()
                 ->at('10:00')
-                ->timezone($timezone)
-                ->withoutOverlapping();
-        }
-
-        if (config('services.slack_reports.daily_digest_enabled')) {
-            $schedule->command('activity:digest-slack')
-                ->dailyAt(config('services.slack_reports.daily_digest_time', '09:00'))
                 ->timezone($timezone)
                 ->withoutOverlapping();
         }
