@@ -5,6 +5,11 @@ import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
 
 export default function WorkHourEdit({ auth, workHour, trackers = [], clients = [] }) {
+    // Tracker-recorded entries have locked hours — the time always reflects what
+    // the desktop measured, so it can't be edited up/down. Description, client,
+    // and work type stay editable. (The server enforces this too.)
+    const isTracked = !!workHour.tracking_session_id || workHour.source === 'tracker';
+
     // Convert decimal hours back to hours and minutes for display
     const totalMinutes = Math.round(workHour.hours * 60);
     const displayHours = Math.floor(totalMinutes / 60);
@@ -508,6 +513,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             max="24"
                                             step="1"
                                             value={form.data.hours}
+                                            disabled={isTracked}
                                             onChange={(e) => {
                                                 let value = parseInt(e.target.value);
                                                 if (isNaN(value) || value < 0) value = 0;
@@ -518,7 +524,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             onFocus={(e) => e.target.addEventListener('wheel', (event) => event.preventDefault(), { passive: false })}
                                             onBlur={(e) => e.target.removeEventListener('wheel', (event) => event.preventDefault())}
                                             placeholder="Enter hours (0-24)"
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
+                                            className={`w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400 ${isTracked ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white'}`}
                                             required
                                         />
                                     </div>
@@ -535,6 +541,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             max="59"
                                             step="1"
                                             value={form.data.minutes}
+                                            disabled={isTracked}
                                             onChange={(e) => {
                                                 let value = parseInt(e.target.value);
                                                 if (isNaN(value) || value < 0) value = 0;
@@ -545,10 +552,17 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                             onFocus={(e) => e.target.addEventListener('wheel', (event) => event.preventDefault(), { passive: false })}
                                             onBlur={(e) => e.target.removeEventListener('wheel', (event) => event.preventDefault())}
                                             placeholder="Enter minutes (0-59)"
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
+                                            className={`w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400 ${isTracked ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white'}`}
                                         />
                                     </div>
                                 </div>
+
+                                {isTracked && (
+                                    <p className="-mt-4 mb-6 text-xs text-slate-500">
+                                        🔒 This time was recorded by the desktop tracker, so the hours are
+                                        locked. You can still edit the description, client, and work type.
+                                    </p>
+                                )}
 
                                 {/* Total Time Display */}
                                 <div className={`mb-6 p-4 backdrop-blur-xl rounded-xl border ${

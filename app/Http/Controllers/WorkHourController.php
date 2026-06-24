@@ -298,11 +298,22 @@ class WorkHourController extends Controller
             'tracker' => 'nullable|string|max:255',
         ]);
 
-        if ((int) $validated['hours'] === 0 && (int) $validated['minutes'] === 0) {
-            return back()->withErrors(['hours' => 'Please enter at least some time.']);
+        // Tracker-recorded time is LOCKED: the hours always reflect what the
+        // desktop tracker measured, so an entry can't be edited to show more (or
+        // different) hours than were actually tracked. Description / client /
+        // work type can still be corrected; the submitted hours are ignored.
+        // Manual entries (no tracking session) remain fully editable.
+        $isTracked = $workHour->tracking_session_id !== null || $workHour->source === 'tracker';
+
+        if ($isTracked) {
+            $validated['hours'] = $workHour->hours;
+        } else {
+            if ((int) $validated['hours'] === 0 && (int) $validated['minutes'] === 0) {
+                return back()->withErrors(['hours' => 'Please enter at least some time.']);
+            }
+            $validated['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
         }
 
-        $validated['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
         unset($validated['minutes']);
         $workHour->update($validated);
 
