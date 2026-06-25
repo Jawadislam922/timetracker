@@ -558,10 +558,23 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                 </div>
 
                                 {isTracked && (
-                                    <p className="-mt-4 mb-6 text-xs text-slate-500">
-                                        🔒 This time was recorded by the desktop tracker, so the hours are
-                                        locked. You can still edit the description, client, and work type.
-                                    </p>
+                                    <div className="-mt-4 mb-6 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                        <p className="font-semibold">🔒 Tracked time can't be edited here.</p>
+                                        <p className="mt-1 text-amber-700">
+                                            These hours always reflect what the desktop tracker measured. To
+                                            correct them (e.g. time tracked on the wrong client, or time you
+                                            didn't actually work), open the <span className="font-semibold">Timeline</span> for
+                                            this day and <span className="font-semibold">delete the relevant screenshots</span> —
+                                            that removes that slice of tracked time everywhere. You can still
+                                            edit the description, client, and work type here.
+                                        </p>
+                                        <Link
+                                            href={route('timeline.index', { user_id: workHour.user_id, date: workHour.date })}
+                                            className="mt-1.5 inline-block font-semibold text-amber-900 underline"
+                                        >
+                                            Open this day in the Timeline →
+                                        </Link>
+                                    </div>
                                 )}
 
                                 {/* Total Time Display */}
