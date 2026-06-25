@@ -332,8 +332,8 @@ class WorkHourController extends Controller
             'windowSlots' => $workHour->windows
                 ->sortBy('start_at')
                 ->map(fn ($w) => [
-                    'start' => $w->start_at->format('H:i'),
-                    'end' => $w->end_at->format('H:i'),
+                    'start' => $w->start_at->format('H:i:s'),
+                    'end' => $w->end_at->format('H:i:s'),
                 ])
                 ->values(),
             'trackers' => $trackers,

@@ -3,7 +3,6 @@ import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
-import TimeSelect from '../Components/TimeSelect';
 
 export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
     const form = useForm({
@@ -49,11 +48,19 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
     }, [form.data.date]);
 
     // --- Window row helpers ---------------------------------------------------
+    // Window times are stored as full 'HH:MM:SS' so a gap's exact seconds
+    // (e.g. 07:58:15) survive — otherwise a chip filled to 07:58 would land
+    // before the real gap start and the server would reject it.
+    const secondsOf = (t) => {
+        if (!t) return null;
+        const [h = 0, m = 0, s = 0] = t.split(':').map(Number);
+        return h * 3600 + m * 60 + s;
+    };
     const minutesBetween = (start, end) => {
-        if (!start || !end) return 0;
-        const [sh, sm] = start.split(':').map(Number);
-        const [eh, em] = end.split(':').map(Number);
-        return (eh * 60 + em) - (sh * 60 + sm);
+        const a = secondsOf(start);
+        const b = secondsOf(end);
+        if (a === null || b === null) return 0;
+        return Math.round((b - a) / 60);
     };
     const totalMinutes = (form.data.windows || []).reduce(
         (acc, w) => acc + Math.max(0, minutesBetween(w.start, w.end)), 0,
@@ -253,8 +260,8 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
             client_id: data.client_id,
             tracker: data.tracker,
             windows: windows.map((w) => ({
-                start_at: `${data.date}T${w.start}:00`,
-                end_at: `${data.date}T${w.end}:00`,
+                start_at: `${data.date}T${w.start}`,
+                end_at: `${data.date}T${w.end}`,
             })),
         }));
 
@@ -733,7 +740,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                                     <button
                                                         key={i}
                                                         type="button"
-                                                        onClick={() => addWindow(g.start, g.end)}
+                                                        onClick={() => addWindow((g.start_at || '').slice(11, 19), (g.end_at || '').slice(11, 19))}
                                                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
                                                         title="Add this gap as a time window"
                                                     >
@@ -753,31 +760,35 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                         {(form.data.windows || []).map((w, i) => {
                                             const mins = minutesBetween(w.start, w.end);
                                             const invalid = w.start && w.end && mins <= 0;
+                                            const serverError = form.errors[`windows.${i}.start_at`] || form.errors[`windows.${i}.end_at`];
                                             return (
-                                                <div key={i} className="flex flex-wrap items-center gap-2">
-                                                    <TimeSelect
-                                                        value={w.start}
-                                                        onChange={(v) => updateWindow(i, 'start', v)}
-                                                        placeholder="Start"
-                                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                                                    />
-                                                    <span className="text-slate-400">→</span>
-                                                    <TimeSelect
-                                                        value={w.end}
-                                                        onChange={(v) => updateWindow(i, 'end', v)}
-                                                        placeholder="End"
-                                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                                                    />
-                                                    <span className={`text-xs ${invalid ? 'text-red-600' : 'text-slate-500'}`}>
-                                                        {w.start && w.end ? (invalid ? 'ends before it starts' : fmtMins(Math.max(0, mins))) : ''}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeWindow(i)}
-                                                        className="ml-auto rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
-                                                    >
-                                                        Remove
-                                                    </button>
+                                                <div key={i}>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <input
+                                                            type="time"
+                                                            value={w.start ? w.start.slice(0, 5) : ''}
+                                                            onChange={(e) => updateWindow(i, 'start', e.target.value ? `${e.target.value}:00` : '')}
+                                                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                                                        />
+                                                        <span className="text-slate-400">→</span>
+                                                        <input
+                                                            type="time"
+                                                            value={w.end ? w.end.slice(0, 5) : ''}
+                                                            onChange={(e) => updateWindow(i, 'end', e.target.value ? `${e.target.value}:00` : '')}
+                                                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                                                        />
+                                                        <span className={`text-xs ${invalid ? 'text-red-600' : 'text-slate-500'}`}>
+                                                            {w.start && w.end ? (invalid ? 'ends before it starts' : fmtMins(Math.max(0, mins))) : ''}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeWindow(i)}
+                                                            className="ml-auto rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                    {serverError && <p className="mt-1 text-xs text-red-600">{serverError}</p>}
                                                 </div>
                                             );
                                         })}

@@ -70,6 +70,30 @@ class WorkHourWindowsTest extends TestCase
         $this->assertSame(2, $wh->windows()->count());
     }
 
+    public function test_window_at_an_exact_sub_minute_gap_boundary_saves(): void
+    {
+        // A tracked session ending at 10:00:30 leaves a gap that starts at
+        // 10:00:30 — the form now fills the chip with those exact seconds, so a
+        // window beginning at 10:00:30 must be accepted (the old minute-rounded
+        // 10:00:00 landed before the gap and was wrongly rejected).
+        $user = $this->inOfficeUser();
+        TrackingSession::create([
+            'user_id' => $user->id, 'client_uuid' => 'uuid-sec',
+            'started_at' => Carbon::parse('2026-06-20 09:00:00', 'Asia/Karachi'),
+            'stopped_at' => Carbon::parse('2026-06-20 10:00:30', 'Asia/Karachi'),
+            'total_seconds' => 3630, 'status' => 'stopped', 'source' => 'desktop',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('work-hours.store'), $this->payload([
+                'windows' => [['start_at' => '2026-06-20T10:00:30', 'end_at' => '2026-06-20T11:00:30']],
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame(1, WorkHour::where('user_id', $user->id)->count());
+        $this->assertSame(1, WorkHour::where('user_id', $user->id)->first()->windows()->count());
+    }
+
     public function test_window_overlapping_a_tracked_session_is_rejected(): void
     {
         $user = $this->inOfficeUser();
