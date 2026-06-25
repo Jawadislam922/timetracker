@@ -44,6 +44,7 @@ function init() {
       activity_percent INTEGER,
       keyboard_count INTEGER,
       mouse_count INTEGER,
+      mouse_clicks INTEGER,
       active_app TEXT,
       active_window_title TEXT,
       url_domain TEXT,
@@ -58,6 +59,7 @@ function init() {
       captured_at TEXT NOT NULL,
       keyboard_count INTEGER NOT NULL DEFAULT 0,
       mouse_count INTEGER NOT NULL DEFAULT 0,
+      mouse_clicks INTEGER NOT NULL DEFAULT 0,
       idle_seconds INTEGER NOT NULL DEFAULT 0,
       active_app TEXT,
       active_window_title TEXT,
@@ -82,6 +84,13 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_activity_session ON pending_activity_samples(tracking_session_id);
   `);
 
+  // Back-fill mouse_clicks for queue DBs created by an app version before this
+  // column existed (CREATE TABLE IF NOT EXISTS won't add it). ALTER throws if
+  // the column is already there — that's the "already migrated" case, ignore.
+  for (const table of ['pending_screenshots', 'pending_activity_samples']) {
+    try { db.exec(`ALTER TABLE ${table} ADD COLUMN mouse_clicks INTEGER`); } catch { /* already exists */ }
+  }
+
   return db;
 }
 
@@ -89,8 +98,8 @@ function enqueueScreenshot(row) {
   init();
   const stmt = db.prepare(`
     INSERT INTO pending_screenshots
-      (tracking_session_id, captured_at, image_path, activity_percent, keyboard_count, mouse_count, active_app, active_window_title, url_domain)
-    VALUES (@tracking_session_id, @captured_at, @image_path, @activity_percent, @keyboard_count, @mouse_count, @active_app, @active_window_title, @url_domain)
+      (tracking_session_id, captured_at, image_path, activity_percent, keyboard_count, mouse_count, mouse_clicks, active_app, active_window_title, url_domain)
+    VALUES (@tracking_session_id, @captured_at, @image_path, @activity_percent, @keyboard_count, @mouse_count, @mouse_clicks, @active_app, @active_window_title, @url_domain)
   `);
   return stmt.run(row).lastInsertRowid;
 }
@@ -99,8 +108,8 @@ function enqueueActivitySample(row) {
   init();
   const stmt = db.prepare(`
     INSERT INTO pending_activity_samples
-      (tracking_session_id, captured_at, keyboard_count, mouse_count, idle_seconds, active_app, active_window_title, url_domain)
-    VALUES (@tracking_session_id, @captured_at, @keyboard_count, @mouse_count, @idle_seconds, @active_app, @active_window_title, @url_domain)
+      (tracking_session_id, captured_at, keyboard_count, mouse_count, mouse_clicks, idle_seconds, active_app, active_window_title, url_domain)
+    VALUES (@tracking_session_id, @captured_at, @keyboard_count, @mouse_count, @mouse_clicks, @idle_seconds, @active_app, @active_window_title, @url_domain)
   `);
   return stmt.run(row).lastInsertRowid;
 }

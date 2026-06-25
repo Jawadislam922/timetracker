@@ -201,7 +201,7 @@ class TimelineController extends Controller
         $samples = TrackingActivitySample::whereIn('tracking_session_id', $sessionIds)
             ->whereBetween('captured_at', [$rangeStart, $rangeEnd])
             ->orderBy('captured_at')
-            ->get(['id', 'tracking_session_id', 'captured_at', 'keyboard_count', 'mouse_count', 'idle_seconds', 'active_app', 'url_domain']);
+            ->get(['id', 'tracking_session_id', 'captured_at', 'keyboard_count', 'mouse_count', 'mouse_clicks', 'idle_seconds', 'active_app', 'url_domain']);
 
         $samplesBySession = $samples->groupBy('tracking_session_id');
         $sampleIntervalSeconds = MonitoringSetting::current()->activity_sample_interval_seconds ?: 60;
@@ -617,6 +617,12 @@ class TimelineController extends Controller
     /** Build a single Timeline block payload (whole session, or one segment). */
     private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, ?Carbon $blockEnd, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey): array
     {
+        // Honest keystrokes + real clicks per screenshot, summed from the
+        // per-minute samples in each shot's window (see screenshotInput).
+        $inputByShot = $canViewScreenshots
+            ? $this->screenshotInput($rows, $samples, $blockStart ?? $session->started_at)
+            : [];
+
         return [
             'id' => $session->id,
             'client_name' => $session->client?->name,
@@ -643,6 +649,8 @@ class TimelineController extends Controller
                     'thumbnail_url' => $s->thumbnail_url,
                     'image_url' => $s->image_url,
                     'activity_percent' => (int) $s->activity_percent,
+                    'keystrokes' => $inputByShot[$s->id]['keystrokes'] ?? 0,
+                    'clicks' => $inputByShot[$s->id]['clicks'] ?? 0,
                     'active_app' => $s->active_app,
                     'active_window_title' => $s->active_window_title,
                     'url_domain' => $s->url_domain,
@@ -656,6 +664,44 @@ class TimelineController extends Controller
             // (jiggler)? Never cuts time — just flags for a human to check.
             'automation' => InputPattern::suspectedAutomation($samples, (int) $session->activity_percent),
         ];
+    }
+
+    /**
+     * Keystrokes + real mouse clicks for each screenshot, summed from the
+     * per-minute activity samples in the window since the previous shot. The
+     * count stored on a screenshot itself only covers the last ~minute (the
+     * desktop resets the counter every sample), so aggregating the samples for
+     * the shot's interval gives an honest figure for the period it represents.
+     *
+     * @return array<int, array{keystrokes: int, clicks: int}>
+     */
+    private function screenshotInput(Collection $rows, Collection $samples, ?Carbon $blockStart): array
+    {
+        $shots = $rows->filter(fn (TrackingScreenshot $s) => $s->captured_at)
+            ->sortBy(fn (TrackingScreenshot $s) => $s->captured_at->getTimestamp())
+            ->values();
+
+        $out = [];
+        $prev = $blockStart;
+        foreach ($shots as $shot) {
+            $until = $shot->captured_at;
+            $keys = 0;
+            $clicks = 0;
+            foreach ($samples as $smp) {
+                $t = $smp->captured_at;
+                if (! $t) {
+                    continue;
+                }
+                if (($prev === null || $t->greaterThan($prev)) && $t->lessThanOrEqualTo($until)) {
+                    $keys += (int) $smp->keyboard_count;
+                    $clicks += (int) ($smp->mouse_clicks ?? 0);
+                }
+            }
+            $out[$shot->id] = ['keystrokes' => $keys, 'clicks' => $clicks];
+            $prev = $until;
+        }
+
+        return $out;
     }
 
     private function inDaySeconds(TrackingSession $session, Carbon $dayStart, Carbon $dayEnd): int

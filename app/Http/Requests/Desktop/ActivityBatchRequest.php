@@ -19,6 +19,7 @@ class ActivityBatchRequest extends FormRequest
             'samples.*.captured_at' => ['required', 'date'],
             'samples.*.keyboard_count' => ['nullable', 'integer', 'min:0'],
             'samples.*.mouse_count' => ['nullable', 'integer', 'min:0'],
+            'samples.*.mouse_clicks' => ['nullable', 'integer', 'min:0'],
             'samples.*.idle_seconds' => ['nullable', 'integer', 'min:0'],
             'samples.*.active_app' => ['nullable', 'string', 'max:255'],
             'samples.*.active_window_title' => ['nullable', 'string', 'max:255'],

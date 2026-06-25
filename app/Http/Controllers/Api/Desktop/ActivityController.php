@@ -27,6 +27,7 @@ class ActivityController extends Controller
             'captured_at' => BusinessTime::fromClient($sample['captured_at']),
             'keyboard_count' => $sample['keyboard_count'] ?? 0,
             'mouse_count' => $sample['mouse_count'] ?? 0,
+            'mouse_clicks' => $sample['mouse_clicks'] ?? 0,
             'idle_seconds' => $sample['idle_seconds'] ?? 0,
             'active_app' => $sample['active_app'] ?? null,
             'active_window_title' => $sample['active_window_title'] ?? null,

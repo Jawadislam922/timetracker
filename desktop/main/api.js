@@ -170,6 +170,7 @@ async function uploadScreenshot(localPath, payload) {
   if (payload.activity_percent != null) form.append('activity_percent', String(payload.activity_percent));
   if (payload.keyboard_count != null) form.append('keyboard_count', String(payload.keyboard_count));
   if (payload.mouse_count != null) form.append('mouse_count', String(payload.mouse_count));
+  if (payload.mouse_clicks != null) form.append('mouse_clicks', String(payload.mouse_clicks));
   if (payload.active_app) form.append('active_app', payload.active_app);
   if (payload.active_window_title) form.append('active_window_title', payload.active_window_title);
   if (payload.url_domain) form.append('url_domain', payload.url_domain);

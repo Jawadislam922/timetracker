@@ -23,6 +23,7 @@ class TrackingScreenshot extends Model
         'activity_percent',
         'keyboard_count',
         'mouse_count',
+        'mouse_clicks',
         'active_app',
         'active_window_title',
         'url_domain',
@@ -39,6 +40,7 @@ class TrackingScreenshot extends Model
         'activity_percent' => 'integer',
         'keyboard_count' => 'integer',
         'mouse_count' => 'integer',
+        'mouse_clicks' => 'integer',
     ];
 
     public function trackingSession()

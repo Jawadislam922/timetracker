@@ -59,6 +59,7 @@ class ScreenshotController extends Controller
             'activity_percent' => $data['activity_percent'] ?? 0,
             'keyboard_count' => $data['keyboard_count'] ?? 0,
             'mouse_count' => $data['mouse_count'] ?? 0,
+            'mouse_clicks' => $data['mouse_clicks'] ?? 0,
             'active_app' => $data['active_app'] ?? null,
             'active_window_title' => $data['active_window_title'] ?? null,
             'url_domain' => WebDomain::normalize($data['url_domain'] ?? null),

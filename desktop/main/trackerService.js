@@ -24,13 +24,6 @@ const SCREENSHOT_BATCH = 10;
 // times, then discarded so it can never jam the queue (owner's call: retry a
 // while, then discard). With per-employee queues this should be near-zero.
 const MAX_ATTEMPTS = 25;
-// Worked time counts a second only when the user has had input within this
-// many seconds. Past it, the second is treated as idle and NOT counted, so
-// idle time never inflates the tracked total — the clock simply stops while
-// you're away and resumes the moment you move. Kept short on purpose ("a few
-// seconds' grace") so stepping away stops the clock quickly, independent of the
-// longer auto-pause that also stops screenshots.
-const IDLE_GRACE_SECONDS = 20;
 
 class Tracker extends EventEmitter {
   constructor() {
@@ -139,19 +132,32 @@ class Tracker extends EventEmitter {
   }
 
   /**
-   * Once a second, count the second as worked ONLY if the user has had input
-   * within IDLE_GRACE_SECONDS. Idle seconds are simply never added, so the
-   * tracked total can never include idle time — the clock stops while you're
-   * away and resumes the instant you move. A lightweight 'tick' event keeps the
-   * renderer's live clock in step without rebuilding the full status each
-   * second.
+   * Once a second, count the second as worked while the session is running and
+   * not paused. Short idle (reading, calls, reviewing) is NOT trimmed here —
+   * the ONLY thing that stops the clock is the auto-pause below, which fires
+   * once idle passes the configured threshold. So quiet stretches under that
+   * threshold count as worked time and simply show as a lower activity %,
+   * instead of silently vanishing from the total. A lightweight 'tick' event
+   * keeps the renderer's live clock in step without rebuilding the full status.
    */
   _tickActive() {
     if (!this.session || this.session.paused_at_ms) return;
-    if (activityService.getSystemIdleSeconds() < IDLE_GRACE_SECONDS) {
-      this.session.frozen_seconds += 1;
-      this.session.total_seconds = this.session.frozen_seconds;
-      this.emit('tick', this.session.frozen_seconds);
+
+    this.session.frozen_seconds += 1;
+    this.session.total_seconds = this.session.frozen_seconds;
+    this.emit('tick', this.session.frozen_seconds);
+
+    // Auto-pause is the sole time-cutter: when the user has been idle past the
+    // configured threshold, freeze the timer and stop screenshots until they're
+    // back. Checked every second so "3 min" really pauses at ~3 min (the old
+    // sample-interval check could lag up to a minute). Auto-resumes on activity
+    // via _sampleActivity. autoPauseMin = 0 disables it (clock runs to stop).
+    const autoPauseMin = Number(this.settings.auto_pause_minutes || 0);
+    if (autoPauseMin > 0 && activityService.getSystemIdleSeconds() >= autoPauseMin * 60) {
+      this._pauseSession(
+        `Auto-paused after ${autoPauseMin} min of inactivity. Tracking resumes when you're back.`,
+        { pauseReason: 'idle' },
+      );
     }
   }
 
@@ -440,6 +446,7 @@ class Tracker extends EventEmitter {
       captured_at: capturedAt,
       keyboard_count: snap.keyboard_count,
       mouse_count: snap.mouse_count,
+      mouse_clicks: snap.mouse_clicks,
       idle_seconds: snap.idle_seconds,
       active_app: winInfo.active_app,
       active_window_title: winInfo.active_window_title,
@@ -450,22 +457,8 @@ class Tracker extends EventEmitter {
     const pct = activityService.computeActivityPercent(snap);
     this.session.activity_percent = Math.round((this.session.activity_percent * 0.7) + (pct * 0.3));
 
-    // Auto-pause: freeze the timer when idle exceeds the configured threshold.
-    // The session stays open; we resume automatically when the user is active
-    // again. (Different from stop, which ends the session entirely.)
-    // `snap.idle_seconds` is clamped to the sample interval, so it can never
-    // reach a multi-minute threshold; use the raw system idle clock here.
-    const autoPauseMin = Number(this.settings.auto_pause_minutes || 0);
-    if (autoPauseMin > 0 && activityService.getSystemIdleSeconds() >= autoPauseMin * 60) {
-      // Idle seconds are already uncounted by _tickActive, so this longer
-      // auto-pause exists only to STOP SCREENSHOTS and show a paused state
-      // during a sustained absence. Auto-resumes when the user returns.
-      this._pauseSession(
-        `Auto-paused after ${autoPauseMin} min of inactivity. Tracking resumes when you're back.`,
-        { pauseReason: 'idle' },
-      );
-      return;
-    }
+    // Auto-pause now lives in _tickActive (checked every second). The sampler
+    // only records activity and auto-resumes an idle-pause on input (above).
 
     this.emit('changed', this.status());
   }
@@ -495,6 +488,7 @@ class Tracker extends EventEmitter {
       activity_percent: this.session.activity_percent,
       keyboard_count: snap.keyboard_count,
       mouse_count: snap.mouse_count,
+      mouse_clicks: snap.mouse_clicks,
       active_app: winInfo.active_app,
       active_window_title: winInfo.active_window_title,
       url_domain: winInfo.url_domain,
@@ -589,6 +583,7 @@ class Tracker extends EventEmitter {
                 captured_at: r.captured_at,
                 keyboard_count: r.keyboard_count,
                 mouse_count: r.mouse_count,
+                mouse_clicks: r.mouse_clicks,
                 idle_seconds: r.idle_seconds,
                 active_app: r.active_app,
                 active_window_title: r.active_window_title,
@@ -616,6 +611,7 @@ class Tracker extends EventEmitter {
             activity_percent: s.activity_percent,
             keyboard_count: s.keyboard_count,
             mouse_count: s.mouse_count,
+            mouse_clicks: s.mouse_clicks,
             active_app: s.active_app,
             active_window_title: s.active_window_title,
             url_domain: s.url_domain,

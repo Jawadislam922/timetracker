@@ -246,6 +246,13 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = fals
                     {shot.url_domain || shot.active_app}
                 </figcaption>
             )}
+            <div
+                className="flex items-center gap-3 border-t border-slate-800 bg-slate-900 px-2 py-1 text-[11px] text-slate-300"
+                title="Keystrokes and real mouse clicks recorded during this screenshot's period"
+            >
+                <span><span className="text-slate-500">Keys</span> {shot.keystrokes ?? 0}</span>
+                <span><span className="text-slate-500">Clicks</span> {shot.clicks ?? 0}</span>
+            </div>
             {(canManage || canDelete) && (
                 <div className="absolute right-1 top-7 flex gap-1">
                     {canManage && (

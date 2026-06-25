@@ -20,6 +20,7 @@ class UploadScreenshotRequest extends FormRequest
             'activity_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'keyboard_count' => ['nullable', 'integer', 'min:0'],
             'mouse_count' => ['nullable', 'integer', 'min:0'],
+            'mouse_clicks' => ['nullable', 'integer', 'min:0'],
             'active_app' => ['nullable', 'string', 'max:255'],
             'active_window_title' => ['nullable', 'string', 'max:255'],
             'url_domain' => ['nullable', 'string', 'max:255'],

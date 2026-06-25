@@ -15,6 +15,7 @@ class TrackingActivitySample extends Model
         'captured_at',
         'keyboard_count',
         'mouse_count',
+        'mouse_clicks',
         'idle_seconds',
         'active_app',
         'active_window_title',
@@ -25,6 +26,7 @@ class TrackingActivitySample extends Model
         'captured_at' => 'datetime',
         'keyboard_count' => 'integer',
         'mouse_count' => 'integer',
+        'mouse_clicks' => 'integer',
         'idle_seconds' => 'integer',
     ];
 

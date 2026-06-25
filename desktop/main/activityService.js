@@ -25,7 +25,13 @@ const winUrl = require('./winUrl');
 
 let started = false;
 let keyboardCount = 0;
+// mouseCount = ALL pointer events (move + down + wheel). It's dominated by
+// movement, so it's the right signal for "is the user active?" but useless as a
+// "clicks" number. mouseClicks counts ONLY button presses (mousedown), so the
+// UI can show a true keystrokes/clicks pair instead of a misleading movement
+// total.
 let mouseCount = 0;
+let mouseClicks = 0;
 let lastResetAt = Date.now();
 
 function start() {
@@ -33,7 +39,7 @@ function start() {
   try {
     uIOhook.on('keydown', () => { keyboardCount += 1; });
     uIOhook.on('mousemove', () => { mouseCount += 1; });
-    uIOhook.on('mousedown', () => { mouseCount += 1; });
+    uIOhook.on('mousedown', () => { mouseCount += 1; mouseClicks += 1; });
     uIOhook.on('wheel', () => { mouseCount += 1; });
     uIOhook.start();
     started = true;
@@ -52,6 +58,7 @@ function stop() {
     started = false;
     keyboardCount = 0;
     mouseCount = 0;
+    mouseClicks = 0;
   }
 }
 
@@ -64,11 +71,13 @@ function snapshotAndReset() {
   const snapshot = {
     keyboard_count: keyboardCount,
     mouse_count: mouseCount,
+    mouse_clicks: mouseClicks,
     idle_seconds: Math.min(idleSeconds, elapsedSec),
     elapsed_seconds: elapsedSec,
   };
   keyboardCount = 0;
   mouseCount = 0;
+  mouseClicks = 0;
   lastResetAt = now;
   return snapshot;
 }

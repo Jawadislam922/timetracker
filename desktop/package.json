@@ -1,12 +1,13 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
     "name": "Spark"
   },
+  "_comment_version": "0.4.0 — idle counts to the auto-pause threshold only (no 20s cut); real mouse-click counting",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
@@ -39,12 +40,17 @@
     "concurrently": "^9.0.1",
     "electron": "^31.0.0",
     "electron-builder": "^25.1.8",
+    "node-gyp": "^13.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.4.8",
     "wait-on": "^8.0.1"
   },
+  "overrides": {
+    "node-gyp": "^13.0.0"
+  },
   "build": {
+    "npmRebuild": false,
     "appId": "com.spark.timetracker.desktop",
     "productName": "SA Track",
     "publish": [
