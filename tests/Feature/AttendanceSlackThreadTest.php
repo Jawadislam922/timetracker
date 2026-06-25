@@ -86,6 +86,27 @@ class AttendanceSlackThreadTest extends TestCase
         $this->assertStringContainsString('clocked out', $fake->calls[3]['text']);
     }
 
+    public function test_backfills_the_parent_when_clock_in_predates_the_feature(): void
+    {
+        $this->enableAttendancePosts();
+        $fake = $this->fakeSlack();
+        $notifier = $this->app->make(AttendanceClockNotifier::class);
+        $user = User::factory()->create(['name' => 'Momal']);
+
+        // The clock-in exists but was never announced (no slack_thread_ts) —
+        // e.g. they clocked in before threading was switched on.
+        $this->entry($user, 'clock_in', '09:00');
+
+        // Their break fires later: back-fill the clock-in parent, then reply.
+        $notifier->notify($this->entry($user, 'break_start', '13:24'));
+
+        $this->assertCount(2, $fake->calls);
+        $this->assertNull($fake->calls[0]['thread_ts']);
+        $this->assertStringContainsString('clocked in', $fake->calls[0]['text']);
+        $this->assertSame('ts-1', $fake->calls[1]['thread_ts']);
+        $this->assertStringContainsString('started a break', $fake->calls[1]['text']);
+    }
+
     public function test_nothing_posts_when_the_toggle_is_off(): void
     {
         // Channel set but posts disabled (the default).

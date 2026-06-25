@@ -42,42 +42,70 @@ class AttendanceClockNotifier
             return;
         }
 
-        $enabled = match ($entry->action_type) {
-            'clock_in', 'break_start', 'break_end' => (bool) $settings->slack_clockin_enabled,
-            'clock_out' => (bool) $settings->slack_clockout_enabled,
+        $clockinOn = (bool) $settings->slack_clockin_enabled;
+        $clockoutOn = (bool) $settings->slack_clockout_enabled;
+
+        $eventEnabled = match ($entry->action_type) {
+            'clock_in', 'break_start', 'break_end' => $clockinOn,
+            'clock_out' => $clockoutOn,
             default => false,
         };
-        if (! $enabled) {
+        if (! $eventEnabled) {
             return;
         }
 
-        $threadTs = $this->dayThreadTs($entry);
-        $text = $this->message($entry);
+        // Make sure the day's thread parent (the first clock-in) exists. If the
+        // person clocked in before threading was switched on, their clock-in has
+        // no thread ts yet — back-fill it now so this event (and the rest of
+        // their day) threads under one message instead of spamming the channel.
+        $parentTs = $this->ensureThreadParent($entry, $channel, $clockinOn);
 
-        // First clock-in of the day with no thread yet → start the thread.
-        if ($entry->action_type === 'clock_in' && $threadTs === null) {
-            $ts = $this->slack->postToThread($channel, $text);
-            if ($ts) {
-                $entry->forceFill(['slack_thread_ts' => $ts])->saveQuietly();
-            }
-
+        // If this very entry IS the day's first clock-in, ensureThreadParent
+        // already posted it as the parent — nothing more to do.
+        $first = $this->firstClockIn($entry);
+        if ($first && $entry->id === $first->id) {
             return;
         }
 
-        // Everything else replies under the day's thread (or posts standalone if
-        // the parent clock-in wasn't announced, e.g. clock-in posts disabled).
-        $this->slack->postToThread($channel, $text, $threadTs);
+        // Otherwise post as a reply under the day's thread (standalone only if
+        // there's genuinely no clock-in to anchor to).
+        $this->slack->postToThread($channel, $this->message($entry), $parentTs);
     }
 
-    /** The parent Slack message ts for this user's attendance day, if any. */
-    private function dayThreadTs(TimeEntry $entry): ?string
+    /**
+     * Return the day's thread anchor (the first clock-in's Slack ts), posting
+     * the parent clock-in message now if it hasn't been announced yet.
+     */
+    private function ensureThreadParent(TimeEntry $entry, string $channel, bool $clockinOn): ?string
+    {
+        $first = $this->firstClockIn($entry);
+        if (! $first) {
+            return null; // no clock-in to anchor to
+        }
+        if ($first->slack_thread_ts) {
+            return $first->slack_thread_ts;
+        }
+        if (! $clockinOn) {
+            return null; // can't announce the parent clock-in while it's disabled
+        }
+
+        $ts = $this->slack->postToThread($channel, $this->message($first));
+        if ($ts) {
+            $first->forceFill(['slack_thread_ts' => $ts])->saveQuietly();
+        }
+
+        return $ts;
+    }
+
+    /** The day's earliest clock-in for this user (the thread parent). */
+    private function firstClockIn(TimeEntry $entry): ?TimeEntry
     {
         return TimeEntry::query()
             ->where('user_id', $entry->user_id)
             ->where('action_date', $entry->action_date)
-            ->whereNotNull('slack_thread_ts')
+            ->where('action_type', 'clock_in')
             ->orderBy('action_timestamp')->orderBy('id')
-            ->value('slack_thread_ts');
+            ->first();
     }
 
     private function message(TimeEntry $entry): string
