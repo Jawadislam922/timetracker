@@ -34,7 +34,7 @@ export default function UserForm({
         shift_start_time: user?.shift_start_time || '',
         shift_grace_minutes: user?.shift_grace_minutes ?? 15,
         shift_hours: user?.shift_hours ?? '',
-        clockout_reminder_hours: user?.clockout_reminder_hours ?? '',
+        clockout_reminder_minutes: user?.clockout_reminder_minutes ?? '',
         role: user?.role || 'member',
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
@@ -199,15 +199,15 @@ export default function UserForm({
                                 className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
                             />
                         </Field>
-                        <Field label="Clock-out reminder after (hours)" hint="When the Slack “still working?” check pings this person. Blank = team default." error={form.errors.clockout_reminder_hours}>
+                        <Field label="Clock-out reminder (minutes after shift)" hint="How long after their shift ends to send the Slack “still working?” nudge — e.g. 20 means 20 min past an 8h shift. Blank = right at shift end." error={form.errors.clockout_reminder_minutes}>
                             <input
                                 type="number"
                                 min={0}
-                                max={24}
-                                step={0.5}
-                                value={form.data.clockout_reminder_hours}
-                                onChange={(event) => form.setData('clockout_reminder_hours', event.target.value)}
-                                placeholder="e.g. 8"
+                                max={240}
+                                step={5}
+                                value={form.data.clockout_reminder_minutes}
+                                onChange={(event) => form.setData('clockout_reminder_minutes', event.target.value)}
+                                placeholder="e.g. 20"
                                 className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
                             />
                         </Field>

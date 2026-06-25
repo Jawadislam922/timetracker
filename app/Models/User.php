@@ -32,7 +32,7 @@ class User extends Authenticatable
         'shift_start_time',
         'shift_grace_minutes',
         'shift_hours',
-        'clockout_reminder_hours',
+        'clockout_reminder_minutes',
         'allow_multiple_devices',
     ];
 
@@ -71,7 +71,7 @@ class User extends Authenticatable
         'shift_start_time' => 'datetime:H:i',
         'shift_grace_minutes' => 'integer',
         'shift_hours' => 'decimal:2',
-        'clockout_reminder_hours' => 'decimal:2',
+        'clockout_reminder_minutes' => 'integer',
         'allow_multiple_devices' => 'boolean',
     ];
 

@@ -165,7 +165,7 @@ class UserController extends Controller
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
-            'clockout_reminder_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
+            'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
         ];
 
@@ -197,7 +197,7 @@ class UserController extends Controller
             'shift_start_time' => $validated['shift_start_time'] ?? null,
             'shift_grace_minutes' => $validated['shift_grace_minutes'] ?? 15,
             'shift_hours' => $validated['shift_hours'] ?? null,
-            'clockout_reminder_hours' => $validated['clockout_reminder_hours'] ?? null,
+            'clockout_reminder_minutes' => $validated['clockout_reminder_minutes'] ?? null,
             'allow_multiple_devices' => $request->user()->isSuperAdmin()
                 ? (bool) ($validated['allow_multiple_devices'] ?? false)
                 : false,
@@ -232,7 +232,7 @@ class UserController extends Controller
                 'shift_start_time' => $user->shift_start_time?->format('H:i'),
                 'shift_grace_minutes' => $user->shift_grace_minutes ?? 15,
                 'shift_hours' => $user->shift_hours !== null ? (float) $user->shift_hours : '',
-                'clockout_reminder_hours' => $user->clockout_reminder_hours !== null ? (float) $user->clockout_reminder_hours : '',
+                'clockout_reminder_minutes' => $user->clockout_reminder_minutes !== null ? (int) $user->clockout_reminder_minutes : '',
                 'allow_multiple_devices' => (bool) $user->allow_multiple_devices,
                 'return_to' => request('return_to'),
             ],
@@ -260,7 +260,7 @@ class UserController extends Controller
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
-            'clockout_reminder_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
+            'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
         ];
 
@@ -287,7 +287,7 @@ class UserController extends Controller
         $user->shift_start_time = $validated['shift_start_time'] ?? null;
         $user->shift_grace_minutes = $validated['shift_grace_minutes'] ?? 15;
         $user->shift_hours = $validated['shift_hours'] ?? null;
-        $user->clockout_reminder_hours = $validated['clockout_reminder_hours'] ?? null;
+        $user->clockout_reminder_minutes = $validated['clockout_reminder_minutes'] ?? null;
 
         if ($request->user()->isSuperAdmin()) {
             $user->role = $validated['role'] ?? 'member';
@@ -445,7 +445,7 @@ class UserController extends Controller
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
-            'clockout_reminder_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
+            'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'set_designation' => ['boolean'],
             'designation' => ['nullable', 'string', 'max:255'],
             'permissions_add' => ['array'],
@@ -476,8 +476,8 @@ class UserController extends Controller
                 if (array_key_exists('shift_hours', $data)) {
                     $user->shift_hours = $data['shift_hours'];
                 }
-                if (array_key_exists('clockout_reminder_hours', $data)) {
-                    $user->clockout_reminder_hours = $data['clockout_reminder_hours'];
+                if (array_key_exists('clockout_reminder_minutes', $data)) {
+                    $user->clockout_reminder_minutes = $data['clockout_reminder_minutes'];
                 }
             }
 

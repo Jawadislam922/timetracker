@@ -10,9 +10,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The "still working?" nudge must never fire before the team default (or the
- * person's shift length). A stray low clockout_reminder_hours can't auto-close
- * someone an hour after they clock in.
+ * The "still working?" nudge fires only after the person's full shift has
+ * elapsed, plus an optional minutes buffer (clockout_reminder_minutes). A 12h
+ * shift is never pinged before 12h.
  */
 class StillWorkingThresholdTest extends TestCase
 {
@@ -47,41 +47,60 @@ class StillWorkingThresholdTest extends TestCase
         ]));
     }
 
-    public function test_low_reminder_does_not_nudge_before_the_floor(): void
+    private function runAt(string $now): SlackBotService
     {
         config(['services.attendance.prompt_after_hours' => 8]);
-        Carbon::setTestNow(Carbon::parse('2026-06-25 18:00:00', 'Asia/Karachi'));
-        $fake = $this->fakeSlack();
+        Carbon::setTestNow(Carbon::parse($now, 'Asia/Karachi'));
 
-        // Stray 1h reminder, 8h shift — clocked in only 2h ago.
-        $user = User::factory()->create([
-            'clockout_reminder_hours' => 1.0,
-            'shift_hours' => 8.0,
-            'shift_start_time' => '16:00:00',
-        ]);
-        $this->clockIn($user, Carbon::parse('2026-06-25 16:00:00', 'Asia/Karachi'));
+        return $this->fakeSlack();
+    }
+
+    public function test_no_nudge_before_the_shift_has_elapsed(): void
+    {
+        $fake = $this->runAt('2026-06-25 18:00:00');
+        $user = User::factory()->create(['shift_hours' => 8.0, 'clockout_reminder_minutes' => null]);
+        $this->clockIn($user, Carbon::parse('2026-06-25 16:00:00', 'Asia/Karachi')); // 2h in
 
         $this->artisan('attendance:still-working-check')->assertExitCode(0);
 
-        $this->assertSame(0, $fake->dms, 'must not nudge only 2h in when the floor is 8h');
-
+        $this->assertSame(0, $fake->dms);
         Carbon::setTestNow();
     }
 
-    public function test_genuinely_overdue_clock_in_still_gets_nudged(): void
+    public function test_twelve_hour_shift_is_not_pinged_before_twelve_hours(): void
     {
-        config(['services.attendance.prompt_after_hours' => 8]);
-        Carbon::setTestNow(Carbon::parse('2026-06-25 18:00:00', 'Asia/Karachi'));
-        $fake = $this->fakeSlack();
-
-        // Clocked in 9h ago, past the 8h floor, not actively tracking.
-        $user = User::factory()->create(['clockout_reminder_hours' => 1.0]);
-        $this->clockIn($user, Carbon::parse('2026-06-25 09:00:00', 'Asia/Karachi'));
+        $fake = $this->runAt('2026-06-25 18:00:00');
+        $user = User::factory()->create(['shift_hours' => 12.0]);
+        $this->clockIn($user, Carbon::parse('2026-06-25 09:00:00', 'Asia/Karachi')); // 9h in
 
         $this->artisan('attendance:still-working-check')->assertExitCode(0);
 
-        $this->assertSame(1, $fake->dms, 'should still nudge once genuinely overdue');
+        $this->assertSame(0, $fake->dms, 'a 12h shift must not be nudged at 9h');
+        Carbon::setTestNow();
+    }
 
+    public function test_minutes_buffer_delays_the_nudge_past_shift_end(): void
+    {
+        // 8h shift + 20 min buffer = nudge only after 8h20m.
+        $fake = $this->runAt('2026-06-25 18:00:00');
+        $user = User::factory()->create(['shift_hours' => 8.0, 'clockout_reminder_minutes' => 20]);
+        $this->clockIn($user, Carbon::parse('2026-06-25 09:50:00', 'Asia/Karachi')); // 8h10m in
+
+        $this->artisan('attendance:still-working-check')->assertExitCode(0);
+
+        $this->assertSame(0, $fake->dms, 'still within the 8h20m window');
+        Carbon::setTestNow();
+    }
+
+    public function test_nudges_once_past_shift_plus_buffer(): void
+    {
+        $fake = $this->runAt('2026-06-25 18:00:00');
+        $user = User::factory()->create(['shift_hours' => 8.0, 'clockout_reminder_minutes' => 20]);
+        $this->clockIn($user, Carbon::parse('2026-06-25 09:30:00', 'Asia/Karachi')); // 8h30m in
+
+        $this->artisan('attendance:still-working-check')->assertExitCode(0);
+
+        $this->assertSame(1, $fake->dms, 'past 8h20m — should nudge');
         Carbon::setTestNow();
     }
 }
