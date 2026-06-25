@@ -8,6 +8,7 @@ use App\Models\TrackingAuditLog;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\User;
+use App\Models\WorkHourWindow;
 use App\Support\BusinessTime;
 use App\Support\InputPattern;
 use App\Support\WebDomain;
@@ -257,10 +258,23 @@ class TimelineController extends Controller
             ])
             ->values();
 
+        // Manually-added time (clock windows the user filled into their open
+        // gaps). These are display-only here — shown as "Manually added" blocks
+        // and a blue band, but NOT folded into totals.day / client_breakdown,
+        // which stay pure tracker time (Reports already reports manual hours
+        // separately, so adding them here would double-count).
+        $manualWindows = $this->manualWindowsForDay($targetUser, $rangeStart, $rangeEnd);
+        $manualBlocks = $this->manualBlocks($manualWindows, $dayStart, $dayEnd, $dateKey);
+        $manualBandIntervals = $this->manualBandIntervals($manualWindows, $dayStart, $dayEnd);
+
+        $allBlocks = $sessionPayload->concat($manualBlocks)
+            ->sortBy(fn (array $b) => $b['started_at'])
+            ->values();
+
         return [
             'date' => $date->toDateString(),
             'day_label' => $date->translatedFormat('l, F j'),
-            'sessions' => $sessionPayload,
+            'sessions' => $allBlocks,
             'totals' => [
                 'day' => (int) $sessions->sum(fn (TrackingSession $s) => $this->inDaySeconds($s, $dayStart, $dayEnd)),
                 'week' => $totalsScope($weekStart, $weekEnd),
@@ -274,9 +288,99 @@ class TimelineController extends Controller
             'client_breakdown' => $clientBreakdown,
             'day_apps' => $this->rollupBy($samples, 'active_app', $sampleIntervalSeconds, 10),
             'day_urls' => $this->rollupBy($samples, 'url_domain', $sampleIntervalSeconds, 10),
-            'activity_bands' => $this->activityBands($samples, $sampleIntervalSeconds),
+            'activity_bands' => $this->activityBands($samples, $sampleIntervalSeconds, $manualBandIntervals),
             'sample_interval_seconds' => (int) $sampleIntervalSeconds,
         ];
+    }
+
+    /**
+     * Manual clock windows (any non-tracker source) overlapping the day, with
+     * just enough of their parent entry to label a Timeline block.
+     */
+    private function manualWindowsForDay(User $targetUser, Carbon $rangeStart, Carbon $rangeEnd): Collection
+    {
+        return WorkHourWindow::query()
+            ->whereHas('workHour', function ($q) use ($targetUser) {
+                $q->where('user_id', $targetUser->id)
+                    ->where(fn ($s) => $s->whereNull('source')->orWhere('source', '!=', 'tracker'));
+            })
+            ->with(['workHour:id,client_id,work_type,description,tracker', 'workHour.client:id,name'])
+            ->where('start_at', '<=', $rangeEnd)
+            ->where('end_at', '>=', $rangeStart)
+            ->orderBy('start_at')
+            ->get();
+    }
+
+    /**
+     * Build "Manually added" Timeline blocks from manual windows. Shaped like a
+     * session block (so the front-end renders them in the same list) but with no
+     * screenshots/activity and a string id that can't collide with a session id.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function manualBlocks(Collection $manualWindows, Carbon $dayStart, Carbon $dayEnd, string $dateKey): array
+    {
+        $blocks = [];
+        foreach ($manualWindows as $w) {
+            $start = $w->start_at;
+            $end = $w->end_at;
+            if (! $start || ! $end) {
+                continue;
+            }
+            $clampStart = $start->greaterThan($dayStart) ? $start->copy() : $dayStart->copy();
+            $clampEnd = $end->lessThan($dayEnd) ? $end->copy() : $dayEnd->copy();
+            $seconds = max(0, (int) $clampStart->diffInSeconds($clampEnd));
+            $wh = $w->workHour;
+
+            $blocks[] = [
+                'id' => 'manual-'.$w->id,
+                'client_name' => $wh?->client?->name,
+                'task_note' => $wh?->description,
+                'work_type' => $wh?->work_type,
+                'tracker' => $wh?->tracker,
+                'started_at' => $clampStart->toIso8601String(),
+                'stopped_at' => $clampEnd->toIso8601String(),
+                'total_seconds' => $seconds,
+                'day_seconds' => $seconds,
+                'started_before_day' => BusinessTime::dateKey($start) < $dateKey,
+                'continues_after_day' => BusinessTime::dateKey($end) > $dateKey,
+                'is_resumed' => false,
+                'idle_before_seconds' => 0,
+                'activity_percent' => 0,
+                'status' => 'manual',
+                'is_manual' => true,
+                'screenshots' => [],
+                'screenshot_count_hidden' => 0,
+                'apps' => [],
+                'urls' => [],
+                'automation' => null,
+            ];
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Manual windows clamped to the day as [startCarbon, endCarbon] pairs, for
+     * shading the 24h band.
+     *
+     * @return array<int, array{0: Carbon, 1: Carbon}>
+     */
+    private function manualBandIntervals(Collection $manualWindows, Carbon $dayStart, Carbon $dayEnd): array
+    {
+        $out = [];
+        foreach ($manualWindows as $w) {
+            if (! $w->start_at || ! $w->end_at) {
+                continue;
+            }
+            $start = $w->start_at->greaterThan($dayStart) ? $w->start_at->copy() : $dayStart->copy();
+            $end = $w->end_at->lessThan($dayEnd) ? $w->end_at->copy() : $dayEnd->copy();
+            if ($end->greaterThan($start)) {
+                $out[] = [$start, $end];
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -311,7 +415,7 @@ class TimelineController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function activityBands(Collection $samples, int $intervalSeconds): array
+    private function activityBands(Collection $samples, int $intervalSeconds, array $manualIntervals = []): array
     {
         $slotsPerHour = 10;        // 6-minute slots
         $totalSlots = 24 * $slotsPerHour;
@@ -334,11 +438,13 @@ class TimelineController extends Controller
         }
 
         $out = [];
+        $occupied = [];
         foreach ($bands as $i => $counts) {
             if ($counts['active'] === 0 && $counts['idle'] === 0) {
                 continue;
             }
             $state = $counts['active'] >= $counts['idle'] ? 'active' : 'idle';
+            $occupied[$i] = true;
             $out[] = [
                 'slot' => $i,
                 'hour' => (int) floor($i / $slotsPerHour),
@@ -346,6 +452,27 @@ class TimelineController extends Controller
                 'state' => $state,
                 'samples' => $counts['active'] + $counts['idle'],
             ];
+        }
+
+        // Overlay manual windows in blue. Real tracked samples win on conflict
+        // (a slot already active/idle is left as-is); validation makes overlaps
+        // impossible anyway, this is just defensive.
+        foreach ($manualIntervals as [$ms, $me]) {
+            $startSlot = $ms->hour * $slotsPerHour + (int) floor($ms->minute / (60 / $slotsPerHour));
+            $endSlot = (int) ceil(($me->hour * 60 + $me->minute) / (60 / $slotsPerHour));
+            for ($i = max(0, $startSlot); $i < $endSlot && $i < $totalSlots; $i++) {
+                if (isset($occupied[$i])) {
+                    continue;
+                }
+                $occupied[$i] = true;
+                $out[] = [
+                    'slot' => $i,
+                    'hour' => (int) floor($i / $slotsPerHour),
+                    'minute' => ($i % $slotsPerHour) * (60 / $slotsPerHour),
+                    'state' => 'manual',
+                    'samples' => 0,
+                ];
+            }
         }
 
         return $out;
@@ -505,6 +632,7 @@ class TimelineController extends Controller
             'started_before_day' => $isFirst && BusinessTime::dateKey($session->started_at) < $dateKey,
             'continues_after_day' => $isLast && $session->stopped_at !== null && BusinessTime::dateKey($session->stopped_at) > $dateKey,
             'is_resumed' => $isResumed,
+            'is_manual' => false,
             'idle_before_seconds' => $idleBefore,
             'activity_percent' => (int) $session->activity_percent,
             'status' => $session->status,

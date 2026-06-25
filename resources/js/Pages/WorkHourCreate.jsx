@@ -13,8 +13,10 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
             });
             return pakistanDate; // Returns YYYY-MM-DD format
         })(),
-        hours: '0',
-        minutes: '0',
+        // Manual time is logged as one-or-more clock windows the user fills into
+        // their open gaps; total hours = sum of the windows. Each window is
+        // { start: 'HH:MM', end: 'HH:MM' }.
+        windows: [],
         description: '',
         work_type: '', // Explicitly empty - no default selection
         client_id: '',
@@ -22,6 +24,53 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         trackerSearch: '',
         clientSearch: '',
     });
+
+    // The day's open gaps (in-office minus tracked minus breaks minus existing
+    // manual), fetched for the selected date so the user can click to fill them.
+    const [gaps, setGaps] = useState([]);
+    const [gapsLoading, setGapsLoading] = useState(false);
+    const [gapsError, setGapsError] = useState('');
+
+    useEffect(() => {
+        if (!form.data.date) return;
+        let cancelled = false;
+        setGapsLoading(true);
+        setGapsError('');
+        fetch(route('work-hours.gaps', { date: form.data.date }), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        })
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((data) => { if (!cancelled) setGaps(data.gaps || []); })
+            .catch(() => { if (!cancelled) { setGaps([]); setGapsError('Could not load your in-office time for this day.'); } })
+            .finally(() => { if (!cancelled) setGapsLoading(false); });
+        return () => { cancelled = true; };
+    }, [form.data.date]);
+
+    // --- Window row helpers ---------------------------------------------------
+    const minutesBetween = (start, end) => {
+        if (!start || !end) return 0;
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        return (eh * 60 + em) - (sh * 60 + sm);
+    };
+    const totalMinutes = (form.data.windows || []).reduce(
+        (acc, w) => acc + Math.max(0, minutesBetween(w.start, w.end)), 0,
+    );
+    const addWindow = (start = '', end = '') =>
+        form.setData('windows', [...(form.data.windows || []), { start, end }]);
+    const removeWindow = (i) =>
+        form.setData('windows', (form.data.windows || []).filter((_, idx) => idx !== i));
+    const updateWindow = (i, key, val) =>
+        form.setData('windows', (form.data.windows || []).map((w, idx) => (idx === i ? { ...w, [key]: val } : w)));
+    const fmtMins = (m) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+    const to12 = (hhmm) => {
+        if (!hhmm) return '--';
+        const [h, m] = hhmm.split(':').map(Number);
+        const ap = h < 12 ? 'AM' : 'PM';
+        const hr = h % 12 === 0 ? 12 : h % 12;
+        return `${hr}:${String(m).padStart(2, '0')} ${ap}`;
+    };
     
     // Get filtered clients based on work type
     const getFilteredClients = () => {
@@ -106,11 +155,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
     }, []);
 
     // Helper function to check if time is entered
-    const hasTimeEntered = () => {
-        const hours = Number(form.data.hours) || 0;
-        const minutes = Number(form.data.minutes) || 0;
-        return hours > 0 || minutes > 0;
-    };
+    const hasTimeEntered = () => totalMinutes > 0;
 
     // Validate client selection
     const validateClient = (searchValue) => {
@@ -172,19 +217,21 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        
+
         // Check if work type is selected
         if (!form.data.work_type) {
             alert('Please select a work type.');
             return;
         }
-        
-        // Check if at least some time is entered
-        const hours = Number(form.data.hours) || 0;
-        const minutes = Number(form.data.minutes) || 0;
-        
-        if (hours === 0 && minutes === 0) {
-            alert('Please enter at least some time (hours or minutes).');
+
+        // At least one valid window (start before end).
+        const windows = (form.data.windows || []).filter((w) => w.start && w.end);
+        if (windows.length === 0) {
+            alert('Please add at least one time window (start and end).');
+            return;
+        }
+        if (windows.some((w) => minutesBetween(w.start, w.end) <= 0)) {
+            alert('Each time window must end after it starts.');
             return;
         }
 
@@ -195,14 +242,22 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         if (!isClientValid || !isTrackerValid) {
             return; // Don't submit if validation fails
         }
-        
-        // Calculate total hours as decimal (hours + minutes/60)
-        const totalHours = hours + (minutes / 60);
-        
-        // Round to 2 decimal places for precision
-        const roundedTotal = Math.round(totalHours * 100) / 100;
-        
-        form.post(route('work-hours.store', { hours: roundedTotal }));
+
+        // Build the windows payload as naive datetimes (no Z) so the server
+        // parses them in app timezone, matching how every datetime is stored.
+        form.transform((data) => ({
+            date: data.date,
+            description: data.description,
+            work_type: data.work_type,
+            client_id: data.client_id,
+            tracker: data.tracker,
+            windows: windows.map((w) => ({
+                start_at: `${data.date}T${w.start}:00`,
+                end_at: `${data.date}T${w.end}:00`,
+            })),
+        }));
+
+        form.post(route('work-hours.store'));
     };
 
     const workTypes = [
@@ -386,13 +441,13 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                             {form.data.work_type ? (
                                                 <>
                                                     <span className="font-semibold text-emerald-700">Required fields:</span> {' '}
-                                                    {form.data.work_type === 'tracker' && "Client Name, Profile Name, Description, Hours/Minutes, Tracking Date"}
-                                                    {form.data.work_type === 'manual' && "Client Name, Profile Name, Description, Hours/Minutes, Tracking Date"}
-                                                    {form.data.work_type === 'fixed' && "Client Name, Profile Name, Description, Hours/Minutes, Tracking Date"}
-                                                    {form.data.work_type === 'outside_of_upwork' && "Client Name, Description, Hours/Minutes, Tracking Date"}
-                                                    {form.data.work_type === 'office_work' && "Description, Hours/Minutes, Tracking Date"}
-                                                    {form.data.work_type === 'test_task' && "Description, Hours/Minutes, Tracking Date"}
-                                                    {form.data.work_type === 'upwork_bidding' && "Description, Hours/Minutes, Tracking Date"}
+                                                    {form.data.work_type === 'tracker' && "Client Name, Profile Name, Description, Time windows, Tracking Date"}
+                                                    {form.data.work_type === 'manual' && "Client Name, Profile Name, Description, Time windows, Tracking Date"}
+                                                    {form.data.work_type === 'fixed' && "Client Name, Profile Name, Description, Time windows, Tracking Date"}
+                                                    {form.data.work_type === 'outside_of_upwork' && "Client Name, Description, Time windows, Tracking Date"}
+                                                    {form.data.work_type === 'office_work' && "Description, Time windows, Tracking Date"}
+                                                    {form.data.work_type === 'test_task' && "Description, Time windows, Tracking Date"}
+                                                    {form.data.work_type === 'upwork_bidding' && "Description, Time windows, Tracking Date"}
                                                 </>
                                             ) : (
                                                 <span className="text-slate-500 italic">Please select a work type to see required fields</span>
@@ -626,117 +681,114 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                    {/* Date */}
-                                    <div>
-                                        <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-3 font-semibold">
-                                            Date <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="date"
-                                            id="date"
-                                            value={form.data.date}
-                                            onChange={(e) => form.setData('date', e.target.value)}
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900"
-                                            required
-                                        />
-                                    </div>
-
-                                    {/* Hours */}
-                                    <div>
-                                        <label htmlFor="hours" className="block text-sm font-medium text-slate-700 mb-3 font-semibold">
-                                            Hours <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            id="hours"
-                                            min="0"
-                                            max="24"
-                                            step="1"
-                                            value={form.data.hours}
-                                            onChange={(e) => {
-                                                let value = parseInt(e.target.value);
-                                                if (isNaN(value) || value < 0) value = 0;
-                                                if (value > 24) value = 24;
-                                                form.setData('hours', value.toString());
-                                            }}
-                                            onWheel={(e) => e.target.blur()}
-                                            onFocus={(e) => e.target.addEventListener('wheel', (event) => event.preventDefault(), { passive: false })}
-                                            onBlur={(e) => e.target.removeEventListener('wheel', (event) => event.preventDefault())}
-                                            placeholder="Enter hours (0-24)"
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
-                                            required
-                                        />
-                                    </div>
-
-                                    {/* Minutes */}
-                                    <div>
-                                        <label htmlFor="minutes" className="block text-sm font-medium text-slate-700 mb-3 font-semibold">
-                                            Minutes
-                                        </label>
-                                        <input
-                                            type="number"
-                                            id="minutes"
-                                            min="0"
-                                            max="59"
-                                            step="1"
-                                            value={form.data.minutes}
-                                            onChange={(e) => {
-                                                let value = parseInt(e.target.value);
-                                                if (isNaN(value) || value < 0) value = 0;
-                                                if (value > 59) value = 59;
-                                                form.setData('minutes', value.toString());
-                                            }}
-                                            onWheel={(e) => e.target.blur()}
-                                            onFocus={(e) => e.target.addEventListener('wheel', (event) => event.preventDefault(), { passive: false })}
-                                            onBlur={(e) => e.target.removeEventListener('wheel', (event) => event.preventDefault())}
-                                            placeholder="Enter minutes (0-59)"
-                                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 text-slate-900 placeholder-slate-400"
-                                        />
-                                    </div>
+                                {/* Date */}
+                                <div className="mb-6">
+                                    <label htmlFor="date" className="block text-sm font-medium text-slate-700 mb-3 font-semibold">
+                                        Date <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="date"
+                                        value={form.data.date}
+                                        onChange={(e) => form.setData('date', e.target.value)}
+                                        className="w-full md:w-1/3 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:border-emerald-500 focus:ring-emerald-200 text-slate-900"
+                                        required
+                                    />
                                 </div>
 
-                                {/* Total Time Display */}
-                                <div className={`mb-6 p-4 backdrop-blur-xl rounded-xl border ${
-                                    hasTimeEntered() 
-                                        ? 'bg-gradient-to-r from-green-500/20 to-blue-500/20 border-slate-200' 
-                                        : 'bg-gradient-to-r from-red-500/20 to-orange-500/20 border-red-400/30'
-                                }`}>
-                                    <div className="flex items-center gap-3">
-                                        <svg className={`w-6 h-6 ${hasTimeEntered() ? 'text-blue-500' : 'text-red-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <div className="text-slate-900">
-                                            <div className={`text-sm font-medium ${hasTimeEntered() ? 'text-slate-600' : 'text-red-600'}`}>
-                                                Total Time {!hasTimeEntered() && '(Required)'}
-                                            </div>
-                                            <div className={`text-2xl font-bold ${!hasTimeEntered() ? 'text-red-600' : 'text-slate-900'}`}>
-                                                {(() => {
-                                                    const hours = parseInt(form.data.hours) || 0;
-                                                    const minutes = parseInt(form.data.minutes) || 0;
-                                                    if (hours === 0 && minutes === 0) {
-                                                        return 'No time entered';
-                                                    }
-                                                    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                                                })()}
-                                            </div>
-                                            {hasTimeEntered() && (
-                                                <div className="text-xs text-slate-500">
-                                                    {(() => {
-                                                        const hours = parseInt(form.data.hours) || 0;
-                                                        const minutes = parseInt(form.data.minutes) || 0;
-                                                        const totalHours = hours + (minutes / 60);
-                                                        return `${totalHours.toFixed(2)} decimal hours`;
-                                                    })()}
-                                                </div>
-                                            )}
-                                            {!hasTimeEntered() && (
-                                                <div className="text-xs text-red-600">
-                                                    Please enter at least some hours or minutes
-                                                </div>
-                                            )}
-                                        </div>
+                                {/* Time windows + open-gap picker */}
+                                <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <h3 className="text-sm font-bold text-slate-900">
+                                            Time windows <span className="text-red-500">*</span>
+                                        </h3>
+                                        <span className={`text-sm font-semibold ${hasTimeEntered() ? 'text-slate-700' : 'text-red-600'}`}>
+                                            Total: {fmtMins(totalMinutes)}
+                                        </span>
                                     </div>
+                                    <p className="mb-3 text-xs text-slate-600">
+                                        Add the exact clock windows you worked (e.g. 2:30 PM – 3:30 PM). Pick from your open
+                                        gaps below, or add a window manually. Windows can&apos;t overlap tracked time, breaks,
+                                        or another entry, and must fall within your in-office hours.
+                                    </p>
+
+                                    {/* Open gaps */}
+                                    <div className="mb-4">
+                                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                            Open gaps for {form.data.date}
+                                        </p>
+                                        {gapsLoading ? (
+                                            <p className="text-xs text-slate-500">Loading your in-office time…</p>
+                                        ) : gapsError ? (
+                                            <p className="text-xs text-red-600">{gapsError}</p>
+                                        ) : gaps.length === 0 ? (
+                                            <p className="text-xs text-slate-500">
+                                                No open gaps — you have no untracked in-office time on this day. A clock-in and
+                                                clock-out are needed; if you forgot to clock in, ask an admin to set your times.
+                                            </p>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-2">
+                                                {gaps.map((g, i) => (
+                                                    <button
+                                                        key={i}
+                                                        type="button"
+                                                        onClick={() => addWindow(g.start, g.end)}
+                                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                                                        title="Add this gap as a time window"
+                                                    >
+                                                        {to12(g.start)} – {to12(g.end)}
+                                                        <span className="text-emerald-600">({fmtMins(g.minutes)}) · fill</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Window rows */}
+                                    <div className="space-y-2">
+                                        {(form.data.windows || []).length === 0 && (
+                                            <p className="text-xs text-slate-500">No windows added yet.</p>
+                                        )}
+                                        {(form.data.windows || []).map((w, i) => {
+                                            const mins = minutesBetween(w.start, w.end);
+                                            const invalid = w.start && w.end && mins <= 0;
+                                            return (
+                                                <div key={i} className="flex flex-wrap items-center gap-2">
+                                                    <input
+                                                        type="time"
+                                                        value={w.start}
+                                                        onChange={(e) => updateWindow(i, 'start', e.target.value)}
+                                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                                                    />
+                                                    <span className="text-slate-400">→</span>
+                                                    <input
+                                                        type="time"
+                                                        value={w.end}
+                                                        onChange={(e) => updateWindow(i, 'end', e.target.value)}
+                                                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                                                    />
+                                                    <span className={`text-xs ${invalid ? 'text-red-600' : 'text-slate-500'}`}>
+                                                        {w.start && w.end ? (invalid ? 'ends before it starts' : fmtMins(Math.max(0, mins))) : ''}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeWindow(i)}
+                                                        className="ml-auto rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => addWindow()}
+                                        className="mt-3 inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                    >
+                                        + Add window
+                                    </button>
                                 </div>
 
                                 {/* Description */}

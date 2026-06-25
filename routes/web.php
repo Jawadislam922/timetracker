@@ -137,6 +137,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/employee-attendance/slack', [EmployeeAttendanceController::class, 'sendSlack'])->middleware('permission:reports.send_slack')->name('employee-attendance.slack');
     Route::get('/employee-attendance/export', [EmployeeAttendanceController::class, 'export'])->middleware('permission:attendance.export')->name('employee-attendance.export');
 
+    // Admins with the granular permission can correct an employee's clock
+    // in/out times (e.g. they forgot to clock) — every edit is audited.
+    Route::get('/employee-attendance/day-entries', [EmployeeAttendanceController::class, 'getDayEntries'])->middleware('permission:attendance.edit_times')->name('employee-attendance.day-entries');
+    Route::post('/employee-attendance/clock-times', [EmployeeAttendanceController::class, 'updateClockTimes'])->middleware('permission:attendance.edit_times')->name('employee-attendance.clock-times');
+
+    // Open untracked gaps for the manual-entry form (in-office − tracked −
+    // breaks − existing manual). Registered before the resource route so the
+    // literal /work-hours/gaps path isn't captured as a {work_hour} id.
+    Route::get('/work-hours/gaps', [WorkHourController::class, 'gaps'])->name('work-hours.gaps');
+
     Route::resource('work-hours', WorkHourController::class)->except(['show']);
     Route::get('/work-hours-export', [WorkHourController::class, 'exportPersonal'])->name('work-hours.export-personal');
     Route::post('/work-hours/bulk-delete', [WorkHourController::class, 'bulkDelete'])->name('work-hours.bulk-delete');

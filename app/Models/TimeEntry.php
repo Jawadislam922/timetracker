@@ -60,6 +60,12 @@ class TimeEntry extends Model
                 return;
             }
 
+            // Don't echo admin clock-time corrections — these are back-dated
+            // edits, not someone actually clocking in/out right now.
+            if (str_starts_with((string) $entry->notes, 'Admin clock edit')) {
+                return;
+            }
+
             $at = $entry->action_timestamp->copy()->setTimezone('Asia/Karachi');
             $name = $entry->user->name ?? 'Someone';
             $message = $entry->action_type === 'clock_in'

@@ -60,6 +60,10 @@ return [
                 'label' => 'Mark attendance manually',
                 'description' => 'Can override attendance statuses (Present, Leave, Holiday…) and schedule company-wide marks. Every change is recorded in the audit history.',
             ],
+            'attendance.edit_times' => [
+                'label' => 'Edit clock-in/out times',
+                'description' => 'Can set or correct an employee\'s clock-in, clock-out, and break times for a day — e.g. when they forgot to clock in. This creates the in-office window so the employee can then log their own manual time. Every edit is recorded in the audit history.',
+            ],
             'attendance.export' => [
                 'label' => 'Export attendance',
                 'description' => 'Allows downloading attendance data as CSV.',

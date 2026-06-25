@@ -132,6 +132,7 @@ class User extends Authenticatable
             'clients.import_export' => ['clients.view'],
             'profiles.manage' => ['profiles.view'],
             'attendance.manual_mark' => ['attendance.view'],
+            'attendance.edit_times' => ['attendance.view'],
             'attendance.export' => ['attendance.view'],
             'reports.export' => ['reports.view'],
             'reports.send_slack' => ['reports.view'],

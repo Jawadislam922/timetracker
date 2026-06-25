@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\ManualAttendanceAudit;
 use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
+use App\Models\TrackingAuditLog;
 use App\Models\User;
 use App\Services\AttendanceSlackReportService;
+use App\Support\TimeClockRules;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -38,9 +40,161 @@ class EmployeeAttendanceController extends Controller
         return Inertia::render('EmployeeAttendance', [
             'serverDate' => Carbon::today('Asia/Karachi')->toDateString(),
             'canManuallyMarkAttendance' => $this->canManuallyMarkAttendance(request()->user()),
+            'canEditClockTimes' => $this->canEditClockTimes(request()->user()),
             'canSendAttendanceSlack' => request()->user()?->hasPermission('reports.send_slack') ?? false,
             'slackConfigured' => app(AttendanceSlackReportService::class)->configured(),
         ]);
+    }
+
+    /**
+     * Existing clock times for one employee/day, as Asia/Karachi H:i strings,
+     * to prefill the "Edit clock times" dialog. Gated by attendance.edit_times.
+     */
+    public function getDayEntries(Request $request)
+    {
+        abort_unless($this->canEditClockTimes($request->user()), 403);
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'date' => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        $entries = TimeEntry::forUser($validated['user_id'])
+            ->forDate($validated['date'])
+            ->orderBy('action_timestamp')->orderBy('id')
+            ->get();
+
+        $tz = 'Asia/Karachi';
+        $fmt = fn (?TimeEntry $e) => $e
+            ? Carbon::parse($e->action_timestamp)->setTimezone($tz)->format('H:i')
+            : null;
+
+        return response()->json([
+            'clock_in' => $fmt($entries->firstWhere('action_type', 'clock_in')),
+            'clock_out' => $fmt($entries->where('action_type', 'clock_out')->last()),
+            'break_start' => $fmt($entries->firstWhere('action_type', 'break_start')),
+            'break_end' => $fmt($entries->where('action_type', 'break_end')->last()),
+        ]);
+    }
+
+    /**
+     * Set/correct an employee's clock-in, clock-out, and break times for a day
+     * (e.g. they forgot to clock in). Replaces the day's TimeEntry rows with a
+     * single legal clock_in → [break_start → break_end] → clock_out sequence,
+     * audits the change, and suppresses the attendance Slack post. Gated by
+     * attendance.edit_times. The in-office hours used everywhere derive live
+     * from these rows, so every dependent number updates automatically.
+     */
+    public function updateClockTimes(Request $request)
+    {
+        $actor = $request->user();
+        abort_unless($this->canEditClockTimes($actor), 403);
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'date' => ['required', 'date_format:Y-m-d'],
+            'clock_in' => ['nullable', 'date_format:H:i'],
+            'clock_out' => ['nullable', 'date_format:H:i'],
+            'break_start' => ['nullable', 'date_format:H:i'],
+            'break_end' => ['nullable', 'date_format:H:i'],
+            'reason' => ['required', 'string', 'max:255'],
+        ]);
+
+        $target = User::findOrFail($validated['user_id']);
+        $tz = 'Asia/Karachi';
+        $date = $validated['date'];
+        $mk = fn (string $hi) => Carbon::createFromFormat('Y-m-d H:i', "{$date} {$hi}", $tz);
+
+        // Provided actions in canonical clock order. break/clock_out that land
+        // chronologically at/before clock_in are pushed to the next day so an
+        // overnight shift stays monotonic.
+        $order = ['clock_in', 'break_start', 'break_end', 'clock_out'];
+        $provided = array_values(array_filter($order, fn ($a) => ! empty($validated[$a])));
+
+        if (empty($provided)) {
+            throw ValidationException::withMessages(['clock_in' => 'Enter at least a clock-in time.']);
+        }
+
+        $timestamps = [];
+        $prev = null;
+        foreach ($provided as $action) {
+            $ts = $mk($validated[$action]);
+            if ($prev) {
+                while ($ts->lessThanOrEqualTo($prev)) {
+                    $ts->addDay();
+                }
+            }
+            $timestamps[$action] = $ts;
+            $prev = $ts;
+        }
+
+        // Sequence must be legal (must start clock_in; break pairs; etc.).
+        $last = null;
+        foreach ($provided as $action) {
+            if (! TimeClockRules::isAllowed($last, $action)) {
+                throw ValidationException::withMessages([
+                    $action => TimeClockRules::blockedMessage($last, $action),
+                ]);
+            }
+            $last = $action;
+        }
+
+        // Every timestamp must bucket to the edited day for this user's shift,
+        // so an edit can't silently corrupt a neighbouring attendance day.
+        foreach ($timestamps as $action => $ts) {
+            if ($target->attendanceDateFor($ts) !== $date) {
+                throw ValidationException::withMessages([
+                    $action => "That time falls on a different attendance day for this employee's shift. Please check the date and time.",
+                ]);
+            }
+        }
+
+        // Capture the old times for the audit before replacing the day.
+        $oldEntries = TimeEntry::forUser($target->id)->forDate($date)
+            ->orderBy('action_timestamp')->orderBy('id')->get();
+        $fmtOld = fn (?TimeEntry $e) => $e
+            ? Carbon::parse($e->action_timestamp)->setTimezone($tz)->format('H:i')
+            : null;
+        $oldValue = [
+            'clock_in' => $fmtOld($oldEntries->firstWhere('action_type', 'clock_in')),
+            'clock_out' => $fmtOld($oldEntries->where('action_type', 'clock_out')->last()),
+            'break_start' => $fmtOld($oldEntries->firstWhere('action_type', 'break_start')),
+            'break_end' => $fmtOld($oldEntries->where('action_type', 'break_end')->last()),
+        ];
+
+        DB::transaction(function () use ($target, $date, $timestamps, $provided) {
+            // Replace-the-day: simpler than patching rows and guarantees a legal
+            // sequence. The 'Admin clock edit' note suppresses the Slack post.
+            TimeEntry::forUser($target->id)->forDate($date)->delete();
+            foreach ($provided as $action) {
+                $ts = $timestamps[$action];
+                TimeEntry::create([
+                    'user_id' => $target->id,
+                    'action_type' => $action,
+                    'action_timestamp' => $ts,
+                    'action_date' => $date,
+                    'action_time' => $ts->toTimeString(),
+                    'notes' => 'Admin clock edit',
+                ]);
+            }
+        });
+
+        TrackingAuditLog::record([
+            'subject_user_id' => $target->id,
+            'actor_user_id' => $actor->id,
+            'action' => 'attendance.clock_edit',
+            'event_date' => $date,
+            'old_value' => $oldValue,
+            'new_value' => [
+                'clock_in' => $validated['clock_in'] ?? null,
+                'clock_out' => $validated['clock_out'] ?? null,
+                'break_start' => $validated['break_start'] ?? null,
+                'break_end' => $validated['break_end'] ?? null,
+            ],
+            'reason' => $validated['reason'],
+        ]);
+
+        return response()->json(['message' => 'Clock times updated.']);
     }
 
     public function getMonthlyGrid(Request $request)
@@ -917,6 +1071,11 @@ class EmployeeAttendanceController extends Controller
             $user->isSuperAdmin()
             || $user->hasPermission('attendance.manual_mark')
         );
+    }
+
+    private function canEditClockTimes(?User $user): bool
+    {
+        return (bool) $user && $user->hasPermission('attendance.edit_times');
     }
 
     private function recordManualAttendanceAudit(

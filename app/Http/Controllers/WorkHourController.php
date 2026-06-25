@@ -11,8 +11,13 @@ use App\Models\User;
 use App\Models\WorkHour;
 use App\Services\SlackReportService;
 use App\Services\TrackingSessionService;
+use App\Support\BusinessTime;
+use App\Support\DayGaps;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class WorkHourController extends Controller
@@ -233,29 +238,72 @@ class WorkHourController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    /**
+     * The day's untracked open gaps for the manual-entry form. Defaults to the
+     * signed-in user; managers (work_hours.manage_all) may pass user_id to view
+     * another person's gaps. `ignore` excludes the entry being edited so its own
+     * windows don't read as "busy".
+     */
+    public function gaps(Request $request)
     {
         $this->ensureCanCreateManual();
 
         $validated = $request->validate([
             'date' => 'required|date',
-            'hours' => 'required|integer|min:0|max:24',
-            'minutes' => 'required|integer|min:0|max:59',
-            'description' => 'required|string|max:5000',
-            'work_type' => ['required', Rule::in(self::WORK_TYPES)],
-            'client_id' => 'nullable|integer|exists:clients,id',
-            'tracker' => 'nullable|string|max:255',
+            'user_id' => 'nullable|integer|exists:users,id',
+            'ignore' => 'nullable|integer',
         ]);
 
-        if ((int) $validated['hours'] === 0 && (int) $validated['minutes'] === 0) {
-            return back()->withErrors(['hours' => 'Please enter at least some time.']);
+        $authUser = $request->user();
+        $targetUser = $authUser;
+
+        if (! empty($validated['user_id']) && (int) $validated['user_id'] !== $authUser->id) {
+            if (! $authUser->hasPermission('work_hours.manage_all')) {
+                abort(403, 'You can only view your own open gaps.');
+            }
+            $targetUser = User::findOrFail($validated['user_id']);
         }
 
-        $validated['user_id'] = $request->user()->id;
-        $validated['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
-        $validated['source'] = 'manual';
-        unset($validated['minutes']);
-        WorkHour::create($validated);
+        $date = BusinessTime::parseDate($validated['date']);
+
+        return response()->json(DayGaps::compute($targetUser, $date, $validated['ignore'] ?? null));
+    }
+
+    public function store(Request $request)
+    {
+        $this->ensureCanCreateManual();
+
+        // New shape: one-or-more clock windows the user picked from their open
+        // gaps. Legacy shape (hours + minutes) is still accepted so older
+        // clients and the lock test keep working.
+        $usesWindows = $request->has('windows');
+        $validated = $request->validate($this->manualEntryRules($usesWindows));
+
+        $user = $request->user();
+        $data = [
+            'user_id' => $user->id,
+            'date' => $validated['date'],
+            'description' => $validated['description'],
+            'work_type' => $validated['work_type'],
+            'client_id' => $validated['client_id'] ?? null,
+            'tracker' => $validated['tracker'] ?? null,
+            'source' => 'manual',
+        ];
+
+        if ($usesWindows) {
+            $windows = $this->buildAndValidateWindows($user, $validated['date'], $validated['windows'], null);
+            $data['hours'] = $this->sumWindowHours($windows);
+
+            DB::transaction(function () use ($data, $windows) {
+                $this->persistWindows(WorkHour::create($data), $windows);
+            });
+        } else {
+            if ((int) $validated['hours'] === 0 && (int) $validated['minutes'] === 0) {
+                return back()->withErrors(['hours' => 'Please enter at least some time.']);
+            }
+            $data['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
+            WorkHour::create($data);
+        }
 
         return redirect()->route('work-hours.index')
             ->with('success', 'Work hour entry created successfully.');
@@ -265,8 +313,8 @@ class WorkHourController extends Controller
     {
         $this->authorizeWorkHourAccess($workHour);
 
-        // Load the client relationship
-        $workHour->load('client');
+        // Load the client relationship + any manual clock windows to prefill.
+        $workHour->load('client', 'windows');
 
         $clients = Client::select('id', 'name')
             ->orderBy('name')
@@ -279,6 +327,15 @@ class WorkHourController extends Controller
 
         return Inertia::render('WorkHourEdit', [
             'workHour' => $workHour,
+            // Pre-format windows as Asia/Karachi H:i so the form prefills without
+            // relying on how the datetime cast serializes its timezone.
+            'windowSlots' => $workHour->windows
+                ->sortBy('start_at')
+                ->map(fn ($w) => [
+                    'start' => $w->start_at->format('H:i'),
+                    'end' => $w->end_at->format('H:i'),
+                ])
+                ->values(),
             'trackers' => $trackers,
             'clients' => $clients,
         ]);
@@ -288,37 +345,152 @@ class WorkHourController extends Controller
     {
         $this->authorizeWorkHourAccess($workHour);
 
-        $validated = $request->validate([
-            'date' => 'required|date',
-            'hours' => 'required|integer|min:0|max:24',
-            'minutes' => 'required|integer|min:0|max:59',
-            'description' => 'required|string|max:5000',
-            'work_type' => ['required', Rule::in(self::WORK_TYPES)],
-            'client_id' => 'nullable|integer|exists:clients,id',
-            'tracker' => 'nullable|string|max:255',
-        ]);
-
         // Tracker-recorded time is LOCKED: the hours always reflect what the
         // desktop tracker measured, so an entry can't be edited to show more (or
         // different) hours than were actually tracked. Description / client /
-        // work type can still be corrected; the submitted hours are ignored.
+        // work type can still be corrected; submitted hours/windows are ignored.
         // Manual entries (no tracking session) remain fully editable.
         $isTracked = $workHour->tracking_session_id !== null || $workHour->source === 'tracker';
+        $usesWindows = ! $isTracked && $request->has('windows');
+
+        $validated = $request->validate($this->manualEntryRules($usesWindows));
+
+        $data = [
+            'date' => $validated['date'],
+            'description' => $validated['description'],
+            'work_type' => $validated['work_type'],
+            'client_id' => $validated['client_id'] ?? null,
+            'tracker' => $validated['tracker'] ?? null,
+        ];
 
         if ($isTracked) {
-            $validated['hours'] = $workHour->hours;
+            $data['hours'] = $workHour->hours;
+            $workHour->update($data);
+        } elseif ($usesWindows) {
+            $owner = $workHour->user ?? User::findOrFail($workHour->user_id);
+            $windows = $this->buildAndValidateWindows($owner, $validated['date'], $validated['windows'], $workHour->id);
+            $data['hours'] = $this->sumWindowHours($windows);
+
+            DB::transaction(function () use ($workHour, $data, $windows) {
+                $workHour->update($data);
+                $this->persistWindows($workHour, $windows);
+            });
         } else {
             if ((int) $validated['hours'] === 0 && (int) $validated['minutes'] === 0) {
                 return back()->withErrors(['hours' => 'Please enter at least some time.']);
             }
-            $validated['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
+            $data['hours'] = $validated['hours'] + ($validated['minutes'] / 60);
+            // Raw-hours edits no longer derive from windows — drop any stale ones
+            // so the Timeline never shows blocks that disagree with the hours.
+            DB::transaction(function () use ($workHour, $data) {
+                $workHour->update($data);
+                $workHour->windows()->delete();
+            });
         }
-
-        unset($validated['minutes']);
-        $workHour->update($validated);
 
         return redirect()->route('work-hours.index')
             ->with('success', 'Work hour entry updated successfully.');
+    }
+
+    /**
+     * Validation rules for a manual entry in either the new window shape or the
+     * legacy hours/minutes shape.
+     */
+    private function manualEntryRules(bool $usesWindows): array
+    {
+        $rules = [
+            'date' => 'required|date',
+            'description' => 'required|string|max:5000',
+            'work_type' => ['required', Rule::in(self::WORK_TYPES)],
+            'client_id' => 'nullable|integer|exists:clients,id',
+            'tracker' => 'nullable|string|max:255',
+        ];
+
+        if ($usesWindows) {
+            $rules['windows'] = 'required|array|min:1';
+            $rules['windows.*.start_at'] = 'required|date';
+            $rules['windows.*.end_at'] = 'required|date';
+        } else {
+            $rules['hours'] = 'required|integer|min:0|max:24';
+            $rules['minutes'] = 'required|integer|min:0|max:59';
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Parse + validate submitted windows for one user/day: each must end after
+     * it starts, not overlap another submitted window, and fit entirely inside
+     * one of the user's open gaps (which already excludes tracked time, breaks,
+     * existing manual entries, and anything outside in-office hours). Returns
+     * `[['start' => Carbon, 'end' => Carbon], ...]`.
+     */
+    private function buildAndValidateWindows(User $user, string $date, array $rawWindows, ?int $ignoreWorkHourId): array
+    {
+        $tz = BusinessTime::tz();
+        $windows = [];
+
+        foreach ($rawWindows as $i => $w) {
+            $start = Carbon::parse($w['start_at'], $tz);
+            $end = Carbon::parse($w['end_at'], $tz);
+            if ($end->lessThanOrEqualTo($start)) {
+                throw ValidationException::withMessages([
+                    "windows.$i.end_at" => 'Each window must end after it starts.',
+                ]);
+            }
+            $windows[] = ['start' => $start, 'end' => $end];
+        }
+
+        // No overlap between the submitted windows themselves.
+        $sorted = $windows;
+        usort($sorted, fn ($a, $b) => $a['start']->getTimestamp() <=> $b['start']->getTimestamp());
+        for ($i = 1, $n = count($sorted); $i < $n; $i++) {
+            if ($sorted[$i]['start']->lessThan($sorted[$i - 1]['end'])) {
+                throw ValidationException::withMessages([
+                    'windows' => "Your time windows overlap each other. Please adjust them so they don't.",
+                ]);
+            }
+        }
+
+        // Each window must fit inside an open gap.
+        $gaps = collect(DayGaps::compute($user, BusinessTime::parseDate($date), $ignoreWorkHourId)['gaps'])
+            ->map(fn ($g) => [
+                'start' => Carbon::parse($g['start_at'], $tz),
+                'end' => Carbon::parse($g['end_at'], $tz),
+            ]);
+
+        foreach ($windows as $i => $w) {
+            $fits = $gaps->contains(fn ($g) => $w['start']->greaterThanOrEqualTo($g['start'])
+                && $w['end']->lessThanOrEqualTo($g['end']));
+            if (! $fits) {
+                throw ValidationException::withMessages([
+                    "windows.$i.start_at" => 'This window overlaps tracked time, a break, another entry, or falls outside your in-office hours.',
+                ]);
+            }
+        }
+
+        return $windows;
+    }
+
+    private function sumWindowHours(array $windows): float
+    {
+        $seconds = 0;
+        foreach ($windows as $w) {
+            $seconds += $w['start']->diffInSeconds($w['end']);
+        }
+
+        return round($seconds / 3600, 4);
+    }
+
+    private function persistWindows(WorkHour $workHour, array $windows): void
+    {
+        $workHour->windows()->delete();
+        foreach ($windows as $w) {
+            $workHour->windows()->create([
+                'start_at' => $w['start'],
+                'end_at' => $w['end'],
+            ]);
+        }
     }
 
     public function destroy(Request $request, WorkHour $workHour)

@@ -133,7 +133,7 @@ function HourRuler({ date, bands = [] }) {
                         key={i}
                         className={[
                             'h-full',
-                            state === 'active' ? 'bg-emerald-400' : state === 'idle' ? 'bg-amber-300' : 'bg-slate-800',
+                            state === 'active' ? 'bg-emerald-400' : state === 'idle' ? 'bg-amber-300' : state === 'manual' ? 'bg-blue-500' : 'bg-slate-800',
                         ].join(' ')}
                         title={`${Math.floor(i / SLOTS_PER_HOUR)}:${String((i % SLOTS_PER_HOUR) * (60 / SLOTS_PER_HOUR)).padStart(2, '0')} ${state}`}
                     />
@@ -149,6 +149,7 @@ function HourRuler({ date, bands = [] }) {
             <div className="flex items-center gap-3 text-[10px] text-slate-400">
                 <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-emerald-400" /> Active</span>
                 <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-amber-300" /> Idle</span>
+                <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-blue-500" /> Manually added</span>
                 <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-slate-700" /> No tracking</span>
             </div>
         </div>
@@ -293,12 +294,21 @@ function fmtDayTime(iso) {
 function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete, onRequestDeleteSession, onOpenShot }) {
     const daySeconds = session.day_seconds ?? session.total_seconds;
     const isSplit = session.started_before_day || session.continues_after_day;
+    const isManual = session.is_manual;
     return (
         <section className="space-y-3">
             <header className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                <span className={['inline-flex h-2 w-2 rounded-full', isManual ? 'bg-blue-500' : 'bg-emerald-500'].join(' ')} />
                 <span className="text-orange-400">{fmtTime(session.started_at)} - {session.stopped_at ? fmtTime(session.stopped_at) : 'now'}</span>
                 <span className="text-slate-200">• {sessionLabel(session)}</span>
+                {isManual && (
+                    <span
+                        className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-300 ring-1 ring-blue-500/30"
+                        title="Time the employee logged manually into an open gap (not tracked by the desktop app)."
+                    >
+                        Manually added
+                    </span>
+                )}
                 {session.started_before_day && (
                     <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
                         overnight · started {fmtDayTime(session.started_at)}
@@ -326,8 +336,8 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                     </span>
                 )}
                 <span className="ml-auto flex items-center gap-2 text-xs font-normal text-slate-400">
-                    {fmtHm(daySeconds)}{isSplit ? ` this day of ${fmtHm(session.total_seconds)}` : ''} · activity {session.activity_percent ?? 0}%
-                    {canDeleteScreenshots && view !== 'apps' && (session.screenshots || []).length > 0 && (
+                    {fmtHm(daySeconds)}{isSplit ? ` this day of ${fmtHm(session.total_seconds)}` : ''}{isManual ? '' : ` · activity ${session.activity_percent ?? 0}%`}
+                    {!isManual && canDeleteScreenshots && view !== 'apps' && (session.screenshots || []).length > 0 && (
                         <button
                             type="button"
                             onClick={() => onSelectSession?.(session.screenshots.map((s) => s.id))}
@@ -337,7 +347,7 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                             Select all
                         </button>
                     )}
-                    {canDeleteScreenshots && (
+                    {!isManual && canDeleteScreenshots && (
                         <button
                             type="button"
                             onClick={() => onRequestDeleteSession?.({
@@ -354,7 +364,13 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                 </span>
             </header>
 
-            {view === 'apps' ? (
+            {isManual ? (
+                <p className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-slate-300">
+                    {session.task_note
+                        ? session.task_note
+                        : 'Manually logged time — no description.'}
+                </p>
+            ) : view === 'apps' ? (
                 <div className="grid grid-cols-1 gap-4 rounded-md border border-slate-800 bg-slate-950/60 p-3 sm:grid-cols-2">
                     <div className="space-y-2">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Apps</p>

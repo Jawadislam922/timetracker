@@ -129,7 +129,7 @@ const EmployeeIdentity = ({ employee, size = 'small' }) => {
     );
 };
 
-export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAttendance = false, canSendAttendanceSlack = false, slackConfigured = false }) {
+export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAttendance = false, canEditClockTimes = false, canSendAttendanceSlack = false, slackConfigured = false }) {
     const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('attendance.export');
     const canSendSlack = canSendAttendanceSlack || auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.send_slack');
     const [activeTab, setActiveTab] = useState('monthly');
@@ -157,6 +157,11 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
     const [calendarEndDate, setCalendarEndDate] = useState(`${selectedMonth}-01`);
     const [calendarStatus, setCalendarStatus] = useState('L');
     const [calendarNote, setCalendarNote] = useState('');
+    const [showClockDialog, setShowClockDialog] = useState(false);
+    const [clockEmployee, setClockEmployee] = useState(null);
+    const [clockForm, setClockForm] = useState({ clock_in: '', clock_out: '', break_start: '', break_end: '', reason: '' });
+    const [clockLoading, setClockLoading] = useState(false);
+    const [isSavingClock, setIsSavingClock] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [expandedEmployees, setExpandedEmployees] = useState({});
@@ -220,6 +225,65 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
             showError('Unable to update attendance status.');
         } finally {
             setMarkingCell(null);
+        }
+    };
+
+    const openClockDialog = async (employee) => {
+        setClockEmployee(employee);
+        setClockForm({ clock_in: '', clock_out: '', break_start: '', break_end: '', reason: '' });
+        setShowClockDialog(true);
+        setClockLoading(true);
+        try {
+            const response = await axios.get('/employee-attendance/day-entries', {
+                params: { user_id: employee.user_id, date: selectedDate },
+            });
+            setClockForm({
+                clock_in: response.data.clock_in || '',
+                clock_out: response.data.clock_out || '',
+                break_start: response.data.break_start || '',
+                break_end: response.data.break_end || '',
+                reason: '',
+            });
+        } catch (error) {
+            console.error('Failed to load clock times:', error);
+            showError('Unable to load this employee\'s clock times.');
+        } finally {
+            setClockLoading(false);
+        }
+    };
+
+    const saveClockTimes = async () => {
+        if (!clockEmployee) return;
+        if (!clockForm.clock_in) {
+            showError('Enter at least a clock-in time.');
+            return;
+        }
+        if (!clockForm.reason.trim()) {
+            showError('Please add a reason for this change.');
+            return;
+        }
+        setIsSavingClock(true);
+        try {
+            const response = await axios.post('/employee-attendance/clock-times', {
+                user_id: clockEmployee.user_id,
+                date: selectedDate,
+                clock_in: clockForm.clock_in || null,
+                clock_out: clockForm.clock_out || null,
+                break_start: clockForm.break_start || null,
+                break_end: clockForm.break_end || null,
+                reason: clockForm.reason,
+            });
+            toast.success(response.data?.message || 'Clock times updated.');
+            setShowClockDialog(false);
+            setClockEmployee(null);
+            await fetchAttendanceData();
+        } catch (error) {
+            const message = error?.response?.data?.message
+                || Object.values(error?.response?.data?.errors || {})[0]?.[0]
+                || 'Unable to update clock times.';
+            showError(message);
+        } finally {
+            setIsSavingClock(false);
         }
     };
 
@@ -661,7 +725,21 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
                                                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.first_clock_in || '-'}</td>
                                                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.last_action_time || '-'}</td>
-                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.total_entries}</td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span>{employee.total_entries}</span>
+                                                                        {canEditClockTimes && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => openClockDialog(employee)}
+                                                                                className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:bg-blue-500/10 hover:text-blue-300"
+                                                                                title="Set or correct this employee's clock-in/out times for this day"
+                                                                            >
+                                                                                Edit times
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -744,6 +822,108 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                     </section>
                 </div>
             </div>
+
+            {showClockDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+                        <div className="mb-4 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-100">Edit clock times</h3>
+                                <p className="mt-1 text-sm text-slate-400">
+                                    {clockEmployee?.name ? `${clockEmployee.name} · ` : ''}{selectedDate}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowClockDialog(false)}
+                                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <p className="mb-4 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-slate-300">
+                            Set the employee&apos;s real clock-in and clock-out (and any break). This creates the in-office
+                            window so they can then log their own manual time. Break is optional; leave a field blank to omit
+                            it. Every change is audited.
+                        </p>
+
+                        {clockLoading ? (
+                            <p className="py-6 text-center text-sm text-slate-400">Loading current times…</p>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Clock in <span className="text-red-400">*</span></label>
+                                        <input
+                                            type="time"
+                                            value={clockForm.clock_in}
+                                            onChange={(e) => setClockForm((f) => ({ ...f, clock_in: e.target.value }))}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Clock out</label>
+                                        <input
+                                            type="time"
+                                            value={clockForm.clock_out}
+                                            onChange={(e) => setClockForm((f) => ({ ...f, clock_out: e.target.value }))}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Break start</label>
+                                        <input
+                                            type="time"
+                                            value={clockForm.break_start}
+                                            onChange={(e) => setClockForm((f) => ({ ...f, break_start: e.target.value }))}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Break end</label>
+                                        <input
+                                            type="time"
+                                            value={clockForm.break_end}
+                                            onChange={(e) => setClockForm((f) => ({ ...f, break_end: e.target.value }))}
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">Reason <span className="text-red-400">*</span></label>
+                                    <input
+                                        type="text"
+                                        value={clockForm.reason}
+                                        maxLength={255}
+                                        placeholder="e.g. Forgot to clock in; arrived 9:00, confirmed with manager"
+                                        onChange={(e) => setClockForm((f) => ({ ...f, reason: e.target.value }))}
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-600"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-6 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowClockDialog(false)}
+                                className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={saveClockTimes}
+                                disabled={isSavingClock || clockLoading}
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {isSavingClock ? 'Saving…' : 'Save clock times'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showCalendarDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
