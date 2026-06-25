@@ -3,6 +3,7 @@ import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
+import TimeSelect from '../Components/TimeSelect';
 
 export default function WorkHourEdit({ auth, workHour, windowSlots = [], trackers = [], clients = [] }) {
     // Tracker-recorded entries have locked hours — the time always reflects what
@@ -668,17 +669,17 @@ export default function WorkHourEdit({ auth, workHour, windowSlots = [], tracker
                                                 const invalid = w.start && w.end && mins <= 0;
                                                 return (
                                                     <div key={i} className="flex flex-wrap items-center gap-2">
-                                                        <input
-                                                            type="time"
+                                                        <TimeSelect
                                                             value={w.start}
-                                                            onChange={(e) => updateWindow(i, 'start', e.target.value)}
+                                                            onChange={(v) => updateWindow(i, 'start', v)}
+                                                            placeholder="Start"
                                                             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                                                         />
                                                         <span className="text-slate-400">→</span>
-                                                        <input
-                                                            type="time"
+                                                        <TimeSelect
                                                             value={w.end}
-                                                            onChange={(e) => updateWindow(i, 'end', e.target.value)}
+                                                            onChange={(v) => updateWindow(i, 'end', v)}
+                                                            placeholder="End"
                                                             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                                                         />
                                                         <span className={`text-xs ${invalid ? 'text-red-600' : 'text-slate-500'}`}>
