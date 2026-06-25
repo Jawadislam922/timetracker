@@ -63,11 +63,17 @@ class StillWorkingCheck extends Command
             $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
             $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
 
-            // Per-person reminder threshold overrides the global default, so a
-            // 10h-shift person can be nudged at, say, 9h instead of the team's 8h.
-            $userThreshold = $user->clockout_reminder_hours !== null
+            // Effective nudge threshold. A per-person reminder (or the team
+            // default) can only RAISE the bar — never lower it below the team
+            // default or the person's own shift length. This is a safety floor:
+            // stray low values (e.g. a leftover 1h from testing) were otherwise
+            // nudging people barely an hour after they clocked in and
+            // auto-closing their day well before their shift was over.
+            $configuredThreshold = $user->clockout_reminder_hours !== null
                 ? (float) $user->clockout_reminder_hours
                 : $thresholdHours;
+            $shiftHours = $user->shift_hours !== null ? (float) $user->shift_hours : 0.0;
+            $userThreshold = max($configuredThreshold, $thresholdHours, $shiftHours);
             if (! $force && $ageHours < $userThreshold) {
                 continue;
             }
