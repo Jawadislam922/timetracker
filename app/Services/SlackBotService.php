@@ -31,6 +31,23 @@ class SlackBotService
     }
 
     /**
+     * Post to a channel, optionally as a reply in an existing thread. Returns
+     * the new message's `ts` (used as the thread anchor for later replies), or
+     * null on failure.
+     */
+    public function postToThread(string $channel, string $text, ?string $threadTs = null): ?string
+    {
+        $params = ['channel' => $channel, 'text' => $text];
+        if ($threadTs) {
+            $params['thread_ts'] = $threadTs;
+        }
+
+        $response = $this->api('chat.postMessage', $params);
+
+        return ($response['ok'] ?? false) ? ($response['ts'] ?? null) : null;
+    }
+
+    /**
      * DM a workspace member found by their email. Returns true when the
      * message was delivered; false when the user isn't on Slack with that
      * email or the API call failed.
