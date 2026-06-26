@@ -651,7 +651,13 @@ class EmployeeAttendanceController extends Controller
                     return [
                         'id' => $entry->id,
                         'action_type' => $entry->action_type,
+                        // Pre-formatted (Karachi) for back-compat; action_iso is the
+                        // canonical instant so the client can render it in the
+                        // viewer's chosen display timezone.
                         'formatted_time' => $entry->formatted_action_time,
+                        'action_iso' => $entry->action_timestamp
+                            ? Carbon::parse($entry->action_timestamp)->toISOString()
+                            : null,
                         'notes' => $entry->notes,
                     ];
                 }),

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\UserMonitoringSetting;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -60,6 +62,32 @@ class ProfileController extends Controller
         $user->save();
 
         return Redirect::route('profile.edit')->with('success', 'Profile updated successfully.');
+    }
+
+    /**
+     * Update the user's own display preferences (timezone + 12/24h). Self-service
+     * — every employee can pick the zone they read times in; it only changes how
+     * times DISPLAY, never the stored instant. Saved as a per-user override on
+     * UserMonitoringSetting, which HandleInertiaRequests reads into the `display`
+     * prop so every page re-renders in the chosen zone on the next request.
+     */
+    public function updateDisplay(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'display_timezone' => ['required', 'timezone'],
+            'time_format' => ['required', Rule::in(['12', '24'])],
+        ]);
+
+        UserMonitoringSetting::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            [
+                'override_display' => true,
+                'display_timezone' => $data['display_timezone'],
+                'time_format' => $data['time_format'],
+            ],
+        );
+
+        return Redirect::route('profile.edit')->with('success', 'Time zone updated.');
     }
 
     /**

@@ -82,7 +82,9 @@ class SilentTrackerCheck extends Command
 
             if (! $advanced) {
                 // No prior baseline yet, or frozen (paused) — record and wait.
-                $s->save();
+                // Query-builder update (NOT $s->save()) so the datetime casts
+                // can't re-serialize started_at/last_heartbeat_at to UTC.
+                TrackingSession::where('id', $s->id)->update(['health_probe_seconds' => $cur]);
                 continue;
             }
 
@@ -91,8 +93,10 @@ class SilentTrackerCheck extends Command
             $flagged++;
 
             $this->announce($slack, $user, $s, $last);
-            $s->health_alerted_at = $now;
-            $s->save();
+            TrackingSession::where('id', $s->id)->update([
+                'health_probe_seconds' => $cur,
+                'health_alerted_at' => $now,
+            ]);
         }
 
         $this->info(sprintf('%s %d silent tracker(s).', $dry ? 'Would flag' : 'Flagged', $flagged));

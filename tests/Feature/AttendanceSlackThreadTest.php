@@ -95,7 +95,8 @@ class AttendanceSlackThreadTest extends TestCase
 
         // The clock-in exists but was never announced (no slack_thread_ts) —
         // e.g. they clocked in before threading was switched on.
-        $this->entry($user, 'clock_in', '09:00');
+        $clockIn = $this->entry($user, 'clock_in', '09:00');
+        $originalTs = $clockIn->action_timestamp->toDateTimeString();
 
         // Their break fires later: back-fill the clock-in parent, then reply.
         $notifier->notify($this->entry($user, 'break_start', '13:24'));
@@ -105,6 +106,13 @@ class AttendanceSlackThreadTest extends TestCase
         $this->assertStringContainsString('clocked in', $fake->calls[0]['text']);
         $this->assertSame('ts-1', $fake->calls[1]['thread_ts']);
         $this->assertStringContainsString('started a break', $fake->calls[1]['text']);
+
+        // The back-fill wrote slack_thread_ts WITHOUT re-saving the model — a
+        // model save would re-serialize the timestamp column and shift
+        // action_timestamp 5h on a UTC MySQL server. Contract: id set, time kept.
+        $clockIn->refresh();
+        $this->assertSame('ts-1', $clockIn->slack_thread_ts);
+        $this->assertSame($originalTs, $clockIn->action_timestamp->toDateTimeString());
     }
 
     public function test_nothing_posts_when_the_toggle_is_off(): void

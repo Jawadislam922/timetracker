@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { useFormatters } from '@/lib/datetime';
 import {
     Activity,
     CalendarDays,
@@ -102,6 +103,9 @@ function EmployeeAvatar({ src, name }) {
 }
 
 export default function Dashboard({ auth }) {
+    // Renders the live clock in the viewer's chosen display timezone (Profile →
+    // Time zone), not a hard-coded Asia/Karachi, so the switcher applies here too.
+    const { formatTime, tz } = useFormatters();
     const can = (permission) => auth.user?.is_super_admin || auth.user?.permissions?.includes(permission);
     const canViewTeam = can('dashboard.view_team') || can('attendance.view');
     const [entries, setEntries] = useState([]);
@@ -282,13 +286,9 @@ export default function Dashboard({ auth }) {
                                 </div>
                                 <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-right backdrop-blur">
                                     <div className="text-lg font-bold text-white">
-                                        {currentTime.toLocaleTimeString('en-US', {
-                                            timeZone: 'Asia/Karachi',
-                                            hour: 'numeric',
-                                            minute: '2-digit',
-                                        })}
+                                        {formatTime(currentTime.toISOString())}
                                     </div>
-                                    <div className="text-xs font-medium text-slate-400">Pakistan Time</div>
+                                    <div className="text-xs font-medium text-slate-400">{tz.replace(/_/g, ' ')}</div>
                                 </div>
                             </div>
                         </div>

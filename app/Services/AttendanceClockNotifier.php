@@ -91,7 +91,11 @@ class AttendanceClockNotifier
 
         $ts = $this->slack->postToThread($channel, $this->message($first));
         if ($ts) {
-            $first->forceFill(['slack_thread_ts' => $ts])->saveQuietly();
+            // Query-builder update (NOT a model save): re-saving a loaded
+            // TimeEntry makes Eloquent re-serialize the `timestamp` column
+            // action_timestamp and shift it 5h (Karachi→UTC) on this UTC MySQL
+            // server. We only need to write slack_thread_ts, so bypass the cast.
+            TimeEntry::where('id', $first->id)->update(['slack_thread_ts' => $ts]);
         }
 
         return $ts;

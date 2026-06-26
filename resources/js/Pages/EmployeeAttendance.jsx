@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
+import { useFormatters } from '@/lib/datetime';
 import {
     Activity,
     CalendarDays,
@@ -130,6 +131,7 @@ const EmployeeIdentity = ({ employee, size = 'small' }) => {
 };
 
 export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAttendance = false, canEditClockTimes = false, canSendAttendanceSlack = false, slackConfigured = false }) {
+    const { formatTime } = useFormatters();
     const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('attendance.export');
     const canSendSlack = canSendAttendanceSlack || auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.send_slack');
     const [activeTab, setActiveTab] = useState('monthly');
@@ -541,7 +543,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             <h1 className="mt-1 text-2xl font-bold text-white">Attendance</h1>
                             <p className="mt-1 text-sm text-slate-400">Monitor current status, work time, breaks, and daily activity.</p>
                             {lastRefreshTime && (
-                                <p className="mt-1 text-xs text-slate-400">Updated {lastRefreshTime.toLocaleTimeString()}</p>
+                                <p className="mt-1 text-xs text-slate-400">Updated {formatTime(lastRefreshTime.toISOString())}</p>
                             )}
                         </div>
 
@@ -769,7 +771,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                                     </span>
                                                                     <div className="flex-1">
                                                                         <div className="text-sm font-semibold text-slate-100">{meta.label}</div>
-                                                                        <div className="text-xs text-slate-500">{entry.formatted_time}</div>
+                                                                        <div className="text-xs text-slate-500">{entry.action_iso ? formatTime(entry.action_iso) : entry.formatted_time}</div>
                                                                     </div>
                                                                     {entry.notes && <div className="text-sm text-slate-300">{entry.notes}</div>}
                                                                 </div>

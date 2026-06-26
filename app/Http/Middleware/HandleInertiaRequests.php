@@ -53,14 +53,27 @@ class HandleInertiaRequests extends Middleware
             ];
 
             try {
-                // Shift-anchored "today" (overnight shifts span midnight).
-                $today = $user->attendanceDateFor(Carbon::now('Asia/Karachi'));
-                $entry = TimeEntry::query()
+                // The current clock state follows the GLOBAL most-recent action,
+                // not just today's: an open clock-in carried past midnight (e.g.
+                // someone who clocked in last night and never clocked out) must
+                // read as "still clocked in" with Clock Out available — not
+                // "Not Started" — until they (or auto-close) close it.
+                $last = TimeEntry::query()
                     ->where('user_id', $user->id)
-                    ->whereDate('action_date', $today)
-                    ->orderByDesc('action_timestamp')
+                    ->orderByDesc('action_timestamp')->orderByDesc('id')
                     ->first();
-                $lastActionToday = $entry?->action_type;
+                if ($last && in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
+                    $lastActionToday = $last->action_type;
+                } else {
+                    // Closed or never started: scope to today so yesterday's
+                    // clock-out doesn't bleed into a fresh day's "Not Started".
+                    $today = $user->attendanceDateFor(Carbon::now('Asia/Karachi'));
+                    $lastActionToday = TimeEntry::query()
+                        ->where('user_id', $user->id)
+                        ->whereDate('action_date', $today)
+                        ->orderByDesc('action_timestamp')->orderByDesc('id')
+                        ->value('action_type');
+                }
             } catch (\Throwable $e) {
                 // Silently ignore to avoid breaking responses
                 $lastActionToday = null;
