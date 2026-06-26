@@ -1041,11 +1041,12 @@ class EmployeeAttendanceController extends Controller
 
     private function isLateClockIn(User $employee, Carbon $date, TimeEntry $firstClockIn): bool
     {
-        if (! $employee->shift_start_time) {
+        $shiftStartTime = $employee->effectiveShiftFor($date->toDateString())['start_time'];
+        if (! $shiftStartTime) {
             return false;
         }
 
-        $shiftStart = $date->copy()->setTimeFromTimeString($employee->shift_start_time->format('H:i:s'));
+        $shiftStart = $date->copy()->setTimeFromTimeString($shiftStartTime->format('H:i:s'));
         $allowedClockIn = $shiftStart->copy()->addMinutes((int) ($employee->shift_grace_minutes ?? 0));
         $clockInTime = Carbon::parse($firstClockIn->action_timestamp)->setTimezone('Asia/Karachi');
 
@@ -1054,12 +1055,13 @@ class EmployeeAttendanceController extends Controller
 
     private function isShiftAbsenceDue(User $employee, Carbon $date, Carbon $now): bool
     {
-        if (! $employee->shift_start_time) {
+        $shiftStartTime = $employee->effectiveShiftFor($date->toDateString())['start_time'];
+        if (! $shiftStartTime) {
             return false;
         }
 
         $absenceDueAt = $date->copy()
-            ->setTimeFromTimeString($employee->shift_start_time->format('H:i:s'))
+            ->setTimeFromTimeString($shiftStartTime->format('H:i:s'))
             ->addMinutes((int) ($employee->shift_grace_minutes ?? 0));
 
         return $now->greaterThan($absenceDueAt);

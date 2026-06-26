@@ -62,12 +62,21 @@ class AttendanceHours
      */
     public static function isLateClockIn(User $user, Carbon $date, ?TimeEntry $firstClockIn): bool
     {
-        if (! $firstClockIn || ! $user->shift_start_time) {
+        if (! $firstClockIn) {
             return false;
         }
 
         $tz = config('services.slack_reports.timezone', 'Asia/Karachi');
-        $shiftStart = $date->copy()->setTimezone($tz)->setTimeFromTimeString($user->shift_start_time->format('H:i:s'));
+        $localDate = $date->copy()->setTimezone($tz);
+
+        // Resolve the shift start for THIS day (one-day override aware), so an
+        // approved early/late start isn't flagged late.
+        $shiftStartTime = $user->effectiveShiftFor($localDate->toDateString())['start_time'];
+        if (! $shiftStartTime) {
+            return false;
+        }
+
+        $shiftStart = $localDate->copy()->setTimeFromTimeString($shiftStartTime->format('H:i:s'));
         $allowed = $shiftStart->copy()->addMinutes((int) ($user->shift_grace_minutes ?? 0));
 
         return Carbon::parse($firstClockIn->action_timestamp)->setTimezone($tz)->greaterThan($allowed);

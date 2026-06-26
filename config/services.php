@@ -66,6 +66,12 @@ return [
     // dry-run and reviewed before the scheduler starts closing live sessions.
     'attendance' => [
         'auto_clockout_enabled' => env('ATTENDANCE_AUTO_CLOCKOUT', false),
+        // Forgotten clock-outs are closed at the person's shift end plus this
+        // grace buffer (minutes), instead of running to a flat 12h cap.
+        'auto_close_buffer_minutes' => (int) env('ATTENDANCE_AUTO_CLOSE_BUFFER_MINUTES', 20),
+        // Absolute backstop: never let a single clock-in span beyond this many
+        // hours, even for someone actively tracking overtime (prevents ghosts).
+        'auto_close_hard_cap_hours' => (int) env('ATTENDANCE_AUTO_CLOSE_HARD_CAP_HOURS', 16),
         // Interactive Slack "still working?" check (DMs people past a threshold).
         'still_working_slack_enabled' => env('ATTENDANCE_STILL_WORKING_SLACK', false),
         'prompt_after_hours' => env('ATTENDANCE_PROMPT_AFTER_HOURS', 8),

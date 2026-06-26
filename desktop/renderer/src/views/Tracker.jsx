@@ -321,8 +321,24 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   // One-click client switching. Works whether or not a session is running:
   // a running session is stopped (and saved) first, then the clicked client
   // starts immediately with its last work type and description.
+  // The tracker is a subset of presence: you can only START tracking while
+  // clocked in and not on a break (mirrors how a break pauses tracking). Only
+  // enforced when the time-clock feature is present, so a build without it is
+  // never locked out of tracking.
+  const clockFeatureAvailable = typeof window.tt?.timeclock?.status === 'function';
+  const clockedInAndWorking = ['clock_in', 'break_end'].includes(timeClock.last_action);
+  const canTrack = !clockFeatureAvailable || clockedInAndWorking;
+  const trackBlockReason = canTrack
+    ? ''
+    : timeClock.last_action === 'break_start'
+      ? 'End your break to start tracking.'
+      : 'Clock in to start tracking.';
+
   const switchTo = async ({ client_id, work_type, task_note }) => {
     if (busy) return;
+    // Switching while already running is fine (you're clocked in); starting
+    // fresh from a quick-start chip requires being clocked in first.
+    if (!status.running && !canTrack) { setError(trackBlockReason); return; }
     const client = clients.find((item) => Number(item.id) === Number(client_id));
     if (!client) return;
     if (status.running && Number(status.session?.client_id) === Number(client_id)) return; // already on it
@@ -557,7 +573,8 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   // Auto-start tracking on launch (local preference): once clients are
   // loaded, restore the last session's client/work-type/note and start.
   useEffect(() => {
-    if (autoStartedRef.current || !prefs.autoStartTracking || status.running || clients.length === 0) return;
+    // Don't auto-start tracking until they're clocked in (and not on break).
+    if (autoStartedRef.current || !prefs.autoStartTracking || status.running || clients.length === 0 || !canTrack) return;
 
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem('tt.lastStart') || 'null'); } catch { /* ignore */ }
@@ -586,7 +603,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
         // Form stays pre-filled; user can start manually.
       }
     })();
-  }, [prefs.autoStartTracking, clients, status.running]);
+  }, [prefs.autoStartTracking, clients, status.running, canTrack]);
 
   // Web -> desktop deep link (timetracker://start?client_id=X&note=...).
   // Pre-fills the start form; never auto-starts tracking.
@@ -632,6 +649,12 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
   const handleStart = async () => {
     setError('');
     setWarning('');
+
+    if (!canTrack) {
+      setError(trackBlockReason);
+      return;
+    }
+
     setBusy(true);
 
     try {
@@ -949,6 +972,11 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
             ) : (
               <div className="running-title">{currentTitle}</div>
             )}
+            {!status.running && !canTrack && (
+              <div className="track-gate-hint" style={{ marginTop: 6, fontSize: 12, color: '#f59e0b', textAlign: 'center' }}>
+                🔒 {trackBlockReason}
+              </div>
+            )}
             {status.paused ? (
               // Paused (break/idle/manual): Resume is primary, Stop stays
               // available so the session can still be ended.
@@ -976,8 +1004,9 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
               <button
                 className={status.running ? 'round-action stop' : 'round-action start'}
                 onClick={status.running ? handleStop : handleStart}
-                disabled={busy || (!status.running && (!selectedClient || !descriptionValid))}
+                disabled={busy || (!status.running && (!selectedClient || !descriptionValid || !canTrack))}
                 aria-label={status.running ? 'Stop tracking' : 'Start tracking'}
+                title={!status.running && !canTrack ? trackBlockReason : undefined}
               >
                 {status.running ? <span className="stop-square" /> : <span className="play-triangle" />}
               </button>
@@ -1032,8 +1061,8 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
                     key={recent.client_id}
                     className={isCurrent || (!status.running && String(recent.client_id) === String(picker.client_id)) ? 'recent-chip active' : 'recent-chip'}
                     onClick={() => quickStart(recent)}
-                    disabled={busy || isCurrent}
-                    title={isCurrent ? 'Currently tracking' : (recent.last_task_note ? `Last: ${recent.last_task_note}` : 'Start this client')}
+                    disabled={busy || isCurrent || (!status.running && !canTrack)}
+                    title={isCurrent ? 'Currently tracking' : (!status.running && !canTrack ? trackBlockReason : (recent.last_task_note ? `Last: ${recent.last_task_note}` : 'Start this client'))}
                   >
                     {recent.client_name}
                   </button>

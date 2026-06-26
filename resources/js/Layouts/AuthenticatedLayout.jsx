@@ -4,10 +4,12 @@ import {
     Activity,
     BarChart3,
     Briefcase,
+    CalendarClock,
     CalendarDays,
     ChevronDown,
     Clock,
     Film,
+    HelpCircle,
     LayoutDashboard,
     LayoutGrid,
     LogOut,
@@ -107,6 +109,7 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Dashboard', href: route('dashboard'), icon: LayoutDashboard, active: ['dashboard'] },
         { label: 'Timeline', href: route('timeline.index'), icon: Film, active: ['timeline.index'] },
         { label: 'Work Diary', href: route('work-hours.index'), icon: Clock, active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'] },
+        (can('shift.edit_own') || can('shift.manage_all')) && { label: 'My Schedule', href: route('shift-overrides.index'), icon: CalendarClock, active: ['shift-overrides.index'] },
         can('attendance.view') && { label: 'Attendance', href: route('employee-attendance.index'), icon: CalendarDays, active: ['employee-attendance.index'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
@@ -186,6 +189,12 @@ export default function Authenticated({ user, header, children }) {
                                         <span className="flex items-center gap-2">
                                             <MonitorDown className="h-4 w-4" />
                                             Desktop App
+                                        </span>
+                                    </Dropdown.Link>
+                                    <Dropdown.Link href={route('help')}>
+                                        <span className="flex items-center gap-2">
+                                            <HelpCircle className="h-4 w-4" />
+                                            How to use
                                         </span>
                                     </Dropdown.Link>
                                     <Dropdown.Link href={route('logout')} method="post" as="button">
@@ -277,6 +286,14 @@ export default function Authenticated({ user, header, children }) {
                                 >
                                     <MonitorDown className="h-4 w-4" />
                                     Desktop App
+                                </Link>
+                                <Link
+                                    href={route('help')}
+                                    onClick={() => setShowingNavigationDropdown(false)}
+                                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 hover:text-white"
+                                >
+                                    <HelpCircle className="h-4 w-4" />
+                                    How to use
                                 </Link>
                                 <Link
                                     href={route('logout')}

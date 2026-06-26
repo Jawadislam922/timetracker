@@ -11,6 +11,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SchedulerController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SlackReportController;
+use App\Http\Controllers\ShiftOverrideController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TimeEntryController;
 use App\Http\Controllers\TimelineController;
@@ -73,6 +74,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Plain-language how-to for every employee (linked from the profile menu).
+    Route::get('/help', fn () => \Inertia\Inertia::render('Help'))->name('help');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -142,10 +146,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/employee-attendance/day-entries', [EmployeeAttendanceController::class, 'getDayEntries'])->middleware('permission:attendance.edit_times')->name('employee-attendance.day-entries');
     Route::post('/employee-attendance/clock-times', [EmployeeAttendanceController::class, 'updateClockTimes'])->middleware('permission:attendance.edit_times')->name('employee-attendance.clock-times');
 
-    // Open untracked gaps for the manual-entry form (in-office − tracked −
-    // breaks − existing manual). Registered before the resource route so the
-    // literal /work-hours/gaps path isn't captured as a {work_hour} id.
-    Route::get('/work-hours/gaps', [WorkHourController::class, 'gaps'])->name('work-hours.gaps');
+    // One-day shift changes. The page + write endpoints are gated to people who
+    // can edit a shift at all; the controller enforces self (shift.edit_own) vs
+    // anyone (shift.manage_all) and the today/future rule per action.
+    Route::get('/my-schedule', [ShiftOverrideController::class, 'index'])->middleware('permission:shift.edit_own,shift.manage_all')->name('shift-overrides.index');
+    Route::post('/shift-overrides', [ShiftOverrideController::class, 'store'])->middleware('permission:shift.edit_own,shift.manage_all')->name('shift-overrides.store');
+    Route::delete('/shift-overrides/{shiftOverride}', [ShiftOverrideController::class, 'destroy'])->middleware('permission:shift.edit_own,shift.manage_all')->name('shift-overrides.destroy');
 
     Route::resource('work-hours', WorkHourController::class)->except(['show']);
     Route::get('/work-hours-export', [WorkHourController::class, 'exportPersonal'])->name('work-hours.export-personal');

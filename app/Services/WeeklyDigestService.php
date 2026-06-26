@@ -31,8 +31,9 @@ class WeeklyDigestService
     {
         $users = User::query()
             ->where('include_in_slack_reports', true)
+            ->with('shiftOverrides')
             ->orderBy('name')
-            ->get(['id', 'name', 'shift_start_time', 'shift_grace_minutes']);
+            ->get(['id', 'name', 'shift_start_time', 'shift_grace_minutes', 'shift_hours']);
 
         $userIds = $users->pluck('id')->all();
         $metrics = $this->metrics->forRange($userIds, $start, $end);

@@ -558,6 +558,15 @@ class Tracker extends EventEmitter {
             this.pauseForBreak();
           }
         } catch (err) {
+          // The server closed this session (auto clock-out at shift end, clocked
+          // out on the web, or single-device takeover): stop the local tracker
+          // so it can't keep capturing time the server now rejects.
+          if (err.response?.status === 409 && this.session && this.session.id === h.tracking_session_id) {
+            queue.deleteHeartbeat(h.id);
+            this.emit('warning', err.response?.data?.message || 'Tracking stopped: your session was closed.');
+            await this.stop({ task_note: this.session?.task_note }).catch(() => {});
+            return;
+          }
           if (!this._handleDrainError('heartbeat', err, h,
             () => queue.markHeartbeatError(h.id, err.message),
             () => queue.deleteHeartbeat(h.id))) {

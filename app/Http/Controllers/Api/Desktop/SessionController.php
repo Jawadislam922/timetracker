@@ -83,9 +83,17 @@ class SessionController extends Controller
         // Starting the tracker means they're working — if they forgot to clock
         // in (or didn't know they had to), clock them in automatically at the
         // session's real start time. Only on a genuine new session, never on an
-        // idempotent retry, and never if they're already clocked in.
-        if ($session->wasRecentlyCreated) {
-            $this->ensureClockedIn($user, $session->started_at ?? now());
+        // idempotent retry. If the day is already closed (clocked out), refuse:
+        // drop the just-created empty session and tell the desktop to clock in
+        // first, rather than re-opening the closed day.
+        if ($session->wasRecentlyCreated && $this->reconcileClockState($user, $session) === 'stop') {
+            $session->delete();
+
+            return response()->json([
+                'status' => TrackingSession::STATUS_STOPPED,
+                'stopped_elsewhere' => true,
+                'message' => 'You are clocked out for the day. Clock in before tracking.',
+            ], 409);
         }
 
         return response()->json([
@@ -98,31 +106,58 @@ class SessionController extends Controller
     }
 
     /**
-     * Auto clock-in when a tracking session starts and the user isn't already
-     * clocked in. Uses the session start time (which the desktop sends from its
-     * local clock, so an offline-queued start still records the correct time).
+     * Keep the attendance clock consistent with the tracker on every start and
+     * heartbeat. The tracker is a *subset* of presence: a person may be clocked
+     * in without tracking (e.g. HR who never run the app), but tracked time must
+     * always sit inside a real clock-in window — you can never track while
+     * "Not started". Returns 'stop' when the caller should finalize the session,
+     * 'ok' otherwise.
      */
-    private function ensureClockedIn(User $user, Carbon $startedAt): void
+    private function reconcileClockState(User $user, TrackingSession $session): string
     {
         $last = TimeEntry::where('user_id', $user->id)
             ->orderByDesc('action_timestamp')->orderByDesc('id')
             ->first();
 
-        // clock_in / break_start / break_end all mean "still clocked in".
+        // clock_in / break_start / break_end all mean "still clocked in" — the
+        // tracked time already sits inside an open window, nothing to do.
         if ($last && in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
-            return;
+            return 'ok';
         }
 
-        $ts = $startedAt->copy()->setTimezone('Asia/Karachi');
+        $sessionStart = $session->started_at
+            ? Carbon::parse($session->started_at)->setTimezone('Asia/Karachi')
+            : Carbon::now('Asia/Karachi');
 
+        // The day is already CLOSED: the last action is a clock-out whose
+        // attendance day is the same as (or later than) this session's. The
+        // person deliberately ended their day, so a tracker still running — OR a
+        // fresh session started AFTER the clock-out — must STOP, never silently
+        // re-open the closed day with a phantom second clock-in. (A clock-out
+        // from a PRIOR day is a new day and falls through to a normal auto
+        // clock-in below. Keyed on the attendance DAY, not the raw timestamp,
+        // because a new session always starts after the clock-out instant.)
+        if ($last && $last->action_type === 'clock_out') {
+            $clockOutDate = $last->action_date instanceof Carbon
+                ? $last->action_date->toDateString()
+                : (string) $last->action_date;
+            if ($clockOutDate >= $user->attendanceDateFor($sessionStart)) {
+                return 'stop';
+            }
+        }
+
+        // Tracking with no clock-in covering it → open one at the session's real
+        // start time so in-office can never read less than tracked.
         TimeEntry::create([
             'user_id' => $user->id,
             'action_type' => 'clock_in',
-            'action_timestamp' => $ts,
-            'action_date' => $user->attendanceDateFor($ts),
-            'action_time' => $ts->toTimeString(),
+            'action_timestamp' => $sessionStart,
+            'action_date' => $user->attendanceDateFor($sessionStart),
+            'action_time' => $sessionStart->toTimeString(),
             'notes' => 'Auto clock-in (started tracker)',
         ]);
+
+        return 'ok';
     }
 
     public function heartbeat(HeartbeatRequest $request, TrackingSession $session): JsonResponse
@@ -147,11 +182,24 @@ class SessionController extends Controller
             'last_heartbeat_at' => BusinessTime::fromClient($data['heartbeat_at'] ?? null) ?? now(),
         ]);
 
+        $user = $request->user();
+
+        // Keep the clock consistent with the tracker on every heartbeat. Tracking
+        // with no open clock-in opens one; clocking out while the tracker kept
+        // running stops it (so we never record un-clocked time).
+        if ($this->reconcileClockState($user, $session) === 'stop') {
+            $this->sessions->finalize($session);
+
+            return response()->json([
+                'status' => TrackingSession::STATUS_STOPPED,
+                'stopped_elsewhere' => true,
+            ], 409);
+        }
+
         // Tell the desktop the user's current clock state so a break started on
         // the web dashboard also pauses the tracker (the desktop pauses when it
         // sees on_break). Mirrors TimeClockController::status — break_start is
         // the canonical "on break" marker; break_end/clock_in mean working.
-        $user = $request->user();
         $now = Carbon::now('Asia/Karachi');
         $lastAction = TimeEntry::forUser($user->id)
             ->forDate($user->attendanceDateFor($now))

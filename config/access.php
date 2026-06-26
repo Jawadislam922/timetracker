@@ -69,6 +69,16 @@ return [
                 'description' => 'Allows downloading attendance data as CSV.',
             ],
         ],
+        'Schedule' => [
+            'shift.edit_own' => [
+                'label' => 'Change own shift for a day',
+                'description' => 'Lets a person set a one-day shift change for themselves — a different start time and/or length on a specific date (e.g. start earlier on Friday because they are off Saturday). Today or future dates only. It only moves that day\'s schedule (and the auto clock-out window); it never creates clock-ins or hours, so it cannot inflate time.',
+            ],
+            'shift.manage_all' => [
+                'label' => 'Change anyone\'s shift for a day',
+                'description' => 'Set or remove a one-day shift change for any employee, including backdated days — e.g. to approve a teammate\'s adjusted day. Every change is recorded in the audit history.',
+            ],
+        ],
         'Work Diary' => [
             'work_hours.manage_all' => [
                 'label' => 'Edit anyone\'s work entries',

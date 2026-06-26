@@ -71,7 +71,9 @@ class DashboardController extends Controller
 
     private function members(): Collection
     {
-        return $this->members ??= User::where('role', 'member')->get();
+        // Eager-load one-day shift overrides so the per-member attendance
+        // calculations (effectiveShiftFor → attendanceDateFor) don't N+1.
+        return $this->members ??= User::where('role', 'member')->with('shiftOverrides')->get();
     }
 
     private function loadSums(): void

@@ -134,6 +134,7 @@ class User extends Authenticatable
             'attendance.manual_mark' => ['attendance.view'],
             'attendance.edit_times' => ['attendance.view'],
             'attendance.export' => ['attendance.view'],
+            'shift.manage_all' => ['attendance.view'],
             'reports.export' => ['reports.view'],
             'reports.send_slack' => ['reports.view'],
             'monitoring.manage' => ['monitoring.view'],
@@ -196,18 +197,26 @@ class User extends Authenticatable
     public function attendanceDateFor(Carbon $timestamp): string
     {
         $localTimestamp = $timestamp->copy()->setTimezone('Asia/Karachi');
+        $calendarDate = $localTimestamp->toDateString();
 
-        if (! $this->shift_start_time) {
-            return $localTimestamp->toDateString();
+        // Effective shift start for the day this timestamp falls on (honours a
+        // one-day override; falls back to the standing shift). With no shift set
+        // at all, the attendance day is just the calendar day.
+        $startTime = $this->effectiveShiftFor($calendarDate)['start_time'];
+        if (! $startTime) {
+            return $calendarDate;
         }
 
-        $shiftTime = $this->shift_start_time->format('H:i:s');
-        $todayShiftStart = $localTimestamp->copy()->startOfDay()->setTimeFromTimeString($shiftTime);
+        $todayShiftStart = $localTimestamp->copy()->startOfDay()
+            ->setTimeFromTimeString($startTime->format('H:i:s'));
 
         // Early arrival for the NEXT day's shift. Only reachable late in the
         // evening for shifts that start around midnight; day shifts never get
-        // within the grace window of tomorrow's start.
-        $tomorrowShiftStart = $todayShiftStart->copy()->addDay();
+        // within the grace window of tomorrow's start. Measured against
+        // tomorrow's own effective start in case it has its own override.
+        $tomorrowStart = $this->effectiveShiftFor($localTimestamp->copy()->addDay()->toDateString())['start_time'] ?? $startTime;
+        $tomorrowShiftStart = $localTimestamp->copy()->addDay()->startOfDay()
+            ->setTimeFromTimeString($tomorrowStart->format('H:i:s'));
         $minutesUntilTomorrowStart = $localTimestamp->diffInMinutes($tomorrowShiftStart, false);
 
         if ($minutesUntilTomorrowStart >= 0 && $minutesUntilTomorrowStart <= self::EARLY_CLOCK_IN_GRACE_MINUTES) {
@@ -215,14 +224,57 @@ class User extends Authenticatable
         }
 
         if ($localTimestamp->greaterThanOrEqualTo($todayShiftStart)) {
-            return $localTimestamp->toDateString();
+            return $calendarDate;
         }
 
-        $previousShiftStart = $todayShiftStart->copy()->subDay();
+        // Late-night spillover belonging to the previous day's shift.
+        $previousStart = $this->effectiveShiftFor($localTimestamp->copy()->subDay()->toDateString())['start_time'] ?? $startTime;
+        $previousShiftStart = $localTimestamp->copy()->subDay()->startOfDay()
+            ->setTimeFromTimeString($previousStart->format('H:i:s'));
         $minutesSincePreviousStart = $previousShiftStart->diffInMinutes($localTimestamp, false);
 
         return $minutesSincePreviousStart >= 0 && $minutesSincePreviousStart <= 12 * 60
             ? $localTimestamp->copy()->subDay()->toDateString()
-            : $localTimestamp->toDateString();
+            : $calendarDate;
+    }
+
+    /**
+     * One-day shift overrides for this user (see {@see UserShiftOverride}).
+     */
+    public function shiftOverrides()
+    {
+        return $this->hasMany(UserShiftOverride::class);
+    }
+
+    /**
+     * The effective shift for an attendance date: a one-day override when the
+     * user set one, otherwise their standing shift. Single source of truth for
+     * every shift consumer — bucketing, auto-close, "still working?" nudges and
+     * late detection all read this, so a per-day change applies everywhere at
+     * once. Returns ['start_time' => ?Carbon, 'hours' => ?float].
+     */
+    public function effectiveShiftFor(string|Carbon $date): array
+    {
+        $dateStr = $date instanceof Carbon ? $date->toDateString() : (string) $date;
+
+        // Property access lazy-loads the overrides once and caches them on the
+        // instance, so the repeated calls in attendanceDateFor() stay in-memory.
+        $override = $this->shiftOverrides->first(
+            fn ($o) => optional($o->date)->toDateString() === $dateStr
+        );
+
+        $startTime = $this->shift_start_time;
+        $hours = $this->shift_hours !== null ? (float) $this->shift_hours : null;
+
+        if ($override) {
+            if ($override->shift_start_time) {
+                $startTime = $override->shift_start_time;
+            }
+            if ($override->shift_hours !== null) {
+                $hours = (float) $override->shift_hours;
+            }
+        }
+
+        return ['start_time' => $startTime, 'hours' => $hours];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\TimeEntry;
+use App\Models\TrackingSession;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
  */
 class AttendanceCloser
 {
+    public function __construct(private TrackingSessionService $sessions) {}
+
     /**
      * Close the user's currently-open clock-in at $closeAt with $reason.
      * Returns the clock_out entry, or null if there was nothing open.
@@ -47,7 +50,7 @@ class AttendanceCloser
             ? $clockIn->action_date->toDateString()
             : (string) $clockIn->action_date;
 
-        return DB::transaction(function () use ($last, $clockIn, $closeAt, $date, $reason) {
+        $clockOut = DB::transaction(function () use ($last, $clockIn, $closeAt, $date, $reason) {
             if ($last->action_type === 'break_start') {
                 TimeEntry::create([
                     'user_id' => $clockIn->user_id,
@@ -68,6 +71,17 @@ class AttendanceCloser
                 'notes' => $reason,
             ]);
         });
+
+        // A clock-out means the person is done — stop any tracker still running
+        // so it can't keep recording un-clocked time (which would read as
+        // tracked-without-clock-in). Finalize at the tracker's last real
+        // activity; the desktop sees the session go inactive next heartbeat.
+        TrackingSession::where('user_id', $clockIn->user_id)
+            ->where('status', TrackingSession::STATUS_ACTIVE)
+            ->get()
+            ->each(fn (TrackingSession $session) => $this->sessions->finalize($session));
+
+        return $clockOut;
     }
 
     /** The open clock-in entry for a user, or null if they're not clocked in. */

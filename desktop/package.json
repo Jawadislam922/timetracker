@@ -1,13 +1,13 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
     "name": "Spark"
   },
-  "_comment_version": "0.4.0 — idle counts to the auto-pause threshold only (no 20s cut); real mouse-click counting",
+  "_comment_version": "0.4.1 — can't start tracking unless clocked in (and not on break); idle counts to auto-pause only; real mouse-click counting",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {

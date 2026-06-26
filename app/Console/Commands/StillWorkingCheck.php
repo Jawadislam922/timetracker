@@ -66,9 +66,12 @@ class StillWorkingCheck extends Command
             // Nudge only once the person's full shift has elapsed, plus an
             // optional minutes buffer (clockout_reminder_minutes — e.g. 20 min
             // past an 8h shift). No shift set → fall back to the team default
-            // hours. The buffer only ever pushes the nudge LATER, so a 12h-shift
-            // person is never pinged before 12h.
-            $baseHours = $user->shift_hours !== null ? (float) $user->shift_hours : $thresholdHours;
+            // hours. Shift is resolved per attendance day so a one-day override
+            // applies; the buffer only pushes the nudge LATER.
+            $clockInDate = $clockIn->action_date instanceof Carbon
+                ? $clockIn->action_date->toDateString()
+                : (string) $clockIn->action_date;
+            $baseHours = $user->effectiveShiftFor($clockInDate)['hours'] ?? $thresholdHours;
             $bufferHours = ($user->clockout_reminder_minutes ?? 0) / 60;
             $userThreshold = $baseHours + $bufferHours;
             if (! $force && $ageHours < $userThreshold) {
