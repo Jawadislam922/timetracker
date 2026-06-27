@@ -9,6 +9,15 @@ const roleIcons = {
     member: UserRound,
 };
 
+// Home/work zones a worker's day + shift are measured in (separate from how a
+// viewer reads times). Default Asia/Karachi keeps existing staff unchanged.
+const WORK_TIMEZONES = [
+    'Asia/Karachi', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Manila',
+    'Asia/Riyadh', 'Europe/London', 'Europe/Berlin', 'America/New_York',
+    'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'Australia/Sydney', 'UTC',
+];
+
 export default function UserForm({
     user = null,
     roles = {},
@@ -33,6 +42,7 @@ export default function UserForm({
         joining_date: user?.joining_date || '',
         shift_start_time: user?.shift_start_time || '',
         shift_grace_minutes: user?.shift_grace_minutes ?? 15,
+        work_timezone: user?.work_timezone || 'Asia/Karachi',
         shift_hours: user?.shift_hours ?? '',
         clockout_reminder_minutes: user?.clockout_reminder_minutes ?? '',
         role: user?.role || 'member',
@@ -183,6 +193,19 @@ export default function UserForm({
                                 {[0, 5, 10, 15, 20, 30, 45, 60].map((minutes) => (
                                     <option key={minutes} value={minutes}>
                                         {minutes === 0 ? 'No grace period' : `${minutes} minutes`}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+                        <Field label="Work timezone" hint="The country/zone this person's day and shift are measured in. Their clock-in/out, attendance day and auto-close use this zone. Leave Asia/Karachi for local staff." error={form.errors.work_timezone}>
+                            <select
+                                value={form.data.work_timezone}
+                                onChange={(event) => form.setData('work_timezone', event.target.value)}
+                                className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                            >
+                                {WORK_TIMEZONES.map((zone) => (
+                                    <option key={zone} value={zone}>
+                                        {zone.replace(/_/g, ' ')}
                                     </option>
                                 ))}
                             </select>

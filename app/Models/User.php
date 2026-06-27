@@ -31,6 +31,7 @@ class User extends Authenticatable
         'joining_date',
         'shift_start_time',
         'shift_grace_minutes',
+        'work_timezone',
         'shift_hours',
         'clockout_reminder_minutes',
         'allow_multiple_devices',
@@ -194,9 +195,22 @@ class User extends Authenticatable
      */
     public const EARLY_CLOCK_IN_GRACE_MINUTES = 240;
 
+    /**
+     * The timezone this worker's day and shift are measured in (their home
+     * country). This is the WORK timezone — it decides which attendance day a
+     * punch belongs to, when the shift starts/ends, and when auto-close fires.
+     * It is deliberately separate from the per-viewer DISPLAY timezone (how a
+     * person reading the screen sees times). Defaults to the app timezone
+     * (Asia/Karachi) so an unset worker behaves exactly as before.
+     */
+    public function workTimezone(): string
+    {
+        return $this->work_timezone ?: config('app.timezone', 'Asia/Karachi');
+    }
+
     public function attendanceDateFor(Carbon $timestamp): string
     {
-        $localTimestamp = $timestamp->copy()->setTimezone('Asia/Karachi');
+        $localTimestamp = $timestamp->copy()->setTimezone($this->workTimezone());
         $calendarDate = $localTimestamp->toDateString();
 
         // Effective shift start for the day this timestamp falls on (honours a

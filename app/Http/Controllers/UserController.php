@@ -164,6 +164,7 @@ class UserController extends Controller
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'work_timezone' => ['nullable', 'timezone'],
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
@@ -196,6 +197,7 @@ class UserController extends Controller
             'joining_date' => $validated['joining_date'] ?? null,
             'shift_start_time' => $validated['shift_start_time'] ?? null,
             'shift_grace_minutes' => $validated['shift_grace_minutes'] ?? 15,
+            'work_timezone' => $validated['work_timezone'] ?? 'Asia/Karachi',
             'shift_hours' => $validated['shift_hours'] ?? null,
             'clockout_reminder_minutes' => $validated['clockout_reminder_minutes'] ?? null,
             'allow_multiple_devices' => $request->user()->isSuperAdmin()
@@ -231,6 +233,7 @@ class UserController extends Controller
                 'joining_date' => $user->joining_date?->format('Y-m-d'),
                 'shift_start_time' => $user->shift_start_time?->format('H:i'),
                 'shift_grace_minutes' => $user->shift_grace_minutes ?? 15,
+                'work_timezone' => $user->work_timezone ?: 'Asia/Karachi',
                 'shift_hours' => $user->shift_hours !== null ? (float) $user->shift_hours : '',
                 'clockout_reminder_minutes' => $user->clockout_reminder_minutes !== null ? (int) $user->clockout_reminder_minutes : '',
                 'allow_multiple_devices' => (bool) $user->allow_multiple_devices,
@@ -259,6 +262,7 @@ class UserController extends Controller
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'work_timezone' => ['nullable', 'timezone'],
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
@@ -286,6 +290,7 @@ class UserController extends Controller
         $user->joining_date = $validated['joining_date'] ?? null;
         $user->shift_start_time = $validated['shift_start_time'] ?? null;
         $user->shift_grace_minutes = $validated['shift_grace_minutes'] ?? 15;
+        $user->work_timezone = $validated['work_timezone'] ?? 'Asia/Karachi';
         $user->shift_hours = $validated['shift_hours'] ?? null;
         $user->clockout_reminder_minutes = $validated['clockout_reminder_minutes'] ?? null;
 
