@@ -162,6 +162,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
     const [showClockDialog, setShowClockDialog] = useState(false);
     const [clockEmployee, setClockEmployee] = useState(null);
     const [clockForm, setClockForm] = useState({ clock_in: '', clock_out: '', break_start: '', break_end: '', reason: '' });
+    const [clockTzLabel, setClockTzLabel] = useState('');
     const [clockLoading, setClockLoading] = useState(false);
     const [isSavingClock, setIsSavingClock] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -246,6 +247,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                 break_end: response.data.break_end || '',
                 reason: '',
             });
+            setClockTzLabel(response.data.timezone_label || '');
         } catch (error) {
             console.error('Failed to load clock times:', error);
             showError('Unable to load this employee\'s clock times.');
@@ -834,6 +836,11 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                 <p className="mt-1 text-sm text-slate-400">
                                     {clockEmployee?.name ? `${clockEmployee.name} · ` : ''}{selectedDate}
                                 </p>
+                                {clockTzLabel && (
+                                    <p className="mt-1 text-xs font-medium text-orange-400">
+                                        Times shown in {clockTzLabel} (this person&apos;s timezone)
+                                    </p>
+                                )}
                             </div>
                             <button
                                 type="button"

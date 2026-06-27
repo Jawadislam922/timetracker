@@ -4,7 +4,7 @@ import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
 import {
     Clock, Play, Coffee, NotebookPen, CalendarClock, ShieldCheck,
-    HelpCircle, CheckCircle2, AlertTriangle, MonitorDown,
+    HelpCircle, CheckCircle2, AlertTriangle, MonitorDown, Globe,
 } from 'lucide-react';
 
 function Section({ icon: Icon, title, children }) {
@@ -99,6 +99,15 @@ export default function Help({ auth }) {
                     <p className="text-slate-400">This only moves your schedule for that day (when you’re expected in, and when a forgotten clock-out auto-closes). It never adds hours. Don’t have My Schedule? Ask an admin to enable it for you.</p>
                 </Section>
 
+                <Section icon={Globe} title="Times & time zones">
+                    <p>Every time in SA Track is shown in <b>your</b> time zone — you choose which one, once:</p>
+                    <ul className="space-y-2">
+                        <Step n="1">Open <b>Profile</b> (top-right menu) → <b>Time zone &amp; format</b>.</Step>
+                        <Step n="2">Pick your time zone and 12-hour / 24-hour format, then <b>Save</b>.</Step>
+                    </ul>
+                    <p className="text-slate-400">This only changes how times <i>display to you</i> — it never changes when something actually happened, and it works even if your computer&apos;s clock is set to the wrong time or zone. Two people in different countries see the same clock-in each in their own local time, and both are correct.</p>
+                </Section>
+
                 <Section icon={ShieldCheck} title="What the system does automatically">
                     <ul className="ml-1 space-y-1.5">
                         <li>• <b>Forgot to clock out?</b> The system closes your day at your <b>shift end + a short grace period</b>, so a forgotten clock-out doesn’t inflate your hours. If you’re genuinely still working (tracker running), it leaves you alone.</li>
@@ -116,6 +125,7 @@ export default function Help({ auth }) {
                     <p><b>“Why can’t I press Start?”</b> — You’re not clocked in, or you’re on a break. Clock in / end your break first.</p>
                     <p><b>“My in-office time looks too high.”</b> — You probably forgot to clock out on a previous day. Going forward, clock out when you leave; the system also auto-closes forgotten days at shift end.</p>
                     <p><b>“Tracked time vs in-office?”</b> — In-office = clock-in to clock-out (presence). Tracked = what the desktop app actually recorded. They’re different on purpose.</p>
+                    <p><b>“The times look a few hours off.”</b> — Check <b>Profile → Time zone</b> is set to where you are. Times always display in your chosen zone, never your computer’s clock — so a wrong PC clock can’t throw them off.</p>
                 </Section>
 
                 {isAdmin && (
@@ -123,6 +133,7 @@ export default function Help({ auth }) {
                         <ul className="ml-1 space-y-1.5">
                             <li>• <b>Fix someone’s clock times</b> — if an employee forgot to clock in/out, open <b>Attendance → Summary → Edit clock times</b> (needs the permission). Every edit is recorded in the audit history.</li>
                             <li>• <b>Change anyone’s shift for a day</b> — with “Change anyone’s shift” you can set or backdate a one-day shift for any employee.</li>
+                            <li>• <b>Remote workers in another country</b> — set a person’s <b>Work timezone</b> on their <b>Users → Edit</b> page. Their work day, shift, and auto clock-out are then measured in their own country’s day, while you keep reading every time in your own time zone. Leave it on Asia/Karachi for local staff.</li>
                             <li>• <b>Grant access</b> — Super Admins enable features per person on the <b>Users</b> page (clock-time editing, My Schedule, reports, screenshots, etc.).</li>
                             <li>• <b>Reading the numbers</b> — the Dashboard team table shows In-Office vs Tracked vs Activity %. A big gap between in-office and tracked usually means present-but-not-tracking (meetings, offline work) or a forgotten clock-out.</li>
                         </ul>

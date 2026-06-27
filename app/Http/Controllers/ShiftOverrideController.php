@@ -24,7 +24,8 @@ class ShiftOverrideController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $today = Carbon::today('Asia/Karachi')->toDateString();
+        // "Today" for upcoming-changes is judged in the worker's own timezone.
+        $today = Carbon::today($user->workTimezone())->toDateString();
 
         $overrides = $user->shiftOverrides()
             ->whereDate('date', '>=', $today)
@@ -73,11 +74,13 @@ class ShiftOverrideController extends Controller
         );
 
         $target = $isSelf ? $actor : User::findOrFail($targetId);
-        $date = Carbon::parse($data['date'], 'Asia/Karachi')->startOfDay();
+        // The override date and the today/future guard are judged in the TARGET
+        // worker's own timezone, so a remote worker's "today" is their day.
+        $date = Carbon::parse($data['date'], $target->workTimezone())->startOfDay();
 
         // Without manage_all you can only change today or a future day — never
         // retro-edit a day whose attendance is already settled.
-        if (! $actor->hasPermission('shift.manage_all') && $date->lt(Carbon::today('Asia/Karachi'))) {
+        if (! $actor->hasPermission('shift.manage_all') && $date->lt(Carbon::today($target->workTimezone()))) {
             throw ValidationException::withMessages([
                 'date' => 'You can only change your shift for today or a future day.',
             ]);
@@ -123,7 +126,7 @@ class ShiftOverrideController extends Controller
 
         // Without manage_all you may only cancel a day that hasn't started yet.
         if (! $actor->hasPermission('shift.manage_all')
-            && Carbon::parse($shiftOverride->date)->startOfDay()->lt(Carbon::today('Asia/Karachi'))) {
+            && Carbon::parse($shiftOverride->date)->startOfDay()->lt(Carbon::today($shiftOverride->user->workTimezone()))) {
             abort(403);
         }
 

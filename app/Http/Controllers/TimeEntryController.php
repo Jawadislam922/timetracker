@@ -51,8 +51,11 @@ class TimeEntryController extends Controller
             'notes' => 'nullable|string|max:255',
         ]);
 
-        $now = Carbon::now('Asia/Karachi');
         $user = Auth::user();
+        // action_timestamp + action_time are stored in the app timezone so the
+        // canonical instant round-trips; the worker's own attendance day is
+        // resolved by attendanceDateFor() (which converts to their work tz).
+        $now = Carbon::now('Asia/Karachi');
         $actionType = $validated['action_type'];
         $attendanceDate = $user->attendanceDateFor($now);
         $lastAction = TimeEntry::forUser($user->id)
@@ -159,6 +162,14 @@ class TimeEntryController extends Controller
     public function getTodaysSummary()
     {
         $user = Auth::user();
+        // NOTE (per-worker timezone): the team summary buckets "today"/week/month
+        // for every employee against one Asia/Karachi window. This is exact for
+        // local staff; for a remote worker (non-Karachi work_timezone) their
+        // dashboard summary day can be off near their midnight. It is a live
+        // aggregation surface only (no stored data, no auto-close impact). When a
+        // remote worker is piloted, derive the day per-employee via
+        // $employee->attendanceDateFor(now()) and their week/month in
+        // $employee->workTimezone() across the batch loaders below.
         $now = Carbon::now('Asia/Karachi');
         $weekStart = Carbon::now('Asia/Karachi')->startOfWeek(MonitoringSetting::weekStartDay());
         $monthStart = Carbon::now('Asia/Karachi')->startOfMonth();

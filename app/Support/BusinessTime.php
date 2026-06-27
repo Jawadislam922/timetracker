@@ -17,19 +17,21 @@ class BusinessTime
         return config('app.timezone', 'Asia/Karachi');
     }
 
-    public static function today(): Carbon
+    public static function today(?string $tz = null): Carbon
     {
-        return Carbon::today(static::tz());
+        return Carbon::today($tz ?: static::tz());
     }
 
-    public static function parseDate(?string $raw): Carbon
+    public static function parseDate(?string $raw, ?string $tz = null): Carbon
     {
+        $zone = $tz ?: static::tz();
+
         try {
             return $raw
-                ? Carbon::parse($raw, static::tz())->startOfDay()
-                : static::today();
+                ? Carbon::parse($raw, $zone)->startOfDay()
+                : Carbon::today($zone);
         } catch (\Throwable $e) {
-            return static::today();
+            return Carbon::today($zone);
         }
     }
 
@@ -58,16 +60,20 @@ class BusinessTime
      *
      * @return array{0: Carbon, 1: Carbon}
      */
-    public static function utcRange(Carbon $startTz, Carbon $endTz): array
+    public static function utcRange(Carbon $startTz, Carbon $endTz, ?string $tz = null): array
     {
-        $tz = static::tz();
+        $zone = $tz ?: static::tz();
 
-        return [$startTz->copy()->setTimezone($tz), $endTz->copy()->setTimezone($tz)];
+        return [$startTz->copy()->setTimezone($zone), $endTz->copy()->setTimezone($zone)];
     }
 
-    /** Bucket key (Y-m-d) for a stored instant, in the business timezone. */
-    public static function dateKey(?Carbon $instant): ?string
+    /**
+     * Bucket key (Y-m-d) for a stored instant. Defaults to the system business
+     * timezone; pass a worker's work timezone to bucket the instant into THEIR
+     * own calendar day (for per-worker timezone support).
+     */
+    public static function dateKey(?Carbon $instant, ?string $tz = null): ?string
     {
-        return $instant?->copy()->setTimezone(static::tz())->toDateString();
+        return $instant?->copy()->setTimezone($tz ?: static::tz())->toDateString();
     }
 }

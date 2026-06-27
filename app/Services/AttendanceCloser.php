@@ -41,7 +41,12 @@ class AttendanceCloser
             return null;
         }
 
-        $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
+        // $closeAt may arrive in the worker's timezone (auto-close computes shift
+        // end there); store it in the app timezone so the canonical instant
+        // round-trips and action_time == TIME(action_timestamp).
+        $closeAt = $closeAt->copy()->setTimezone(config('app.timezone', 'Asia/Karachi'));
+
+        $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone(config('app.timezone', 'Asia/Karachi'));
         if ($closeAt->lessThanOrEqualTo($clockInTs)) {
             $closeAt = $clockInTs->copy()->addMinute();
         }

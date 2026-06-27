@@ -47,8 +47,9 @@ class EmployeeAttendanceController extends Controller
     }
 
     /**
-     * Existing clock times for one employee/day, as Asia/Karachi H:i strings,
-     * to prefill the "Edit clock times" dialog. Gated by attendance.edit_times.
+     * Existing clock times for one employee/day, as H:i strings in that worker's
+     * own work timezone (returned alongside the zone label), to prefill the
+     * "Edit clock times" dialog. Gated by attendance.edit_times.
      */
     public function getDayEntries(Request $request)
     {
@@ -64,7 +65,11 @@ class EmployeeAttendanceController extends Controller
             ->orderBy('action_timestamp')->orderBy('id')
             ->get();
 
-        $tz = 'Asia/Karachi';
+        // Show (and later parse) the times in the SUBJECT's own work timezone so
+        // an admin in another zone edits the worker's local wall-clock; the label
+        // is returned so the dialog can show e.g. "(America/New York)".
+        $subject = User::find($validated['user_id']);
+        $tz = $subject?->workTimezone() ?: config('app.timezone', 'Asia/Karachi');
         $fmt = fn (?TimeEntry $e) => $e
             ? Carbon::parse($e->action_timestamp)->setTimezone($tz)->format('H:i')
             : null;
@@ -74,6 +79,12 @@ class EmployeeAttendanceController extends Controller
             'clock_out' => $fmt($entries->where('action_type', 'clock_out')->last()),
             'break_start' => $fmt($entries->firstWhere('action_type', 'break_start')),
             'break_end' => $fmt($entries->where('action_type', 'break_end')->last()),
+            'timezone' => $tz,
+            // Only label a non-default zone, so the dialog is unchanged for local
+            // (Asia/Karachi) staff and only shows a banner for remote workers.
+            'timezone_label' => $tz !== config('app.timezone', 'Asia/Karachi')
+                ? str_replace('_', ' ', $tz)
+                : '',
         ]);
     }
 
@@ -101,9 +112,14 @@ class EmployeeAttendanceController extends Controller
         ]);
 
         $target = User::findOrFail($validated['user_id']);
-        $tz = 'Asia/Karachi';
+        // Parse the entered times in the SUBJECT's own work timezone (the dialog
+        // shows that zone's label), so an admin elsewhere edits the worker's
+        // local wall-clock. action_date then buckets to the worker's day.
+        // Carbon::parse (not createFromFormat) is used so the timezone is applied
+        // to the wall-clock rather than ignored.
+        $tz = $target->workTimezone();
         $date = $validated['date'];
-        $mk = fn (string $hi) => Carbon::createFromFormat('Y-m-d H:i', "{$date} {$hi}", $tz);
+        $mk = fn (string $hi) => Carbon::parse("{$date} {$hi}", $tz);
 
         // Provided actions in canonical clock order. break/clock_out that land
         // chronologically at/before clock_in are pushed to the next day so an
@@ -167,7 +183,10 @@ class EmployeeAttendanceController extends Controller
             // sequence. The 'Admin clock edit' note suppresses the Slack post.
             TimeEntry::forUser($target->id)->forDate($date)->delete();
             foreach ($provided as $action) {
-                $ts = $timestamps[$action];
+                // Store the canonical instant + action_time in the app timezone so
+                // it round-trips and action_time == TIME(action_timestamp); the
+                // entered value was parsed in the worker's zone above.
+                $ts = $timestamps[$action]->copy()->setTimezone(config('app.timezone', 'Asia/Karachi'));
                 TimeEntry::create([
                     'user_id' => $target->id,
                     'action_type' => $action,

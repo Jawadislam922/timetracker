@@ -60,7 +60,10 @@ class StillWorkingCheck extends Command
                 continue;
             }
 
-            $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
+            // Duration-based threshold (hours clocked in) is timezone-invariant,
+            // but the DM we send the worker shows their clock-in time, so render
+            // it in their own zone (defaults to Asia/Karachi for local staff).
+            $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone($user->workTimezone());
             $ageHours = $clockInTs->diffInMinutes($now, false) / 60;
 
             // Nudge only once the person's full shift has elapsed, plus an

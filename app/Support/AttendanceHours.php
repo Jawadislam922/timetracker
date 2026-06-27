@@ -66,7 +66,10 @@ class AttendanceHours
             return false;
         }
 
-        $tz = config('services.slack_reports.timezone', 'Asia/Karachi');
+        // Late detection compares the clock-in's wall-clock time-of-day to the
+        // shift start, so it must use the WORKER's own timezone (a 9am shift for
+        // a New York VA means 9am New York, not 9am Karachi).
+        $tz = $user->workTimezone();
         $localDate = $date->copy()->setTimezone($tz);
 
         // Resolve the shift start for THIS day (one-day override aware), so an

@@ -111,6 +111,7 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Work Diary', href: route('work-hours.index'), icon: Clock, active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'] },
         (can('shift.edit_own') || can('shift.manage_all')) && { label: 'My Schedule', href: route('shift-overrides.index'), icon: CalendarClock, active: ['shift-overrides.index'] },
         can('attendance.view') && { label: 'Attendance', href: route('employee-attendance.index'), icon: CalendarDays, active: ['employee-attendance.index'] },
+        { label: 'Help', href: route('help'), icon: HelpCircle, active: ['help'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
     // Reporting & analytics.

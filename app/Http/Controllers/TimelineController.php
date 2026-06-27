@@ -26,7 +26,7 @@ class TimelineController extends Controller
         $canViewOthers = $authUser->hasPermission('timeline.view_others');
 
         $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);
-        $date = $this->resolveDate($request);
+        $date = $this->resolveDate($request, $targetUser->workTimezone());
 
         $users = $canViewOthers
             ? User::orderBy('name')->get(['id', 'name', 'email', 'role'])
@@ -61,7 +61,7 @@ class TimelineController extends Controller
         $canViewOthers = $authUser->hasPermission('timeline.view_others');
 
         $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);
-        $date = $this->resolveDate($request);
+        $date = $this->resolveDate($request, $targetUser->workTimezone());
 
         return response()->json($this->buildDayPayload($targetUser, $date, $authUser));
     }
@@ -77,7 +77,7 @@ class TimelineController extends Controller
         $canViewOthers = $authUser->hasPermission('timeline.view_others');
 
         $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);
-        $date = $this->resolveDate($request);
+        $date = $this->resolveDate($request, $targetUser->workTimezone());
 
         $ai = app(\App\Services\AnthropicService::class);
         if (! $ai->configured()) {
@@ -108,7 +108,7 @@ class TimelineController extends Controller
         $canViewOthers = $authUser->hasPermission('timeline.view_others');
 
         $targetUser = $this->resolveTargetUser($request, $authUser, $canViewOthers);
-        $date = $this->resolveDate($request);
+        $date = $this->resolveDate($request, $targetUser->workTimezone());
 
         [$utcStart, $utcEnd] = BusinessTime::utcRange($date->copy()->startOfDay(), $date->copy()->endOfDay());
 
@@ -155,8 +155,12 @@ class TimelineController extends Controller
         $canViewScreenshots = $authUser->id === $targetUser->id
             || $authUser->hasPermission('monitoring.view_screenshots');
 
-        // $date arrives in the business timezone; queries need UTC bounds
-        // because rows are stored in UTC.
+        // The target worker's own timezone defines their day boundaries; defaults
+        // to Asia/Karachi so local staff render identically to before.
+        $tz = $targetUser->workTimezone();
+
+        // $date arrives in the worker's timezone; queries need storage-tz bounds
+        // because rows are stored in the app timezone.
         $dayStart = $date->copy()->startOfDay();
         $dayEnd = $date->copy()->endOfDay();
         $weekStartsOn = MonitoringSetting::current()->week_starts_on;
@@ -231,6 +235,7 @@ class TimelineController extends Controller
             $dayStart,
             $dayEnd,
             $dateKey,
+            $tz,
         ))
             // Hide ghost rows: sessions that merely brush the day with under
             // a minute and left no screenshots or activity here only confuse
@@ -270,11 +275,11 @@ class TimelineController extends Controller
                 'start' => $weekStart->toDateString(),
                 'end' => $weekEnd->toDateString(),
             ],
-            'month_strip' => $this->monthStrip($date, $targetUser->id),
+            'month_strip' => $this->monthStrip($date, $targetUser->id, $tz),
             'client_breakdown' => $clientBreakdown,
             'day_apps' => $this->rollupBy($samples, 'active_app', $sampleIntervalSeconds, 10),
             'day_urls' => $this->rollupBy($samples, 'url_domain', $sampleIntervalSeconds, 10),
-            'activity_bands' => $this->activityBands($samples, $sampleIntervalSeconds),
+            'activity_bands' => $this->activityBands($samples, $sampleIntervalSeconds, $tz),
             'sample_interval_seconds' => (int) $sampleIntervalSeconds,
         ];
     }
@@ -311,13 +316,15 @@ class TimelineController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function activityBands(Collection $samples, int $intervalSeconds): array
+    private function activityBands(Collection $samples, int $intervalSeconds, ?string $tz = null): array
     {
         $slotsPerHour = 10;        // 6-minute slots
         $totalSlots = 24 * $slotsPerHour;
         $bands = array_fill(0, $totalSlots, ['active' => 0, 'idle' => 0]);
 
-        $tz = BusinessTime::tz();
+        // Bucket each sample into the worker's own hour-of-day so the bands line
+        // up with their day, not Karachi's.
+        $tz = $tz ?: BusinessTime::tz();
 
         foreach ($samples as $sample) {
             $captured = $sample->captured_at?->copy()->setTimezone($tz);
@@ -394,7 +401,7 @@ class TimelineController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function sessionBlocks(TrackingSession $session, Collection $rows, Collection $samples, bool $canViewScreenshots, int $interval, Carbon $dayStart, Carbon $dayEnd, string $dateKey): array
+    private function sessionBlocks(TrackingSession $session, Collection $rows, Collection $samples, bool $canViewScreenshots, int $interval, Carbon $dayStart, Carbon $dayEnd, string $dateKey, string $tz = 'Asia/Karachi'): array
     {
         $dayTotal = $this->inDaySeconds($session, $dayStart, $dayEnd);
         $gap = max(150, $interval * 3);
@@ -402,7 +409,7 @@ class TimelineController extends Controller
 
         // No samples (e.g. capture blocked) or a single active run → one block.
         if (count($segments) <= 1) {
-            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, $session->stopped_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey)];
+            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, $session->stopped_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey, $tz)];
         }
 
         $totalSamples = max(1, array_sum(array_map(fn ($s) => $s['samples']->count(), $segments)));
@@ -445,6 +452,7 @@ class TimelineController extends Controller
                 $canViewScreenshots,
                 $interval,
                 $dateKey,
+                $tz,
             );
             $prevEnd = $seg['end'];
         }
@@ -488,7 +496,7 @@ class TimelineController extends Controller
     }
 
     /** Build a single Timeline block payload (whole session, or one segment). */
-    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, ?Carbon $blockEnd, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey): array
+    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, ?Carbon $blockEnd, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey, string $tz = 'Asia/Karachi'): array
     {
         // Honest keystrokes + real clicks per screenshot, summed from the
         // per-minute samples in each shot's window (see screenshotInput).
@@ -508,8 +516,8 @@ class TimelineController extends Controller
             // keeps the session total so the overnight "X of Y" label still works.
             'total_seconds' => $isResumed ? $daySeconds : (int) $session->total_seconds,
             'day_seconds' => $daySeconds,
-            'started_before_day' => $isFirst && BusinessTime::dateKey($session->started_at) < $dateKey,
-            'continues_after_day' => $isLast && $session->stopped_at !== null && BusinessTime::dateKey($session->stopped_at) > $dateKey,
+            'started_before_day' => $isFirst && BusinessTime::dateKey($session->started_at, $tz) < $dateKey,
+            'continues_after_day' => $isLast && $session->stopped_at !== null && BusinessTime::dateKey($session->stopped_at, $tz) > $dateKey,
             'is_resumed' => $isResumed,
             'idle_before_seconds' => $idleBefore,
             'activity_percent' => (int) $session->activity_percent,
@@ -583,7 +591,7 @@ class TimelineController extends Controller
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function monthStrip(Carbon $date, int $userId): array
+    private function monthStrip(Carbon $date, int $userId, string $tz = 'Asia/Karachi'): array
     {
         $start = $date->copy()->startOfMonth();
         $end = $date->copy()->endOfMonth();
@@ -606,9 +614,9 @@ class TimelineController extends Controller
 
         $perDay = [];
         foreach ($rows as $session) {
-            $firstDay = BusinessTime::dateKey($session->started_at);
-            $lastDay = BusinessTime::dateKey($session->stopped_at) ?? BusinessTime::today()->toDateString();
-            for ($day = Carbon::parse($firstDay, BusinessTime::tz()); $day->toDateString() <= $lastDay; $day->addDay()) {
+            $firstDay = BusinessTime::dateKey($session->started_at, $tz);
+            $lastDay = BusinessTime::dateKey($session->stopped_at, $tz) ?? BusinessTime::today($tz)->toDateString();
+            for ($day = Carbon::parse($firstDay, $tz); $day->toDateString() <= $lastDay; $day->addDay()) {
                 $seconds = $this->inDaySeconds($session, $day->copy()->startOfDay(), $day->copy()->endOfDay());
                 if ($seconds >= 30) {
                     $perDay[$day->toDateString()] = ($perDay[$day->toDateString()] ?? 0) + $seconds;
@@ -616,7 +624,7 @@ class TimelineController extends Controller
             }
         }
 
-        $today = BusinessTime::today();
+        $today = BusinessTime::today($tz);
 
         $out = [];
         for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addDay()) {
@@ -645,8 +653,10 @@ class TimelineController extends Controller
         return User::query()->findOrFail($requested);
     }
 
-    private function resolveDate(Request $request): Carbon
+    private function resolveDate(Request $request, ?string $tz = null): Carbon
     {
-        return BusinessTime::parseDate($request->input('date'));
+        // Parse the selected day in the TARGET worker's timezone so the timeline's
+        // day/week/month boundaries are the worker's midnight, not Karachi's.
+        return BusinessTime::parseDate($request->input('date'), $tz);
     }
 }

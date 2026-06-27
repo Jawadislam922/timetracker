@@ -43,6 +43,9 @@ class TimeClockController extends Controller
         ]);
 
         $user = $request->user();
+        // action_timestamp + action_time are stored in the app timezone (so the
+        // canonical instant round-trips and action_time == TIME(action_timestamp)).
+        // The worker's own day is handled by attendanceDateFor() below.
         $now = Carbon::now('Asia/Karachi');
         $attendanceDate = $user->attendanceDateFor($now);
         $actionType = $validated['action_type'];

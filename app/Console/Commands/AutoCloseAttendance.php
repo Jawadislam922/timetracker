@@ -90,7 +90,12 @@ class AutoCloseAttendance extends Command
                 continue;
             }
 
-            $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone('Asia/Karachi');
+            // The worker's own timezone defines their shift boundaries; a 9am
+            // shift for a New York VA must end relative to 9am New York, not
+            // Karachi. Defaults to Asia/Karachi, so local staff are unchanged.
+            $tz = $user->workTimezone();
+
+            $clockInTs = Carbon::parse($clockIn->action_timestamp)->setTimezone($tz);
             $clockInDate = $clockIn->action_date instanceof Carbon
                 ? $clockIn->action_date->toDateString()
                 : (string) $clockIn->action_date;
@@ -103,7 +108,7 @@ class AutoCloseAttendance extends Command
             // to the schedule (a late arrival still ends at shift end, not a full
             // shift later); without one it's a full shift from the clock-in.
             $shiftEnd = $shift['start_time']
-                ? Carbon::parse($clockInDate.' '.$shift['start_time']->format('H:i:s'), 'Asia/Karachi')
+                ? Carbon::parse($clockInDate.' '.$shift['start_time']->format('H:i:s'), $tz)
                     ->addMinutes((int) round($shiftHours * 60))
                 : $clockInTs->copy()->addMinutes((int) round($shiftHours * 60));
 

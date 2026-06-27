@@ -114,7 +114,16 @@ class AttendanceClockNotifier
 
     private function message(TimeEntry $entry): string
     {
-        $at = $entry->action_timestamp->copy()->setTimezone('Asia/Karachi')->format('g:i A');
+        // Show the worker's own local clock time. For a remote worker, append the
+        // city so the Pakistan team reading the channel can't misread it; local
+        // (Asia/Karachi) staff get no suffix, exactly as before.
+        $workTz = $entry->user?->workTimezone() ?: config('app.timezone', 'Asia/Karachi');
+        $at = $entry->action_timestamp->copy()->setTimezone($workTz)->format('g:i A');
+        if ($workTz !== config('app.timezone', 'Asia/Karachi')) {
+            $at .= str_contains($workTz, '/')
+                ? ' '.str_replace('_', ' ', substr(strrchr($workTz, '/'), 1))
+                : ' '.$workTz;
+        }
         $name = $entry->user->name ?? 'Someone';
 
         return match ($entry->action_type) {
