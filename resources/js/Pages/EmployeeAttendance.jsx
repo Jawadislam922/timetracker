@@ -68,14 +68,14 @@ const statusStyle = (status) => {
 
 const gridStatusStyles = {
     P: 'bg-emerald-600 text-white border-emerald-700',
-    A: 'bg-fuchsia-200 text-fuchsia-900 border-fuchsia-300',
-    H: 'bg-sky-100 text-sky-800 border-sky-200',
-    L: 'bg-amber-200 text-amber-900 border-amber-300',
-    HD: 'bg-yellow-200 text-yellow-900 border-yellow-300',
-    WFH: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-    LC: 'bg-orange-100 text-orange-800 border-orange-200',
-    LI: 'bg-slate-100 text-slate-700 border-slate-300',
-    PH: 'bg-purple-100 text-purple-800 border-purple-200',
+    A: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-500/40',
+    H: 'bg-sky-500/20 text-sky-200 border-sky-500/40',
+    L: 'bg-amber-500/20 text-amber-200 border-amber-500/40',
+    HD: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/40',
+    WFH: 'bg-indigo-500/20 text-indigo-200 border-indigo-500/40',
+    LC: 'bg-orange-500/20 text-orange-200 border-orange-500/40',
+    LI: 'bg-slate-500/20 text-slate-200 border-slate-500/40',
+    PH: 'bg-purple-500/20 text-purple-200 border-purple-500/40',
     empty: 'bg-slate-800/40 text-slate-600 border-slate-800',
 };
 
@@ -93,11 +93,11 @@ const gridLegend = [
 ];
 
 const actionMeta = (actionType) => {
-    if (actionType === 'clock_in') return { label: 'Clocked In', icon: PlayCircle, className: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
-    if (actionType === 'clock_out') return { label: 'Clocked Out', icon: Square, className: 'bg-rose-50 text-rose-800 border-rose-200' };
-    if (actionType === 'break_start') return { label: 'Break Started', icon: PauseCircle, className: 'bg-amber-50 text-amber-800 border-amber-200' };
-    if (actionType === 'break_end') return { label: 'Break Ended', icon: RotateCcw, className: 'bg-blue-50 text-blue-800 border-blue-200' };
-    return { label: actionType, icon: Clock, className: 'bg-slate-50 text-slate-800 border-slate-200' };
+    if (actionType === 'clock_in') return { label: 'Clocked In', icon: PlayCircle, className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' };
+    if (actionType === 'clock_out') return { label: 'Clocked Out', icon: Square, className: 'bg-rose-500/15 text-rose-300 border-rose-500/30' };
+    if (actionType === 'break_start') return { label: 'Break Started', icon: PauseCircle, className: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
+    if (actionType === 'break_end') return { label: 'Break Ended', icon: RotateCcw, className: 'bg-blue-500/15 text-blue-300 border-blue-500/30' };
+    return { label: actionType, icon: Clock, className: 'bg-slate-700/40 text-slate-300 border-slate-700' };
 };
 
 const EmployeeIdentity = ({ employee, size = 'small' }) => {
@@ -493,10 +493,10 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
             }, { present: 0, absent: 0, leave: 0, hours: 0 });
 
             return [
-                { label: 'Present Days', value: totals.present, icon: PlayCircle, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-                { label: 'Absent Days', value: totals.absent, icon: Square, color: 'text-rose-700', bg: 'bg-rose-50' },
-                { label: 'Leave Days', value: totals.leave, icon: Coffee, color: 'text-amber-700', bg: 'bg-amber-50' },
-                { label: 'Month Hours', value: formatHours(totals.hours), icon: Timer, color: 'text-blue-700', bg: 'bg-blue-50' },
+                { label: 'Present Days', value: totals.present, icon: PlayCircle, color: 'text-emerald-300', bg: 'bg-emerald-500/15' },
+                { label: 'Absent Days', value: totals.absent, icon: Square, color: 'text-rose-300', bg: 'bg-rose-500/15' },
+                { label: 'Leave Days', value: totals.leave, icon: Coffee, color: 'text-amber-300', bg: 'bg-amber-500/15' },
+                { label: 'Month Hours', value: formatHours(totals.hours), icon: Timer, color: 'text-blue-300', bg: 'bg-blue-500/15' },
             ];
         }
 
@@ -505,10 +505,10 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
         const clockedOut = employeesData.filter((employee) => employee.current_status === 'Clocked Out').length;
         const workHours = employeesData.reduce((sum, employee) => sum + Number(employee.total_work_hours || 0), 0);
         return [
-            { label: 'Active', value: working, icon: PlayCircle, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-            { label: 'On Break', value: onBreak, icon: Coffee, color: 'text-amber-700', bg: 'bg-amber-50' },
-            { label: 'Clocked Out', value: clockedOut, icon: Square, color: 'text-rose-700', bg: 'bg-rose-50' },
-            { label: 'Team Hours', value: formatHours(workHours), icon: Timer, color: 'text-blue-700', bg: 'bg-blue-50' },
+            { label: 'Active', value: working, icon: PlayCircle, color: 'text-emerald-300', bg: 'bg-emerald-500/15' },
+            { label: 'On Break', value: onBreak, icon: Coffee, color: 'text-amber-300', bg: 'bg-amber-500/15' },
+            { label: 'Clocked Out', value: clockedOut, icon: Square, color: 'text-rose-300', bg: 'bg-rose-500/15' },
+            { label: 'Team Hours', value: formatHours(workHours), icon: Timer, color: 'text-blue-300', bg: 'bg-blue-500/15' },
         ];
     }, [activeTab, employeesData, monthlyGridData.employees]);
 
@@ -936,16 +936,16 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
             {showCalendarDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-                    <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
-                        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+                    <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-slate-800 bg-slate-900 shadow-xl">
+                        <div className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
                             <div>
-                                <h2 className="text-lg font-bold text-slate-950">Attendance calendar</h2>
-                                <p className="mt-1 text-sm text-slate-600">Schedule or remove attendance statuses for a date range.</p>
+                                <h2 className="text-lg font-bold text-white">Attendance calendar</h2>
+                                <p className="mt-1 text-sm text-slate-400">Schedule or remove attendance statuses for a date range.</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowCalendarDialog(false)}
-                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                                 title="Close"
                             >
                                 <X className="h-5 w-5" />
@@ -954,7 +954,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
                         <div className="space-y-5 overflow-y-auto px-5 py-4">
                             <fieldset>
-                                <legend className="text-sm font-semibold text-slate-800">Action</legend>
+                                <legend className="text-sm font-semibold text-slate-300">Action</legend>
                                 <div className="mt-2 grid grid-cols-2 gap-2">
                                     {[
                                         ['apply', 'Apply or replace'],
@@ -966,8 +966,8 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                             onClick={() => setCalendarOperation(value)}
                                             className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
                                                 calendarOperation === value
-                                                    ? 'border-blue-500 bg-blue-50 text-blue-900'
-                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                                    ? 'border-orange-500 bg-orange-500/10 text-orange-300'
+                                                    : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600'
                                             }`}
                                         >
                                             {label}
@@ -978,7 +978,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <label>
-                                    <span className="mb-1.5 block text-sm font-semibold text-slate-800">Start date</span>
+                                    <span className="mb-1.5 block text-sm font-semibold text-slate-300">Start date</span>
                                     <input
                                         type="date"
                                         value={calendarStartDate}
@@ -986,23 +986,23 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                             setCalendarStartDate(event.target.value);
                                             if (calendarEndDate < event.target.value) setCalendarEndDate(event.target.value);
                                         }}
-                                        className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                     />
                                 </label>
                                 <label>
-                                    <span className="mb-1.5 block text-sm font-semibold text-slate-800">End date</span>
+                                    <span className="mb-1.5 block text-sm font-semibold text-slate-300">End date</span>
                                     <input
                                         type="date"
                                         min={calendarStartDate}
                                         value={calendarEndDate}
                                         onChange={(event) => setCalendarEndDate(event.target.value)}
-                                        className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                     />
                                 </label>
                             </div>
 
                             <fieldset>
-                                <legend className="text-sm font-semibold text-slate-800">People</legend>
+                                <legend className="text-sm font-semibold text-slate-300">People</legend>
                                 <div className="mt-2 grid grid-cols-2 gap-2">
                                     {[
                                         ['company', 'Whole company'],
@@ -1014,8 +1014,8 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                             onClick={() => setCalendarScope(value)}
                                             className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
                                                 calendarScope === value
-                                                    ? 'border-blue-500 bg-blue-50 text-blue-900'
-                                                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                                    ? 'border-orange-500 bg-orange-500/10 text-orange-300'
+                                                    : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600'
                                             }`}
                                         >
                                             {label}
@@ -1027,34 +1027,34 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             {calendarScope === 'selected' && (
                                 <div>
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-sm font-semibold text-slate-800">Select people</span>
+                                        <span className="text-sm font-semibold text-slate-300">Select people</span>
                                         <div className="flex gap-3">
                                             <button
                                                 type="button"
                                                 onClick={() => setCalendarUserIds(monthlyGridData.employees.map((employee) => String(employee.user_id)))}
-                                                className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                                                className="text-xs font-semibold text-orange-400 hover:text-orange-300"
                                             >
                                                 Select all
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setCalendarUserIds([])}
-                                                className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                                                className="text-xs font-semibold text-slate-400 hover:text-slate-200"
                                             >
                                                 Clear
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="grid max-h-48 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-2">
+                                    <div className="grid max-h-48 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-slate-800 p-2 sm:grid-cols-2">
                                         {monthlyGridData.employees.map((employee) => (
-                                            <label key={employee.user_id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50">
+                                            <label key={employee.user_id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-800">
                                                 <input
                                                     type="checkbox"
                                                     checked={calendarUserIds.includes(String(employee.user_id))}
                                                     onChange={() => toggleCalendarUser(employee.user_id)}
-                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    className="rounded border-slate-700 bg-slate-900 text-orange-500 focus:ring-orange-500"
                                                 />
-                                                <span className="text-sm font-medium text-slate-800">{employee.user_name}</span>
+                                                <span className="text-sm font-medium text-slate-200">{employee.user_name}</span>
                                             </label>
                                         ))}
                                     </div>
@@ -1064,11 +1064,11 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             {calendarOperation === 'apply' && (
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <label>
-                                        <span className="mb-1.5 block text-sm font-semibold text-slate-800">Status</span>
+                                        <span className="mb-1.5 block text-sm font-semibold text-slate-300">Status</span>
                                         <select
                                             value={calendarStatus}
                                             onChange={(event) => setCalendarStatus(event.target.value)}
-                                            className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                            className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                         >
                                             {calendarStatusOptions.map((status) => (
                                                 <option key={status.value} value={status.value}>{status.label}</option>
@@ -1076,13 +1076,13 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                         </select>
                                     </label>
                                     <label>
-                                        <span className="mb-1.5 block text-sm font-semibold text-slate-800">Note</span>
+                                        <span className="mb-1.5 block text-sm font-semibold text-slate-300">Note</span>
                                         <input
                                             value={calendarNote}
                                             maxLength={255}
                                             onChange={(event) => setCalendarNote(event.target.value)}
                                             placeholder="Optional reason"
-                                            className="w-full rounded-lg border-slate-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                            className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500"
                                         />
                                     </label>
                                 </div>
@@ -1090,13 +1090,13 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
                             <div className={`rounded-lg border px-4 py-3 ${
                                 calendarOperation === 'clear'
-                                    ? 'border-rose-200 bg-rose-50'
-                                    : 'border-blue-200 bg-blue-50'
+                                    ? 'border-rose-500/30 bg-rose-500/10'
+                                    : 'border-blue-500/30 bg-blue-500/10'
                             }`}>
-                                <div className="text-sm font-bold text-slate-950">
+                                <div className="text-sm font-bold text-white">
                                     Preview: {calendarPreview.users} people x {calendarPreview.days} {calendarPreview.days === 1 ? 'day' : 'days'} = {calendarPreview.personDays} person-days
                                 </div>
-                                <p className="mt-1 text-xs leading-5 text-slate-600">
+                                <p className="mt-1 text-xs leading-5 text-slate-400">
                                     {calendarOperation === 'clear'
                                         ? 'This removes all manual attendance marks in the selected range. Automatic attendance will appear again.'
                                         : 'Existing manual marks in the selected range will be replaced with this status.'}
@@ -1104,11 +1104,11 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             </div>
                         </div>
 
-                        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-5 py-4 sm:flex-row sm:justify-end">
+                        <div className="flex flex-col-reverse gap-2 border-t border-slate-800 px-5 py-4 sm:flex-row sm:justify-end">
                             <button
                                 type="button"
                                 onClick={() => setShowCalendarDialog(false)}
-                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                             >
                                 Cancel
                             </button>
@@ -1120,7 +1120,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                     || calendarPreview.personDays === 0
                                     || (calendarScope === 'selected' && calendarUserIds.length === 0)
                                 }
-                                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 ${
+                                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-700 ${
                                     calendarOperation === 'clear'
                                         ? 'bg-rose-600 hover:bg-rose-700'
                                         : 'bg-blue-600 hover:bg-blue-700'
@@ -1139,16 +1139,16 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
             {showHistoryDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-                    <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
-                        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+                    <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg border border-slate-800 bg-slate-900 shadow-xl">
+                        <div className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
                             <div>
-                                <h2 className="text-lg font-bold text-slate-950">Manual attendance audit</h2>
-                                <p className="mt-1 text-sm text-slate-600">Latest manual changes for {selectedMonth}.</p>
+                                <h2 className="text-lg font-bold text-white">Manual attendance audit</h2>
+                                <p className="mt-1 text-sm text-slate-400">Latest manual changes for {selectedMonth}.</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowHistoryDialog(false)}
-                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                                 title="Close"
                             >
                                 <X className="h-5 w-5" />
@@ -1157,35 +1157,35 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
                         <div className="overflow-y-auto px-5 py-4">
                             {historyLoading ? (
-                                <div className="flex items-center justify-center gap-3 py-12 text-sm font-medium text-slate-600">
-                                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                                <div className="flex items-center justify-center gap-3 py-12 text-sm font-medium text-slate-400">
+                                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-700 border-t-orange-500" />
                                     Loading audit history...
                                 </div>
                             ) : manualHistory.length === 0 ? (
                                 <div className="py-12 text-center">
-                                    <History className="mx-auto h-10 w-10 text-slate-400" />
-                                    <h3 className="mt-3 font-semibold text-slate-900">No manual changes</h3>
-                                    <p className="mt-1 text-sm text-slate-500">No manual attendance edits were recorded for this month.</p>
+                                    <History className="mx-auto h-10 w-10 text-slate-500" />
+                                    <h3 className="mt-3 font-semibold text-slate-100">No manual changes</h3>
+                                    <p className="mt-1 text-sm text-slate-400">No manual attendance edits were recorded for this month.</p>
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto rounded-lg border border-slate-200">
-                                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                                        <thead className="bg-slate-900">
+                                <div className="overflow-x-auto rounded-lg border border-slate-800">
+                                    <table className="min-w-full divide-y divide-slate-800 text-sm">
+                                        <thead className="bg-slate-950">
                                             <tr>
                                                 {['Date', 'Employee', 'Change', 'Changed by', 'Changed at', 'Reason'].map((heading) => (
-                                                    <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-white">
+                                                    <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">
                                                         {heading}
                                                     </th>
                                                 ))}
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-200 bg-white">
+                                        <tbody className="divide-y divide-slate-800 bg-slate-900">
                                             {manualHistory.map((entry) => (
-                                                <tr key={entry.id} className="hover:bg-slate-50">
-                                                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">{entry.attendance_date}</td>
+                                                <tr key={entry.id} className="hover:bg-slate-800/40">
+                                                    <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-100">{entry.attendance_date}</td>
                                                     <td className="px-4 py-3">
-                                                        <div className="font-semibold text-slate-900">{entry.employee_name}</div>
-                                                        <div className="text-xs text-slate-500">{entry.employee_designation || 'Member'}</div>
+                                                        <div className="font-semibold text-slate-100">{entry.employee_name}</div>
+                                                        <div className="text-xs text-slate-400">{entry.employee_designation || 'Member'}</div>
                                                     </td>
                                                     <td className="whitespace-nowrap px-4 py-3">
                                                         <div className="flex items-center gap-2">
@@ -1194,9 +1194,9 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                             <AuditStatusChip code={entry.new_status_code} label={entry.new_status_label} />
                                                         </div>
                                                     </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">{entry.changed_by}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">{entry.changed_at || '-'}</td>
-                                                    <td className="min-w-48 px-4 py-3 text-slate-700">{entry.reason || '-'}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-300">{entry.changed_by}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-slate-300">{entry.changed_at || '-'}</td>
+                                                    <td className="min-w-48 px-4 py-3 text-slate-300">{entry.reason || '-'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1205,11 +1205,11 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             )}
                         </div>
 
-                        <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+                        <div className="flex justify-end border-t border-slate-800 px-5 py-4">
                             <button
                                 type="button"
                                 onClick={() => setShowHistoryDialog(false)}
-                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                             >
                                 Close
                             </button>
@@ -1220,16 +1220,16 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
             {showSlackDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-                    <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
-                        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+                    <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-800 bg-slate-900 shadow-xl">
+                        <div className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
                             <div>
-                                <h2 className="text-lg font-bold text-slate-950">Send attendance to Slack</h2>
-                                <p className="mt-1 text-sm text-slate-600">Choose users and summary columns for {selectedMonth}.</p>
+                                <h2 className="text-lg font-bold text-white">Send attendance to Slack</h2>
+                                <p className="mt-1 text-sm text-slate-400">Choose users and summary columns for {selectedMonth}.</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowSlackDialog(false)}
-                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                                 title="Close"
                             >
                                 <X className="h-5 w-5" />
@@ -1239,49 +1239,49 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                         <div className="space-y-5 overflow-y-auto px-5 py-4">
                             <div className={`rounded-lg border px-3 py-2 text-sm ${
                                 slackConfigured
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                    : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
                             }`}>
                                 {slackConfigured ? 'Slack webhook connected.' : 'Slack webhook is not configured.'}
                             </div>
 
                             <div>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <h3 className="text-sm font-semibold text-slate-800">Users to include</h3>
+                                    <h3 className="text-sm font-semibold text-slate-300">Users to include</h3>
                                     <div className="flex gap-2">
                                         <button
                                             type="button"
                                             onClick={() => setSlackUserIds(monthlyGridData.employees.map((employee) => String(employee.user_id)))}
-                                            className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                                            className="text-xs font-semibold text-orange-400 hover:text-orange-300"
                                         >
                                             Select all
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setSlackUserIds([])}
-                                            className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                                            className="text-xs font-semibold text-slate-400 hover:text-slate-200"
                                         >
                                             Clear
                                         </button>
                                     </div>
                                 </div>
-                                <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-2">
+                                <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-slate-800 p-2 sm:grid-cols-2">
                                     {monthlyGridData.employees.map((employee) => (
-                                        <label key={employee.user_id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50">
+                                        <label key={employee.user_id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-800">
                                             <input
                                                 type="checkbox"
                                                 checked={slackUserIds.includes(String(employee.user_id))}
                                                 onChange={() => toggleSlackUser(employee.user_id)}
-                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                className="rounded border-slate-700 bg-slate-900 text-orange-500 focus:ring-orange-500"
                                             />
-                                            <span className="text-sm font-medium text-slate-800">{employee.user_name}</span>
+                                            <span className="text-sm font-medium text-slate-200">{employee.user_name}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
 
                             <fieldset>
-                                <legend className="text-sm font-semibold text-slate-800">Data to include</legend>
+                                <legend className="text-sm font-semibold text-slate-300">Data to include</legend>
                                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                                     {attendanceSlackFieldOptions.map((field) => {
                                         const checked = slackFields.includes(field.value);
@@ -1291,15 +1291,15 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                 key={field.value}
                                                 className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm font-semibold transition ${
                                                     checked
-                                                        ? 'border-blue-300 bg-blue-50 text-blue-900'
-                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                                        ? 'border-orange-500/40 bg-orange-500/10 text-orange-300'
+                                                        : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600'
                                                 }`}
                                             >
                                                 <input
                                                     type="checkbox"
                                                     checked={checked}
                                                     onChange={() => toggleSlackField(field.value)}
-                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    className="rounded border-slate-700 bg-slate-900 text-orange-500 focus:ring-orange-500"
                                                 />
                                                 {field.label}
                                             </label>
@@ -1308,16 +1308,16 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                 </div>
                             </fieldset>
 
-                            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                            <p className="rounded-lg bg-slate-950/60 px-3 py-2 text-xs leading-5 text-slate-400">
                                 Late coming is calculated from each person's shift start time and grace period, and counts in both Present and Late coming totals. Late joining is for days before the employee's joining date.
                             </p>
                         </div>
 
-                        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                        <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
                             <button
                                 type="button"
                                 onClick={() => setShowSlackDialog(false)}
-                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                             >
                                 Cancel
                             </button>
@@ -1325,7 +1325,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                 type="button"
                                 onClick={sendAttendanceToSlack}
                                 disabled={!slackConfigured || isSendingSlack || slackUserIds.length === 0 || slackFields.length === 0}
-                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-700"
                             >
                                 {isSendingSlack ? 'Sending...' : 'Send report'}
                             </button>
@@ -1536,7 +1536,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
                                                     type="button"
                                                     disabled={loading}
                                                     onClick={(event) => toggleCellMenu(event, cellKey)}
-                                                    className="h-full w-full rounded px-1 text-xs font-bold text-inherit outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-wait disabled:opacity-60"
+                                                    className="h-full w-full rounded px-1 text-xs font-bold text-inherit outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-wait disabled:opacity-60"
                                                     aria-label={`Attendance for ${employee.user_name} on ${cell.date}`}
                                                     aria-expanded={open}
                                                     aria-haspopup="menu"

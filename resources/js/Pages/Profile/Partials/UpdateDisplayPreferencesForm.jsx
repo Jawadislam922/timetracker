@@ -27,8 +27,8 @@ export default function UpdateDisplayPreferencesForm({ className = '' }) {
     return (
         <section className={className}>
             <header>
-                <h2 className="text-lg font-medium text-slate-900">Time zone &amp; format</h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <h2 className="text-lg font-medium text-slate-100">Time zone &amp; format</h2>
+                <p className="mt-1 text-sm text-slate-400">
                     Choose the time zone you want all times shown in. This only changes how times
                     <strong> display to you</strong> — it never changes when anything actually happened, and
                     it works regardless of your computer&apos;s clock settings.
@@ -42,7 +42,7 @@ export default function UpdateDisplayPreferencesForm({ className = '' }) {
                         id="display_timezone"
                         value={data.display_timezone}
                         onChange={(e) => setData('display_timezone', e.target.value)}
-                        className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                        className="mt-1 block w-full rounded-md border-slate-700 bg-slate-900 text-slate-200 shadow-sm [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                     >
                         {TIMEZONES.map((tz) => (
                             <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
@@ -53,7 +53,7 @@ export default function UpdateDisplayPreferencesForm({ className = '' }) {
                 <div>
                     <InputLabel value="Time format" />
                     <div className="mt-2 flex gap-6">
-                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <label className="flex items-center gap-2 text-sm text-slate-300">
                             <input
                                 type="radio"
                                 name="time_format"
@@ -64,7 +64,7 @@ export default function UpdateDisplayPreferencesForm({ className = '' }) {
                             />
                             12-hour (3:45 PM)
                         </label>
-                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <label className="flex items-center gap-2 text-sm text-slate-300">
                             <input
                                 type="radio"
                                 name="time_format"
@@ -87,7 +87,7 @@ export default function UpdateDisplayPreferencesForm({ className = '' }) {
                         leave="transition ease-in-out"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-slate-600">Saved.</p>
+                        <p className="text-sm text-slate-400">Saved.</p>
                     </Transition>
                 </div>
             </form>

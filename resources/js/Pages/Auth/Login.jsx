@@ -46,15 +46,15 @@ export default function Login({ status, canResetPassword }) {
                         <h1 className="text-3xl font-bold gradient-text mb-2">
                             Welcome Back
                         </h1>
-                        <p className="text-gray-600 text-sm">
+                        <p className="text-slate-400 text-sm">
                             Sign in to your TimeTracker account
                         </p>
                     </div>
 
                     {/* Status Message */}
                     {status && (
-                        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
-                            <p className="text-green-700 text-sm font-medium">{status}</p>
+                        <div className="mb-6 p-4 bg-green-500/15 border border-green-500/40 rounded-xl">
+                            <p className="text-green-300 text-sm font-medium">{status}</p>
                         </div>
                     )}
 
@@ -62,12 +62,12 @@ export default function Login({ status, canResetPassword }) {
                     <form onSubmit={submit} className="space-y-6">
                         {/* Email Field */}
                         <div className="group">
-                            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                            <label htmlFor="email" className="block text-sm font-semibold text-slate-300 mb-2">
                                 Email Address
                             </label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg className="h-5 w-5 text-gray-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{'--group-focus-within-color': '#282a2a'}}>
+                                    <svg className="h-5 w-5 text-slate-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{'--group-focus-within-color': '#282a2a'}}>
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                                     </svg>
                                 </div>
@@ -77,7 +77,7 @@ export default function Login({ status, canResetPassword }) {
                                     name="email"
                                     value={data.email}
                                     onChange={(e) => setData('email', e.target.value)}
-                                    className="form-input w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl transition-all duration-200 bg-gray-50 focus:bg-white"
+                                    className="form-input w-full pl-10 pr-4 py-3 border-2 border-slate-700 rounded-xl transition-all duration-200 bg-slate-900 text-slate-200 placeholder-slate-500 [color-scheme:dark] focus:bg-slate-900"
                                     style={{'--focus-border-color': '#282a2a', '--focus-ring-color': 'rgba(40, 42, 42, 0.1)'}}
                                     onFocus={(e) => {
                                         e.target.style.borderColor = '#282a2a';
@@ -93,7 +93,7 @@ export default function Login({ status, canResetPassword }) {
                                 />
                             </div>
                             {errors.email && (
-                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                <p className="mt-2 text-sm text-red-400 flex items-center">
                                     <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                     </svg>
@@ -104,12 +104,12 @@ export default function Login({ status, canResetPassword }) {
 
                         {/* Password Field */}
                         <div className="group">
-                            <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                            <label htmlFor="password" className="block text-sm font-semibold text-slate-300 mb-2">
                                 Password
                             </label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg className="h-5 w-5 text-gray-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="h-5 w-5 text-slate-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                     </svg>
                                 </div>
@@ -119,7 +119,7 @@ export default function Login({ status, canResetPassword }) {
                                     name="password"
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
-                                    className="form-input w-full pl-10 pr-12 py-3 border-2 border-gray-200 rounded-xl transition-all duration-200 bg-gray-50 focus:bg-white"
+                                    className="form-input w-full pl-10 pr-12 py-3 border-2 border-slate-700 rounded-xl transition-all duration-200 bg-slate-900 text-slate-200 placeholder-slate-500 [color-scheme:dark] focus:bg-slate-900"
                                     placeholder="Enter your password"
                                     autoComplete="current-password"
                                     onFocus={(e) => {
@@ -134,7 +134,7 @@ export default function Login({ status, canResetPassword }) {
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-green-500 transition-colors"
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-green-500 transition-colors"
                                 >
                                     {showPassword ? (
                                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -149,7 +149,7 @@ export default function Login({ status, canResetPassword }) {
                                 </button>
                             </div>
                             {errors.password && (
-                                <p className="mt-2 text-sm text-red-600 flex items-center">
+                                <p className="mt-2 text-sm text-red-400 flex items-center">
                                     <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                     </svg>
@@ -169,7 +169,7 @@ export default function Login({ status, canResetPassword }) {
                                         onChange={(e) => setData('remember', e.target.checked)}
                                         className="sr-only"
                                     />
-                                    <div className={`w-5 h-5 rounded border-2 transition-all duration-200 ${data.remember ? 'border-gray-700' : 'border-gray-300 group-hover:border-gray-400'}`} style={{backgroundColor: data.remember ? '#282a2a' : 'transparent'}}>
+                                    <div className={`w-5 h-5 rounded border-2 transition-all duration-200 ${data.remember ? 'border-gray-700' : 'border-slate-700 group-hover:border-slate-600'}`} style={{backgroundColor: data.remember ? '#282a2a' : 'transparent'}}>
                                         {data.remember && (
                                             <svg className="w-3 h-3 text-white absolute top-0.5 left-0.5" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -177,7 +177,7 @@ export default function Login({ status, canResetPassword }) {
                                         )}
                                     </div>
                                 </div>
-                                <span className="ml-3 text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
+                                <span className="ml-3 text-sm text-slate-400 group-hover:text-slate-200 transition-colors">
                                     Remember me
                                 </span>
                             </label>
@@ -222,7 +222,7 @@ export default function Login({ status, canResetPassword }) {
 
                     {/* Footer */}
                     <div className="mt-8 text-center">
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-slate-400">
                             © {new Date().getFullYear()} Sparking Asia. All rights reserved.
                         </p>
                     </div>

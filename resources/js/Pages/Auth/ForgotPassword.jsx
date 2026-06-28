@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 
-const inputClasses = 'form-input w-full px-4 py-3 border-2 border-gray-200 rounded-xl transition-all duration-200 bg-gray-50 focus:bg-white';
+const inputClasses = 'form-input w-full px-4 py-3 border-2 border-slate-700 rounded-xl transition-all duration-200 bg-slate-900 text-slate-200 placeholder-slate-500 [color-scheme:dark] focus:border-orange-500 focus:bg-slate-900';
 
 function FieldError({ message }) {
     if (!message) return null;
     return (
-        <p className="mt-2 text-sm text-red-600 flex items-center">
+        <p className="mt-2 text-sm text-red-400 flex items-center">
             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
@@ -54,7 +54,7 @@ export default function ForgotPassword({ status }) {
                             <ApplicationLogo size="16" />
                         </div>
                         <h1 className="text-3xl font-bold gradient-text mb-2">Reset Password</h1>
-                        <p className="text-gray-600 text-sm">
+                        <p className="text-slate-400 text-sm">
                             {step === 1
                                 ? 'Enter your account email and we will send a 6-digit code to your Slack.'
                                 : 'Enter the code from Slack and choose a new password.'}
@@ -62,15 +62,15 @@ export default function ForgotPassword({ status }) {
                     </div>
 
                     {status && (
-                        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
-                            <p className="text-green-700 text-sm font-medium">{status}</p>
+                        <div className="mb-6 p-4 bg-green-500/15 border border-green-500/40 rounded-xl">
+                            <p className="text-green-300 text-sm font-medium">{status}</p>
                         </div>
                     )}
 
                     {step === 1 ? (
                         <form onSubmit={requestCode} className="space-y-6">
                             <div>
-                                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor="email" className="block text-sm font-semibold text-slate-300 mb-2">
                                     Email Address
                                 </label>
                                 <input
@@ -96,10 +96,10 @@ export default function ForgotPassword({ status }) {
                             </button>
 
                             <div className="flex items-center justify-between text-sm">
-                                <Link href={route('login')} className="text-gray-600 hover:text-gray-900 font-medium">
+                                <Link href={route('login')} className="text-slate-400 hover:text-slate-200 font-medium">
                                     Back to sign in
                                 </Link>
-                                <button type="button" onClick={() => setStep(2)} className="text-gray-600 hover:text-gray-900 font-medium">
+                                <button type="button" onClick={() => setStep(2)} className="text-slate-400 hover:text-slate-200 font-medium">
                                     I already have a code
                                 </button>
                             </div>
@@ -107,7 +107,7 @@ export default function ForgotPassword({ status }) {
                     ) : (
                         <form onSubmit={submitReset} className="space-y-5">
                             <div>
-                                <label htmlFor="reset-email" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor="reset-email" className="block text-sm font-semibold text-slate-300 mb-2">
                                     Email Address
                                 </label>
                                 <input
@@ -123,7 +123,7 @@ export default function ForgotPassword({ status }) {
                             </div>
 
                             <div>
-                                <label htmlFor="code" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor="code" className="block text-sm font-semibold text-slate-300 mb-2">
                                     6-Digit Code
                                 </label>
                                 <input
@@ -142,7 +142,7 @@ export default function ForgotPassword({ status }) {
                             </div>
 
                             <div>
-                                <label htmlFor="new-password" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor="new-password" className="block text-sm font-semibold text-slate-300 mb-2">
                                     New Password
                                 </label>
                                 <input
@@ -159,7 +159,7 @@ export default function ForgotPassword({ status }) {
                             </div>
 
                             <div>
-                                <label htmlFor="confirm-password" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor="confirm-password" className="block text-sm font-semibold text-slate-300 mb-2">
                                     Confirm New Password
                                 </label>
                                 <input
@@ -182,17 +182,17 @@ export default function ForgotPassword({ status }) {
                             </button>
 
                             <div className="flex items-center justify-between text-sm">
-                                <button type="button" onClick={() => setStep(1)} className="text-gray-600 hover:text-gray-900 font-medium">
+                                <button type="button" onClick={() => setStep(1)} className="text-slate-400 hover:text-slate-200 font-medium">
                                     Request a new code
                                 </button>
-                                <Link href={route('login')} className="text-gray-600 hover:text-gray-900 font-medium">
+                                <Link href={route('login')} className="text-slate-400 hover:text-slate-200 font-medium">
                                     Back to sign in
                                 </Link>
                             </div>
                         </form>
                     )}
 
-                    <p className="mt-8 text-center text-xs text-gray-500">
+                    <p className="mt-8 text-center text-xs text-slate-400">
                         No Slack access? Ask an admin — they can reset your password from the Users page.
                     </p>
                 </div>

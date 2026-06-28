@@ -449,7 +449,7 @@ export default function WorkHoursList({
                         {showFilters && (
                             <div className="mt-3 border-t border-slate-800 pt-3">
                                 <div>
-                                    <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-600">Date Range</label>
+                                    <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-400">Date Range</label>
                                     <div className="flex flex-wrap gap-2">
                                             {[
                                                 ['all', 'All Dates'],
@@ -469,8 +469,8 @@ export default function WorkHoursList({
                                                     }}
                                                     className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
                                                         dateFilter === value
-                                                            ? 'bg-slate-900 text-white'
-                                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                                                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                                                     }`}
                                                 >
                                                     {label}
@@ -517,7 +517,7 @@ export default function WorkHoursList({
                                 {dateFilter === 'custom' && (
                                     <div className="mt-4 flex flex-wrap items-end gap-4">
                                         <div>
-                                            <label className="mb-1 block text-sm font-medium text-slate-600">Start Date</label>
+                                            <label className="mb-1 block text-sm font-medium text-slate-400">Start Date</label>
                                             <DatePicker
                                                 selected={customStartDate}
                                                 onChange={(date) => setCustomStartDate(date)}
@@ -527,7 +527,7 @@ export default function WorkHoursList({
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-1 block text-sm font-medium text-slate-600">End Date</label>
+                                            <label className="mb-1 block text-sm font-medium text-slate-400">End Date</label>
                                             <DatePicker
                                                 selected={customEndDate}
                                                 onChange={(date) => setCustomEndDate(date)}
@@ -540,7 +540,7 @@ export default function WorkHoursList({
                                         <button
                                             type="button"
                                             onClick={() => applyFilters()}
-                                            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                            className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-700"
                                         >
                                             Apply Dates
                                         </button>
@@ -554,7 +554,7 @@ export default function WorkHoursList({
                             <div className="mt-4 pt-4 border-t border-slate-800 flex flex-wrap gap-2">
                                 <button
                                     onClick={selectAllPage}
-                                    className="inline-flex items-center px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium hover:bg-emerald-200 transition-all"
+                                    className="inline-flex items-center px-3 py-1.5 bg-emerald-500/15 text-emerald-300 rounded-lg text-sm font-medium hover:bg-emerald-500/25 transition-all"
                                 >
                                     <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -597,7 +597,7 @@ export default function WorkHoursList({
                                                 type="checkbox"
                                                 checked={selectedEntries.size === filteredData.length && filteredData.length > 0}
                                                 onChange={selectAllPage}
-                                                className="w-4 h-4 text-emerald-600 bg-white border-emerald-300 rounded focus:ring-emerald-500"
+                                                className="w-4 h-4 text-emerald-600 bg-slate-900 border-slate-700 rounded [color-scheme:dark] focus:ring-emerald-500"
                                             />
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">ID</th>
@@ -620,7 +620,7 @@ export default function WorkHoursList({
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                     </svg>
                                                     <h3 className="text-lg font-medium text-white mb-2">No work hours found</h3>
-                                                    <p className="text-slate-600 mb-4">Start tracking your work hours</p>
+                                                    <p className="text-slate-400 mb-4">Start tracking your work hours</p>
                                                     <Link 
                                                         href={route('work-hours.create')}
                                                         className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-700"
@@ -644,7 +644,7 @@ export default function WorkHoursList({
                                                         type="checkbox"
                                                         checked={selectedEntries.has(entry.id)}
                                                         onChange={() => toggleSelection(entry.id)}
-                                                        className="w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500"
+                                                        className="w-4 h-4 text-emerald-600 bg-slate-900 border-slate-700 rounded [color-scheme:dark] focus:ring-emerald-500"
                                                     />
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-emerald-400">{entry.id}</td>
@@ -706,7 +706,7 @@ export default function WorkHoursList({
                                     <tfoot className="bg-slate-950">
                                         <tr>
                                             <td colSpan="6" className="px-4 py-3 text-right font-bold text-slate-100">Total:</td>
-                                            <td className="px-4 py-3 font-bold text-green-700 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
+                                            <td className="px-4 py-3 font-bold text-emerald-400 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
                                             <td colSpan="2"></td>
                                         </tr>
                                     </tfoot>
@@ -718,7 +718,7 @@ export default function WorkHoursList({
                         {workHours?.data && workHours.data.length > 0 && (
                             <div className="p-6 border-t border-slate-800">
                                 <div className="flex justify-between items-center mb-4">
-                                    <div className="text-slate-700 text-sm font-medium">
+                                    <div className="text-slate-400 text-sm font-medium">
                                         Showing {workHours.from || 0} to {workHours.to || 0} of {workHours.total || 0} entries
                                     </div>
                                 </div>

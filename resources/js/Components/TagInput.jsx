@@ -36,13 +36,13 @@ export default function TagInput({ tags = [], onChange, placeholder = 'Add tags.
                 {tags.map((tag, index) => (
                     <span
                         key={`${tag}-${index}`}
-                        className="group inline-flex items-center rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+                        className="group inline-flex items-center rounded-md border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
                     >
                         {tag}
                         <button
                             type="button"
                             onClick={() => removeTag(index)}
-                            className="ml-2 rounded-sm text-emerald-700 transition-colors hover:bg-rose-50 hover:text-rose-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="ml-2 rounded-sm text-emerald-300 transition-colors hover:bg-rose-500/15 hover:text-rose-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             aria-label={`Remove ${tag}`}
                         >
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,9 +59,9 @@ export default function TagInput({ tags = [], onChange, placeholder = 'Add tags.
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
                 placeholder={placeholder}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 transition-all placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200 transition-all placeholder-slate-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
             />
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
                 Press Enter or comma to add a tag. Click x to remove tags.
             </p>
         </div>

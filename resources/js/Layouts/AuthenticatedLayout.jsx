@@ -90,7 +90,7 @@ function NavGroup({ label, icon: Icon, items }) {
                             href={item.href}
                             prefetch
                             cacheFor="20s"
-                            className={isActive ? 'bg-slate-100 font-semibold text-slate-900' : ''}
+                            className={isActive ? 'bg-slate-800 font-semibold text-slate-100' : ''}
                         >
                             <span className="flex items-center gap-2">
                                 <ItemIcon className="h-4 w-4 text-slate-400" />
@@ -154,7 +154,7 @@ export default function Authenticated({ user, header, children }) {
     ].filter(Boolean), [feedback.can_manage, feedback.open_count]);
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-900">
+        <div className="min-h-screen bg-slate-950 text-slate-100">
             <nav className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 shadow-lg shadow-slate-950/30 backdrop-blur">
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 items-center justify-between gap-4">

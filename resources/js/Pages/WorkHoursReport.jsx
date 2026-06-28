@@ -535,7 +535,7 @@ export default function WorkHoursReport({
                             <div className="mt-3 space-y-3 border-t border-slate-800 pt-3">
                                 {/* Date Range */}
                                 <div>
-                                    <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-600">Date Range</label>
+                                    <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-400">Date Range</label>
                                     <div className="flex flex-wrap gap-2">
                                         {['all', 'today', 'week', 'month', 'custom'].map(filter => (
                                             <button
@@ -567,7 +567,7 @@ export default function WorkHoursReport({
                                                     selected={customStartDate}
                                                     onChange={(date) => setCustomStartDate(date)}
                                                     maxDate={customEndDate || new Date()}
-                                                    className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                    className="px-3 py-2 border border-slate-700 bg-slate-900 text-slate-200 [color-scheme:dark] rounded-lg focus:ring-2 focus:ring-orange-500"
                                                     dateFormat="yyyy-MM-dd"
                                                 />
                                             </div>
@@ -578,7 +578,7 @@ export default function WorkHoursReport({
                                                     onChange={(date) => setCustomEndDate(date)}
                                                     minDate={customStartDate}
                                                     maxDate={new Date()}
-                                                    className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                    className="px-3 py-2 border border-slate-700 bg-slate-900 text-slate-200 [color-scheme:dark] rounded-lg focus:ring-2 focus:ring-orange-500"
                                                     dateFormat="yyyy-MM-dd"
                                                 />
                                             </div>
@@ -784,16 +784,16 @@ export default function WorkHoursReport({
 
             {showSlackDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-                    <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
-                        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+                    <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg border border-slate-800 bg-slate-900 shadow-xl">
+                        <div className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
                             <div>
-                                <h2 className="text-lg font-bold text-slate-950">Send report to Slack</h2>
-                                <p className="mt-1 text-sm text-slate-600">Choose the people and details included in this report.</p>
+                                <h2 className="text-lg font-bold text-white">Send report to Slack</h2>
+                                <p className="mt-1 text-sm text-slate-400">Choose the people and details included in this report.</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowSlackDialog(false)}
-                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                                 title="Close"
                             >
                                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -805,8 +805,8 @@ export default function WorkHoursReport({
                         <div className="space-y-5 overflow-y-auto px-5 py-4">
                             <div className={`rounded-lg border px-3 py-2 text-sm ${
                                 slackConfigured
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                                    : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
                             }`}>
                                 {slackConfigured ? 'Slack webhook connected.' : 'Slack webhook is not configured.'}
                                 {slackWeeklyEnabled && ' Automatic reports run Sundays at 10:00 AM Pakistan time.'}
@@ -814,25 +814,25 @@ export default function WorkHoursReport({
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label htmlFor="slack-start-date" className="mb-1.5 block text-sm font-semibold text-slate-700">Start date</label>
+                                    <label htmlFor="slack-start-date" className="mb-1.5 block text-sm font-semibold text-slate-300">Start date</label>
                                     <input
                                         id="slack-start-date"
                                         type="date"
                                         value={slackStartDate}
                                         max={slackEndDate}
                                         onChange={(event) => setSlackStartDate(event.target.value)}
-                                        className="w-full rounded-lg border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border-slate-700 bg-slate-900 text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="slack-end-date" className="mb-1.5 block text-sm font-semibold text-slate-700">End date</label>
+                                    <label htmlFor="slack-end-date" className="mb-1.5 block text-sm font-semibold text-slate-300">End date</label>
                                     <input
                                         id="slack-end-date"
                                         type="date"
                                         value={slackEndDate}
                                         min={slackStartDate}
                                         onChange={(event) => setSlackEndDate(event.target.value)}
-                                        className="w-full rounded-lg border-slate-300 text-slate-900 focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border-slate-700 bg-slate-900 text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                     />
                                 </div>
                             </div>
@@ -847,8 +847,8 @@ export default function WorkHoursReport({
                             />
 
                             <fieldset>
-                                <legend className="text-sm font-semibold text-slate-800">Data to include</legend>
-                                <p className="mt-1 text-sm text-slate-600">
+                                <legend className="text-sm font-semibold text-slate-100">Data to include</legend>
+                                <p className="mt-1 text-sm text-slate-400">
                                     User names are always shown. Select at least one additional field.
                                 </p>
                                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -860,19 +860,19 @@ export default function WorkHoursReport({
                                                 key={field.value}
                                                 className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
                                                     checked
-                                                        ? 'border-blue-300 bg-blue-50'
-                                                        : 'border-slate-200 bg-white hover:border-slate-300'
+                                                        ? 'border-orange-500/40 bg-orange-500/15'
+                                                        : 'border-slate-800 bg-slate-900 hover:border-slate-700'
                                                 }`}
                                             >
                                                 <input
                                                     type="checkbox"
                                                     checked={checked}
                                                     onChange={() => toggleSlackField(field.value)}
-                                                    className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    className="mt-0.5 rounded border-slate-700 bg-slate-900 [color-scheme:dark] text-orange-600 focus:ring-orange-500"
                                                 />
                                                 <span>
-                                                    <span className="block text-sm font-semibold text-slate-900">{field.label}</span>
-                                                    <span className="mt-0.5 block text-xs leading-5 text-slate-600">{field.description}</span>
+                                                    <span className="block text-sm font-semibold text-slate-100">{field.label}</span>
+                                                    <span className="mt-0.5 block text-xs leading-5 text-slate-400">{field.description}</span>
                                                 </span>
                                             </label>
                                         );
@@ -880,16 +880,16 @@ export default function WorkHoursReport({
                                 </div>
                             </fieldset>
 
-                            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                            <p className="rounded-lg bg-slate-800/40 px-3 py-2 text-xs leading-5 text-slate-400">
                                 Slack will send these choices as table columns. They are independent from the filters on the report page.
                             </p>
                         </div>
 
-                        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                        <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
                             <button
                                 type="button"
                                 onClick={() => setShowSlackDialog(false)}
-                                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                             >
                                 Cancel
                             </button>

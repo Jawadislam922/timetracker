@@ -18,7 +18,7 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                     title="Profile Settings"
                     description="Manage your account details, password, and account status."
                 />
-                    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-sm sm:p-6">
                         <UpdateProfileInformationForm
                             mustVerifyEmail={mustVerifyEmail}
                             status={status}
@@ -26,15 +26,15 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                         />
                     </div>
 
-                    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-sm sm:p-6">
                         <UpdateDisplayPreferencesForm className="max-w-xl" />
                     </div>
 
-                    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-sm sm:p-6">
                         <UpdatePasswordForm className="max-w-xl" />
                     </div>
 
-                    <div className="rounded-lg border border-red-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="rounded-lg border border-red-500/40 bg-slate-900 p-5 shadow-sm sm:p-6">
                         <DeleteUserForm className="max-w-xl" />
                     </div>
             </PageShell>

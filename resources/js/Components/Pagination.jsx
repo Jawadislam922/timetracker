@@ -71,13 +71,13 @@ export const TraditionalPagination = ({
     const { links, from, to, total } = pagination;
     // Theme-aware: this component is used on both dark data pages (Report,
     // Work Diary, Clients) and the light Users page, so colors switch on `dark`.
-    const labelCls = dark ? 'text-slate-400' : 'text-slate-600';
-    const numCls = dark ? 'text-slate-100' : 'text-slate-950';
-    const disabledCls = dark ? 'text-slate-600' : 'text-slate-400';
-    const activeCls = dark ? 'bg-orange-500 text-white' : 'bg-slate-900 text-white';
+    const labelCls = dark ? 'text-slate-400' : 'text-slate-400';
+    const numCls = dark ? 'text-slate-100' : 'text-white';
+    const disabledCls = dark ? 'text-slate-600' : 'text-slate-500';
+    const activeCls = dark ? 'bg-orange-500 text-white' : 'bg-orange-500 text-white';
     const linkCls = dark
         ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-600 focus:ring-orange-500'
-        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950 hover:border-slate-300 focus:ring-blue-500 focus:ring-offset-2';
+        : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white hover:border-slate-600 focus:ring-orange-500 focus:ring-offset-2';
 
     return (
         <div className={`flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}>

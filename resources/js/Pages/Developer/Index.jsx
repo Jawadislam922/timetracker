@@ -22,8 +22,8 @@ import {
 function InfoRow({ label, value, mono = true }) {
     return (
         <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
-            <span className="text-slate-500">{label}</span>
-            <span className={['truncate text-right text-slate-900', mono ? 'font-mono text-xs' : ''].join(' ')} title={String(value ?? '')}>
+            <span className="text-slate-400">{label}</span>
+            <span className={['truncate text-right text-slate-100', mono ? 'font-mono text-xs' : ''].join(' ')} title={String(value ?? '')}>
                 {value === null || value === undefined || value === '' ? '—' : String(value)}
             </span>
         </div>
@@ -35,7 +35,7 @@ function Badge({ ok, children }) {
         <span
             className={[
                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700',
+                ok ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300',
             ].join(' ')}
         >
             {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
@@ -46,10 +46,10 @@ function Badge({ ok, children }) {
 
 function Card({ title, icon: Icon, children, accent }) {
     return (
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <header className={['flex items-center gap-2 border-b border-slate-100 px-4 py-2.5', accent || 'bg-slate-50'].join(' ')}>
-                {Icon && <Icon className="h-4 w-4 text-slate-500" />}
-                <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <section className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
+            <header className={['flex items-center gap-2 border-b border-slate-800 px-4 py-2.5', accent || 'bg-slate-950'].join(' ')}>
+                {Icon && <Icon className="h-4 w-4 text-slate-400" />}
+                <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
             </header>
             <div className="px-4 py-3">{children}</div>
         </section>
@@ -65,14 +65,14 @@ function ActionButton({ icon: Icon, label, hint, danger, busy, onClick }) {
             className={[
                 'flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left transition disabled:opacity-50',
                 danger
-                    ? 'border-rose-200 hover:bg-rose-50'
-                    : 'border-slate-200 hover:bg-slate-50',
+                    ? 'border-rose-500/40 hover:bg-rose-500/10'
+                    : 'border-slate-800 hover:bg-slate-800',
             ].join(' ')}
         >
-            <Icon className={['mt-0.5 h-4 w-4 shrink-0', danger ? 'text-rose-500' : 'text-slate-500'].join(' ')} />
+            <Icon className={['mt-0.5 h-4 w-4 shrink-0', danger ? 'text-rose-400' : 'text-slate-400'].join(' ')} />
             <span className="min-w-0">
-                <span className="block text-sm font-medium text-slate-900">{label}</span>
-                {hint && <span className="block text-xs text-slate-500">{hint}</span>}
+                <span className="block text-sm font-medium text-slate-100">{label}</span>
+                {hint && <span className="block text-xs text-slate-400">{hint}</span>}
             </span>
         </button>
     );
@@ -161,7 +161,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
     useEffect(() => { loadLogs(); }, []);
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Developer</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-100">Developer</h2>}>
             <Head title="Developer" />
 
             <div className="min-h-screen bg-slate-950">
@@ -171,8 +171,8 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                         className={[
                             'rounded-md border px-4 py-2 text-sm',
                             flash.error
-                                ? 'border-rose-200 bg-rose-50 text-rose-800'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                                ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                                : 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300',
                         ].join(' ')}
                     >
                         {flash.error || flash.success}
@@ -209,23 +209,23 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                     </Card>
 
                     <Card title="Health" icon={Activity}>
-                        <ul className="divide-y divide-slate-100">
+                        <ul className="divide-y divide-slate-800">
                             {health.map((check) => (
                                 <li key={check.name} className="flex items-center justify-between gap-3 py-2">
-                                    <span className="text-sm text-slate-700">{check.name}</span>
+                                    <span className="text-sm text-slate-300">{check.name}</span>
                                     <span className="flex items-center gap-2">
-                                        <span className="max-w-44 truncate text-xs text-slate-500" title={check.detail}>{check.detail}</span>
+                                        <span className="max-w-44 truncate text-xs text-slate-400" title={check.detail}>{check.detail}</span>
                                         <Badge ok={check.ok}>{check.ok ? 'OK' : 'FAIL'}</Badge>
                                     </span>
                                 </li>
                             ))}
                         </ul>
-                        <div className="mt-3 border-t border-slate-100 pt-3">
+                        <div className="mt-3 border-t border-slate-800 pt-3">
                             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Scheduled jobs</p>
                             <ul className="space-y-1.5">
                                 {schedule.map((job) => (
                                     <li key={job.name} className="flex items-center justify-between gap-2 text-xs">
-                                        <span className="text-slate-600">{job.name}</span>
+                                        <span className="text-slate-300">{job.name}</span>
                                         <span className="flex items-center gap-2">
                                             <span className="text-slate-400">{job.when}</span>
                                             <Badge ok={job.enabled}>{job.enabled ? 'on' : 'off'}</Badge>
@@ -292,22 +292,22 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                 </div>
 
                 <Card title="Integration credentials" icon={KeyRound}>
-                    <p className="mb-4 text-xs text-slate-500">
+                    <p className="mb-4 text-xs text-slate-400">
                         Edit Slack and S3 settings without touching the server. Secret fields are write-only —
                         they show whether a value is set, never the value itself. Leave a secret blank to keep
                         the current one. Saving reloads the config automatically.
                     </p>
                     <div className="grid gap-5 lg:grid-cols-2">
                         {(envGroups || []).map((group) => (
-                            <div key={group.key} className="rounded-lg border border-slate-200 p-4">
-                                <h3 className="mb-3 text-sm font-semibold text-slate-900">{group.label}</h3>
+                            <div key={group.key} className="rounded-lg border border-slate-800 p-4">
+                                <h3 className="mb-3 text-sm font-semibold text-slate-100">{group.label}</h3>
                                 <div className="space-y-3">
                                     {group.fields.map((field) => (
                                         <div key={field.key}>
-                                            <label className="flex items-center justify-between text-xs font-medium text-slate-600">
+                                            <label className="flex items-center justify-between text-xs font-medium text-slate-400">
                                                 <span>{field.label}</span>
                                                 {field.type === 'secret' && (
-                                                    <span className={field.is_set ? 'text-emerald-600' : 'text-slate-400'}>
+                                                    <span className={field.is_set ? 'text-emerald-400' : 'text-slate-500'}>
                                                         {field.is_set ? 'set' : 'not set'}
                                                     </span>
                                                 )}
@@ -317,7 +317,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                                                     <select
                                                         value={envDraft[field.key] ? 'true' : 'false'}
                                                         onChange={(e) => setEnvField(field.key, e.target.value === 'true')}
-                                                        className="w-full rounded border-slate-300 text-sm"
+                                                        className="w-full rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                                     >
                                                         <option value="true">Enabled</option>
                                                         <option value="false">Disabled</option>
@@ -326,7 +326,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                                                     <select
                                                         value={envDraft[field.key] ?? ''}
                                                         onChange={(e) => setEnvField(field.key, e.target.value)}
-                                                        className="w-full rounded border-slate-300 text-sm"
+                                                        className="w-full rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                                     >
                                                         {field.options.map((opt) => (
                                                             <option key={opt} value={opt}>{opt}</option>
@@ -339,7 +339,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                                                         onChange={(e) => setEnvField(field.key, e.target.value)}
                                                         placeholder={field.type === 'secret' ? (field.is_set ? '•••••••• (leave blank to keep)' : 'not set') : (field.placeholder || '')}
                                                         autoComplete="off"
-                                                        className="w-full rounded border-slate-300 font-mono text-sm"
+                                                        className="w-full rounded border-slate-700 bg-slate-900 font-mono text-sm text-slate-200 placeholder-slate-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
                                                     />
                                                 )}
                                             </div>
@@ -365,7 +365,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
 
                 <Card title="Branding" icon={ImageIcon}>
                     <div className="flex flex-wrap items-center gap-5">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-slate-800 bg-slate-950 p-2">
                             <img
                                 src={branding?.logo_url || '/images/sparking-asia-logo.png?v=2'}
                                 alt="Current logo"
@@ -373,7 +373,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                             />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="mb-2 text-xs text-slate-500">
+                            <p className="mb-2 text-xs text-slate-400">
                                 App logo shown in the navigation, login, and welcome pages. Stored on S3 so
                                 deploys can't wipe it. PNG/JPG/WebP, max 1&nbsp;MB — a square image works best.
                             </p>
@@ -382,7 +382,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                                     type="file"
                                     accept="image/png,image/jpeg,image/webp"
                                     onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                                    className="text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+                                    className="text-xs text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-200 hover:file:bg-slate-700"
                                 />
                                 <button
                                     type="button"
@@ -399,12 +399,12 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
 
                 <Card title={`Logs ${logFile ? `— ${logFile}` : ''}`} icon={AlertTriangle}>
                     <div className="mb-2 flex items-center justify-between">
-                        <p className="text-xs text-slate-500">Last 300 lines of the newest log file.</p>
+                        <p className="text-xs text-slate-400">Last 300 lines of the newest log file.</p>
                         <button
                             type="button"
                             onClick={loadLogs}
                             disabled={logsLoading}
-                            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                         >
                             <RefreshCw className={['h-3 w-3', logsLoading ? 'animate-spin' : ''].join(' ')} />
                             Refresh

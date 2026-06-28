@@ -59,7 +59,7 @@ function Toggle({ checked, onChange, disabled }) {
             disabled={disabled}
             className={[
                 'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition',
-                checked ? 'bg-emerald-500' : 'bg-slate-300',
+                checked ? 'bg-emerald-500' : 'bg-slate-700',
                 disabled ? 'opacity-50' : '',
             ].join(' ')}
             aria-pressed={checked}
@@ -72,7 +72,7 @@ function Toggle({ checked, onChange, disabled }) {
 function SectionShell({ title, blurb, children }) {
     return (
         <div className="space-y-5">
-            <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+            <h2 className="text-xl font-semibold text-slate-100">{title}</h2>
             {blurb && (
                 <div className="rounded-lg bg-slate-700 px-4 py-3 text-sm text-slate-100">{blurb}</div>
             )}
@@ -126,7 +126,7 @@ function ScreenshotsSection({ team, users, setTeam }) {
                     />
                     <span>Take</span>
                     <select
-                        className="rounded border-slate-300 text-sm"
+                        className="rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                         value={team.screenshots_per_hour || 6}
                         disabled={captureOff}
                         onChange={(e) => {
@@ -141,7 +141,7 @@ function ScreenshotsSection({ team, users, setTeam }) {
                     </select>
                     <span>screenshots per hour</span>
                     <select
-                        className="rounded border-slate-300 text-sm"
+                        className="rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                         value={team.blur_screenshots ? 'allow' : 'disallow'}
                         disabled={captureOff}
                         onChange={(e) => {
@@ -193,7 +193,7 @@ function ScreenshotsSection({ team, users, setTeam }) {
                                 />
                                 Take
                                 <select
-                                    className="rounded border-slate-300 text-xs"
+                                    className="rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                     value={override.screenshots_per_hour || team.screenshots_per_hour || 6}
                                     disabled={off}
                                     onChange={(e) => setValues({
@@ -208,7 +208,7 @@ function ScreenshotsSection({ team, users, setTeam }) {
                                 </select>
                                 / hr
                                 <select
-                                    className="rounded border-slate-300 text-xs"
+                                    className="rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                     value={override.blur_screenshots ? 'allow' : 'disallow'}
                                     disabled={off}
                                     onChange={(e) => setValues({
@@ -332,7 +332,7 @@ function WeeklyLimitSection({ team, users, setTeam }) {
                             setTeam(next);
                             patchTeam(next);
                         }}
-                        className="w-20 rounded border-slate-300 text-sm"
+                        className="w-20 rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                     />
                     <span>hours per week</span>
                 </label>
@@ -372,7 +372,7 @@ function WeeklyLimitSection({ team, users, setTeam }) {
                                     value={en ? override.weekly_time_limit_hours : 0}
                                     disabled={!en}
                                     onChange={(e) => setValues({ weekly_time_limit_hours: Number(e.target.value) })}
-                                    className="w-16 rounded border-slate-300 text-xs"
+                                    className="w-16 rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                 />
                                 hours/week
                             </label>
@@ -422,7 +422,7 @@ function AutoPauseSection({ team, users, setTeam }) {
                             setTeam(next);
                             patchTeam(next);
                         }}
-                        className="w-20 rounded border-slate-300 text-sm"
+                        className="w-20 rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                     />
                     <span>minutes of user inactivity</span>
                 </label>
@@ -463,7 +463,7 @@ function AutoPauseSection({ team, users, setTeam }) {
                                     value={en ? mins : 5}
                                     disabled={!en}
                                     onChange={(e) => setValues({ auto_pause_minutes: Number(e.target.value) })}
-                                    className="w-16 rounded border-slate-300 text-xs"
+                                    className="w-16 rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                                 />
                                 min idle
                             </label>
@@ -491,9 +491,9 @@ function DisplaySection({ team, users, setTeam }) {
         >
             <div className="flex flex-wrap items-end gap-6 text-sm">
                 <label className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-slate-500">Time zone</span>
+                    <span className="text-xs font-medium text-slate-400">Time zone</span>
                     <select
-                        className="rounded border-slate-300 text-sm"
+                        className="rounded border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                         value={team.display_timezone || 'Asia/Karachi'}
                         onChange={(e) => {
                             const next = { ...team, display_timezone: e.target.value };
@@ -507,7 +507,7 @@ function DisplaySection({ team, users, setTeam }) {
                     </select>
                 </label>
                 <label className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-slate-500">Time format</span>
+                    <span className="text-xs font-medium text-slate-400">Time format</span>
                     <div className="flex items-center gap-4">
                         {[['12', '12-hour (1:30 PM)'], ['24', '24-hour (13:30)']].map(([val, label]) => (
                             <label key={val} className="flex items-center gap-1.5">
@@ -535,7 +535,7 @@ function DisplaySection({ team, users, setTeam }) {
                 editor={(override, setValues) => (
                     <div className="flex flex-wrap items-center gap-4 text-xs">
                         <select
-                            className="rounded border-slate-300 text-xs"
+                            className="rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                             value={override.display_timezone || team.display_timezone || 'Asia/Karachi'}
                             onChange={(e) => setValues({ display_timezone: e.target.value, time_format: override.time_format || team.time_format || '12' })}
                         >
@@ -544,7 +544,7 @@ function DisplaySection({ team, users, setTeam }) {
                             ))}
                         </select>
                         <select
-                            className="rounded border-slate-300 text-xs"
+                            className="rounded border-slate-700 bg-slate-900 text-xs text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                             value={override.time_format || team.time_format || '12'}
                             onChange={(e) => setValues({ display_timezone: override.display_timezone || team.display_timezone || 'Asia/Karachi', time_format: e.target.value })}
                         >
@@ -590,7 +590,7 @@ function CurrencySection({ team, setTeam }) {
                 value={team.currency_symbol}
                 onChange={(e) => setTeam({ ...team, currency_symbol: e.target.value })}
                 onBlur={() => patchTeam(team)}
-                className="w-24 rounded border-slate-300 text-sm"
+                className="w-24 rounded border-slate-700 bg-slate-900 text-sm text-slate-200 placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500"
             />
         </SectionShell>
     );
@@ -602,7 +602,7 @@ function DesktopAppSection({ team, users, setTeam }) {
             title="Employee desktop application settings"
             blurb="Default behaviour for the desktop tracker on employees' machines."
         >
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-xs leading-5 text-amber-200">
                 <strong>How these apply:</strong> each employee also has a “Launch on startup” switch
                 inside the desktop app itself, which they control on their own machine. Central enforcement
                 of the options below reaches a machine only after that employee updates to the latest
@@ -692,16 +692,16 @@ function AttendanceSlackSection({ team, setTeam }) {
                 </label>
                 <div className="pt-2">
                     <label className="flex flex-col gap-1">
-                        <span className="text-xs font-medium text-slate-500">Attendance channel</span>
+                        <span className="text-xs font-medium text-slate-400">Attendance channel</span>
                         <input
                             type="text"
                             value={team.slack_attendance_channel || ''}
                             onChange={(e) => setTeam({ ...team, slack_attendance_channel: e.target.value })}
                             onBlur={() => patchTeam(team)}
                             placeholder="#attendance"
-                            className="w-64 rounded border-slate-300 text-sm"
+                            className="w-64 rounded border-slate-700 bg-slate-900 text-sm text-slate-200 placeholder-slate-500 focus:border-orange-500 focus:ring-orange-500"
                         />
-                        <span className="text-xs text-slate-500">Channel name (e.g. #attendance) or ID. Leave blank to use the server default.</span>
+                        <span className="text-xs text-slate-400">Channel name (e.g. #attendance) or ID. Leave blank to use the server default.</span>
                     </label>
                 </div>
             </div>
@@ -713,11 +713,11 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
     const updateOverrides = useContext(OverridesDispatchContext);
     return (
         <div className="space-y-3 pt-6">
-            <h3 className="text-base font-semibold text-slate-900">Individual settings</h3>
-            <p className="text-xs text-slate-500">If enabled, the individual setting will be used instead of the team setting.</p>
-            <div className="divide-y divide-slate-200 border-t border-slate-200">
+            <h3 className="text-base font-semibold text-slate-100">Individual settings</h3>
+            <p className="text-xs text-slate-400">If enabled, the individual setting will be used instead of the team setting.</p>
+            <div className="divide-y divide-slate-800 border-t border-slate-800">
                 {users.length === 0 && (
-                    <p className="py-4 text-sm text-slate-500">No team members yet.</p>
+                    <p className="py-4 text-sm text-slate-400">No team members yet.</p>
                 )}
                 {users.map((user) => {
                     // Everyone — including Super Admins — can have an individual
@@ -737,10 +737,10 @@ function IndividualSettings({ category, users, flagKey, defaultValues, editor })
                         <div key={user.id} className="space-y-2 py-3">
                             <div className="flex items-center gap-3">
                                 <Toggle checked={enabled} onChange={setEnabled} />
-                                <span className="flex-1 text-sm text-slate-700">{user.name}</span>
+                                <span className="flex-1 text-sm text-slate-300">{user.name}</span>
                             </div>
                             {enabled && editor && (
-                                <div className="ml-12 rounded-md bg-slate-50 px-3 py-2">
+                                <div className="ml-12 rounded-md bg-slate-800/40 px-3 py-2">
                                     {editor(user.overrides || {}, setValues)}
                                 </div>
                             )}
@@ -769,19 +769,19 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
     })), [team]);
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-900">Settings</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-100">Settings</h2>}>
             <Head title="Settings" />
 
             <OverridesDispatchContext.Provider value={updateOverrides}>
             <div className="min-h-screen bg-slate-950">
             <div className="mx-auto max-w-none px-4 py-6 sm:px-6 lg:px-8">
-                <div className="overflow-hidden rounded-lg bg-white shadow">
-                    <div className="border-b border-slate-200 bg-slate-100 px-6 py-4">
-                        <h1 className="text-lg font-semibold text-slate-800">Settings</h1>
+                <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow">
+                    <div className="border-b border-slate-800 bg-slate-950 px-6 py-4">
+                        <h1 className="text-lg font-semibold text-slate-100">Settings</h1>
                     </div>
 
                     <div className="grid grid-cols-1 gap-0 md:grid-cols-[280px_1fr]">
-                        <nav className="border-b border-slate-200 md:border-b-0 md:border-r">
+                        <nav className="border-b border-slate-800 md:border-b-0 md:border-r md:border-slate-800">
                             {items.map((item) => {
                                 const Icon = item.icon;
                                 const isActive = active === item.key;
@@ -793,15 +793,15 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
                                         className={[
                                             'flex w-full items-center justify-between gap-3 border-l-2 px-5 py-3 text-left text-sm transition',
                                             isActive
-                                                ? 'border-emerald-500 bg-slate-50 font-medium text-slate-900'
-                                                : 'border-transparent text-slate-600 hover:bg-slate-50',
+                                                ? 'border-emerald-500 bg-slate-800 font-medium text-slate-100'
+                                                : 'border-transparent text-slate-400 hover:bg-slate-800',
                                         ].join(' ')}
                                     >
                                         <span className="flex items-center gap-3">
                                             <Icon className="h-4 w-4 text-slate-400" />
                                             {item.label}
                                         </span>
-                                        <span className="text-xs text-slate-500">{item.summary}</span>
+                                        <span className="text-xs text-slate-400">{item.summary}</span>
                                     </button>
                                 );
                             })}
