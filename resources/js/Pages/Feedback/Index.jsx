@@ -136,7 +136,7 @@ export default function FeedbackIndex({ auth, items = [], canManage = false, fil
         <AuthenticatedLayout user={auth.user}>
             <Head title={canManage ? 'Feedback inbox' : 'My requests'} />
 
-            <PageShell width="max-w-3xl">
+            <PageShell width="max-w-5xl">
                 <div className="flex items-center justify-between gap-3">
                     <PageHeader
                         title={canManage ? 'Feedback inbox' : 'My requests'}

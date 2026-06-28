@@ -538,7 +538,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
             <Head title="Attendance" />
 
             <div className="min-h-screen bg-slate-950">
-                <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-none space-y-6 px-4 py-6 sm:px-6 lg:px-8">
                     <section className="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
                         <div>
                             <p className="text-sm font-semibold text-orange-400">Team operations</p>

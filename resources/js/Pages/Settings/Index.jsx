@@ -774,7 +774,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
 
             <OverridesDispatchContext.Provider value={updateOverrides}>
             <div className="min-h-screen bg-slate-950">
-            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-none px-4 py-6 sm:px-6 lg:px-8">
                 <div className="overflow-hidden rounded-lg bg-white shadow">
                     <div className="border-b border-slate-200 bg-slate-100 px-6 py-4">
                         <h1 className="text-lg font-semibold text-slate-800">Settings</h1>

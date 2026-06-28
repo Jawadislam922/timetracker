@@ -202,7 +202,7 @@ export default function Help({ auth, articles = [] }) {
         <AuthenticatedLayout user={auth.user}>
             <Head title="Help" />
 
-            <PageShell width="max-w-3xl">
+            <PageShell width="max-w-4xl">
                 <PageHeader
                     title="Help"
                     description="Ask a question and I'll search our guides. No answer? Send it straight to the team — right here."

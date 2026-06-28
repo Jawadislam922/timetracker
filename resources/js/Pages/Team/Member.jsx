@@ -51,7 +51,7 @@ export default function TeamMember({ auth, member, start, end, range, charts, to
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title={`${member.name} — Analytics`} />
-            <PageShell width="max-w-6xl">
+            <PageShell width="max-w-none">
                 <Link href={route('team.index', range === 'custom' ? { start, end } : { range })}
                     className="mb-3 inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200">
                     <ArrowLeft className="h-4 w-4" /> Back to Team Performance

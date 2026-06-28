@@ -92,9 +92,9 @@ export default function TeamChartsPanel({ charts, rows }) {
                     <div className="lg:col-span-2">
                         <SwitchableChartCard
                             title="Hours by member"
-                            subtitle="Every member, ranked — switch to donut for a high-level split"
+                            subtitle="Every member, ranked"
                             chartKey="team_composition_v2"
-                            allowedTypes={['bar', 'doughnut', 'pie']}
+                            allowedTypes={['bar']}
                             defaultType="bar"
                             isEmpty={composition.every((c) => c.value <= 0)}
                             buildData={rankedBuild(composition, composition.length || 8)}

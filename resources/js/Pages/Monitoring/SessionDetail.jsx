@@ -63,7 +63,7 @@ export default function SessionDetail({ auth, session, screenshots = [], permiss
             <Head title={`Session #${session.id}`} />
 
             <div className="min-h-screen bg-slate-950">
-                <div className="mx-auto max-w-7xl space-y-4 px-4 py-8 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-none space-y-4 px-4 py-8 sm:px-6 lg:px-8">
                     <Link href={route('monitoring.sessions')} className="text-sm text-orange-400 hover:text-orange-300">
                         &larr; Back to sessions
                     </Link>

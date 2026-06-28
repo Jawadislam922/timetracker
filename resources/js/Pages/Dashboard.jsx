@@ -385,7 +385,7 @@ export default function Dashboard({ auth }) {
             <Head title="Dashboard" />
 
             <div className="min-h-screen bg-slate-950">
-                <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-none space-y-6 px-4 py-6 sm:px-6 lg:px-8">
                     <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-6 py-6 shadow-xl shadow-slate-950/20">
                         <div className="pointer-events-none absolute -top-24 right-10 h-56 w-56 rounded-full bg-orange-500/15 blur-3xl" aria-hidden="true" />
                         <div className="pointer-events-none absolute -bottom-32 left-1/3 h-56 w-72 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />

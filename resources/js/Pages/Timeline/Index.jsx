@@ -699,7 +699,7 @@ export default function TimelineIndex({
             <Head title="Timeline" />
 
             <div className="min-h-screen bg-slate-950">
-            <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-none px-4 py-6 sm:px-6 lg:px-8">
                 <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
                         <div className="flex items-center gap-3">

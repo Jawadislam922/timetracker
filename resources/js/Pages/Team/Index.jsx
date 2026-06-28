@@ -107,7 +107,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
             <Head title="Team Performance" />
 
             <div className="min-h-screen bg-slate-950">
-            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-none px-4 py-6 sm:px-6 lg:px-8">
                 {flash.success && (
                     <div className="mb-4 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300">
                         {flash.success}

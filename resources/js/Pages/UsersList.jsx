@@ -200,7 +200,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
         <AuthenticatedLayout user={auth.user}>
             <Head title="Users" />
             <div className="min-h-screen bg-slate-950">
-                <div className="mx-auto max-w-[1600px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-none space-y-5 px-4 py-6 sm:px-6 lg:px-8">
                     <section className="flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <p className="text-sm font-semibold text-orange-400">Team management</p>

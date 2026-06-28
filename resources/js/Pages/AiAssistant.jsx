@@ -47,7 +47,7 @@ export default function AiAssistant({ auth, aiEnabled = false, questions = SUGGE
             <Head title="AI Assistant" />
 
             <div className="min-h-screen bg-slate-950">
-                <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col px-4 py-6 sm:px-6">
+                <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
                     <div className="flex-1 space-y-4 overflow-y-auto rounded-t-lg border border-b-0 border-slate-800 bg-slate-900 p-5">
                         {messages.length === 0 && (
                             <div className="flex h-full flex-col items-center justify-center gap-4 text-center">

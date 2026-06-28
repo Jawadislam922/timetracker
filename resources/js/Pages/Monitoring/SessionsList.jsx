@@ -44,7 +44,7 @@ export default function SessionsList({ auth, sessions, users = [], filters = {},
             <Head title="Tracking Sessions" />
 
             <div className="min-h-screen bg-slate-950">
-                <div className="mx-auto max-w-7xl space-y-4 px-4 py-8 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-none space-y-4 px-4 py-8 sm:px-6 lg:px-8">
                     {users.length > 0 && (
                         <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4 shadow">
                             <label className="text-sm font-medium text-slate-300">Filter user:</label>

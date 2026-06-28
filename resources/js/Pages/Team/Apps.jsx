@@ -60,7 +60,7 @@ export default function TeamApps({ auth, range, start, end, userId, users, apps,
             <Head title="Team Apps & URLs" />
 
             <div className="min-h-screen bg-slate-950">
-            <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-none px-4 py-6 sm:px-6 lg:px-8">
                 <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-5 py-4">
                         <div className="flex items-center gap-1">

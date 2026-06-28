@@ -165,7 +165,7 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
             <Head title="Developer" />
 
             <div className="min-h-screen bg-slate-950">
-            <div className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-none space-y-4 px-4 py-6 sm:px-6 lg:px-8">
                 {(flash.success || flash.error) && (
                     <div
                         className={[
