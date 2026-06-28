@@ -56,12 +56,22 @@ class TeamController extends Controller
         $sessionsByUser = $sessions->groupBy('user_id');
 
         $sampleIntervalSeconds = 60;
-        $samples = TrackingActivitySample::query()
-            ->whereBetween('captured_at', [$dayStart, $dayEnd])
-            ->whereIn('user_id', $users->pluck('id'))
-            ->get(['id', 'user_id', 'tracking_session_id', 'captured_at', 'keyboard_count', 'mouse_count', 'idle_seconds', 'active_app', 'url_domain']);
+        $userIds = $users->pluck('id');
 
-        $samplesByUser = $samples->groupBy('user_id');
+        // Each user's top app, computed with a GROUP BY aggregate instead of
+        // hydrating every raw sample row. A week of samples is ~half a million
+        // rows; loading them into PHP made this page take ~25s. The aggregate
+        // returns only distinct (user, app) pairs.
+        $topAppByUser = TrackingActivitySample::query()
+            ->whereBetween('captured_at', [$dayStart, $dayEnd])
+            ->whereIn('user_id', $userIds)
+            ->whereNotNull('active_app')->where('active_app', '!=', '')
+            ->selectRaw('user_id, active_app, COUNT(*) as c')
+            ->groupBy('user_id', 'active_app')
+            ->orderByDesc('c')
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn ($g) => $g->first()->active_app); // first = highest count (ordered desc)
 
         // Manually logged work-diary hours for the day (Add Entry / edits —
         // anything not synced from the tracker). They count as valid hours
@@ -89,9 +99,8 @@ class TeamController extends Controller
         $svc = app(\App\Services\TrackingSessionService::class);
         $daySeconds = fn ($session): int => $svc->inDaySeconds($session, $dayStart, $dayEnd);
 
-        $rows = $users->map(function (User $u) use ($sessionsByUser, $samplesByUser, $sampleIntervalSeconds, $activeNow, $manualByUser, $daySeconds) {
+        $rows = $users->map(function (User $u) use ($sessionsByUser, $topAppByUser, $sampleIntervalSeconds, $activeNow, $manualByUser, $daySeconds) {
             $userSessions = $sessionsByUser[$u->id] ?? collect();
-            $userSamples = $samplesByUser[$u->id] ?? collect();
             $live = $activeNow[$u->id] ?? null;
 
             // Tracked = each session's time clamped to THIS day. A running
@@ -120,13 +129,6 @@ class TeamController extends Controller
                 ->sortByDesc('total_seconds')
                 ->first();
 
-            $topApp = $userSamples
-                ->filter(fn ($s) => ! empty($s->active_app))
-                ->groupBy('active_app')
-                ->map(fn ($g, $name) => ['name' => $name, 'samples' => $g->count()])
-                ->sortByDesc('samples')
-                ->first();
-
             $lastHeartbeat = $userSessions
                 ->pluck('last_heartbeat_at')
                 ->filter()
@@ -145,7 +147,7 @@ class TeamController extends Controller
                 'manual_seconds' => $manualSeconds,
                 'activity_percent' => $activityPercent,
                 'top_client' => $topClient,
-                'top_app' => $topApp ? $topApp['name'] : null,
+                'top_app' => $topAppByUser[$u->id] ?? null,
                 'last_heartbeat_at' => $lastHeartbeat?->toIso8601String(),
                 'is_live' => (bool) $live,
                 'live' => $live ? [
@@ -170,11 +172,11 @@ class TeamController extends Controller
             'team_size' => $users->count(),
         ];
 
-        // Charts are computed from the SAME in-memory $sessions/$samples and the
-        // SAME inDaySeconds helper as the table above, so a chart can never
-        // disagree with a row total. Composition-by-member is derived on the
-        // client from $rows (no extra work here).
-        $charts = $this->buildTeamCharts($rangeStart, $rangeEnd, $sessions, $samples, $sampleIntervalSeconds, $svc);
+        // Charts share the SAME in-memory $sessions + inDaySeconds as the table
+        // (so a chart can't disagree with a row total); top-apps is aggregated in
+        // SQL inside, not from raw sample rows. Composition-by-member is derived
+        // on the client from $rows.
+        $charts = $this->buildTeamCharts($rangeStart, $rangeEnd, $sessions, $userIds, $sampleIntervalSeconds, $svc);
 
         return Inertia::render('Team/Index', [
             'start' => $rangeStart->toDateString(),
@@ -203,7 +205,7 @@ class TeamController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function buildTeamCharts(Carbon $rangeStart, Carbon $rangeEnd, $sessions, $samples, int $sampleInterval, $svc): array
+    private function buildTeamCharts(Carbon $rangeStart, Carbon $rangeEnd, $sessions, $userIds, int $sampleInterval, $svc): array
     {
         // Manual (non-tracker) work-diary hours per calendar day in the range.
         $manualByDate = \App\Models\WorkHour::query()
@@ -259,17 +261,22 @@ class TeamController extends Controller
             ->take(12)
             ->all();
 
-        // Top apps across the range (sample count × interval → hours).
-        $topApps = collect($samples)
-            ->filter(fn ($s) => ! empty($s->active_app))
+        // Top apps across the range — aggregated in SQL (GROUP BY) rather than
+        // hydrating every sample row (a week is ~500k rows). sample count ×
+        // interval → hours.
+        $topApps = TrackingActivitySample::query()
+            ->whereBetween('captured_at', [$rStart, $rEnd])
+            ->whereIn('user_id', $userIds)
+            ->whereNotNull('active_app')->where('active_app', '!=', '')
+            ->selectRaw('active_app, COUNT(*) as c')
             ->groupBy('active_app')
-            ->map(fn ($g, $name) => [
-                'label' => $name,
-                'value' => round($g->count() * $sampleInterval / 3600, 2),
+            ->orderByDesc('c')
+            ->limit(12)
+            ->get()
+            ->map(fn ($r) => [
+                'label' => $r->active_app,
+                'value' => round($r->c * $sampleInterval / 3600, 2),
             ])
-            ->sortByDesc('value')
-            ->values()
-            ->take(12)
             ->all();
 
         return [
