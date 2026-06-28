@@ -51,7 +51,7 @@ class TeamController extends Controller
                 $q->where('total_seconds', '>=', 60)
                     ->orWhere('status', TrackingSession::STATUS_ACTIVE);
             })
-            ->get(['id', 'user_id', 'client_id', 'started_at', 'stopped_at', 'last_heartbeat_at', 'total_seconds', 'activity_percent', 'status']);
+            ->get(['id', 'user_id', 'client_id', 'work_type', 'started_at', 'stopped_at', 'last_heartbeat_at', 'total_seconds', 'activity_percent', 'status']);
 
         $sessionsByUser = $sessions->groupBy('user_id');
 
@@ -124,7 +124,7 @@ class TeamController extends Controller
                 : 0;
 
             $topClient = $userSessions
-                ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
+                ->groupBy(fn ($s) => $this->clientLabel($s))
                 ->map(fn ($g, $name) => ['name' => $name, 'total_seconds' => (int) $g->sum(fn ($s) => $daySeconds($s))])
                 ->sortByDesc('total_seconds')
                 ->first();
@@ -250,7 +250,7 @@ class TeamController extends Controller
         // total the table's tracked column sums to).
         [$rStart, $rEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
         $topClients = collect($sessions)
-            ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
+            ->groupBy(fn ($s) => $this->clientLabel($s))
             ->map(fn ($g, $name) => [
                 'label' => $name,
                 'value' => round($g->sum(fn ($s) => $svc->inDaySeconds($s, $rStart, $rEnd)) / 3600, 2),
@@ -376,7 +376,7 @@ class TeamController extends Controller
             ->where(function ($q) {
                 $q->where('total_seconds', '>=', 60)->orWhere('status', TrackingSession::STATUS_ACTIVE);
             })
-            ->get(['id', 'user_id', 'client_id', 'started_at', 'stopped_at', 'total_seconds', 'activity_percent', 'status']);
+            ->get(['id', 'user_id', 'client_id', 'work_type', 'started_at', 'stopped_at', 'total_seconds', 'activity_percent', 'status']);
 
         $samples = TrackingActivitySample::where('user_id', $user->id)
             ->whereBetween('captured_at', [$dayStart, $dayEnd])
@@ -419,7 +419,7 @@ class TeamController extends Controller
         }
 
         $topClients = collect($sessions)
-            ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
+            ->groupBy(fn ($s) => $this->clientLabel($s))
             ->map(fn ($g, $name) => [
                 'label' => $name,
                 'value' => round($g->sum(fn ($s) => $svc->inDaySeconds($s, $dayStart, $dayEnd)) / 3600, 2),
@@ -458,6 +458,29 @@ class TeamController extends Controller
             ],
             'canViewTimeline' => $authUser->hasPermission('timeline.view_others'),
         ]);
+    }
+
+    /**
+     * Chart label for a session's client. Client work shows the client name;
+     * sessions with no client are non-billable categories (office work, Upwork
+     * bidding, test tasks) — label them by their work type instead of dumping
+     * everything into a meaningless "Unassigned" bucket.
+     */
+    private function clientLabel(TrackingSession $s): string
+    {
+        if ($s->client?->name) {
+            return $s->client->name;
+        }
+
+        return match ($s->work_type) {
+            'office_work' => 'Office Work',
+            'upwork_bidding' => 'Upwork Bidding',
+            'test_task' => 'Test Task',
+            'fixed' => 'Fixed Project',
+            'outside_of_upwork' => 'Outside of Upwork',
+            'manual' => 'Manual Time',
+            default => 'Other',
+        };
     }
 
     /** @return array{0: Carbon, 1: Carbon} */

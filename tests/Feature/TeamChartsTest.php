@@ -65,6 +65,31 @@ class TeamChartsTest extends TestCase
         $this->assertArrayHasKey('top_apps', $charts);
     }
 
+    public function test_client_less_sessions_are_labelled_by_work_type_not_unassigned(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'permissions' => ['timeline.view_others']]);
+        $member = User::factory()->create(['role' => 'member', 'permissions' => []]);
+        $today = Carbon::today(config('app.timezone'));
+
+        // Non-billable work with no client — should chart as "Office Work", not "Unassigned".
+        TrackingSession::create([
+            'user_id' => $member->id,
+            'client_uuid' => 'ow-1',
+            'work_type' => 'office_work',
+            'started_at' => $today->copy()->setTime(9, 0),
+            'stopped_at' => $today->copy()->setTime(11, 0),
+            'total_seconds' => 2 * 3600,
+            'status' => TrackingSession::STATUS_STOPPED,
+            'source' => 'desktop',
+        ]);
+
+        $props = $this->actingAs($admin)->get('/team?range=today')->assertOk()->viewData('page')['props'];
+        $labels = collect($props['charts']['top_clients'])->pluck('label');
+
+        $this->assertTrue($labels->contains('Office Work'), 'Client-less office work should be labelled by work type.');
+        $this->assertFalse($labels->contains('Unassigned'), 'There should be no "Unassigned" bucket.');
+    }
+
     public function test_per_person_analytics_shows_tracked_and_in_office_gap_and_is_gated(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'permissions' => ['analytics.view']]);
