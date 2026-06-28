@@ -67,13 +67,25 @@ const font = { family: 'Inter, sans-serif' };
  * @param {(v:number)=>string} [opts.valueFormat]  axis/tooltip value formatter
  * @param {object} [opts.overrides]                deep-ish merge of extra options
  */
-export function getChartOptions({ type = 'bar', showLegend = false, valueFormat, overrides = {} } = {}) {
+export function getChartOptions({ type = 'bar', showLegend = false, valueFormat, overrides = {}, indexAxis = 'x' } = {}) {
     const fmt = valueFormat || ((v) => v);
     const isArc = type === 'doughnut' || type === 'pie';
+    const horizontal = indexAxis === 'y'; // ranked bar: categories down the side, value across
+
+    const valueAxis = {
+        beginAtZero: true,
+        grid: { color: grid, drawBorder: false },
+        ticks: { color: ink, font: { ...font, size: 11 }, callback: (v) => fmt(v) },
+    };
+    const catAxis = {
+        grid: { color: grid, drawBorder: false },
+        ticks: { color: ink, font: { ...font, size: 11 }, autoSkip: false },
+    };
 
     const base = {
         responsive: true,
         maintainAspectRatio: false,
+        indexAxis,
         interaction: { intersect: false, mode: isArc ? 'nearest' : 'index' },
         plugins: {
             legend: {
@@ -94,7 +106,7 @@ export function getChartOptions({ type = 'bar', showLegend = false, valueFormat,
                 callbacks: {
                     label: (c) => {
                         const label = c.dataset?.label ? `${c.dataset.label}: ` : '';
-                        const val = isArc ? c.parsed : c.parsed.y;
+                        const val = isArc ? c.parsed : (horizontal ? c.parsed.x : c.parsed.y);
                         return label + fmt(val);
                     },
                 },
@@ -102,16 +114,7 @@ export function getChartOptions({ type = 'bar', showLegend = false, valueFormat,
         },
         ...(isArc
             ? { cutout: type === 'doughnut' ? '62%' : 0 }
-            : {
-                scales: {
-                    x: { grid: { color: grid, drawBorder: false }, ticks: { color: ink, font: { ...font, size: 11 } } },
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: grid, drawBorder: false },
-                        ticks: { color: ink, font: { ...font, size: 11 }, callback: (v) => fmt(v) },
-                    },
-                },
-            }),
+            : { scales: horizontal ? { x: valueAxis, y: catAxis } : { x: catAxis, y: valueAxis } }),
     };
 
     return { ...base, ...overrides, plugins: { ...base.plugins, ...(overrides.plugins || {}) } };

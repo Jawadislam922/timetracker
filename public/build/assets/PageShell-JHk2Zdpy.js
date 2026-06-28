@@ -1,0 +1,1 @@
+import{j as s}from"./app-CCYTaIGb.js";function p({children:e,width:a="max-w-[1600px]",className:x=""}){return s.jsx("div",{className:"min-h-screen bg-slate-950",children:s.jsx("div",{className:`mx-auto ${a} space-y-4 px-4 py-5 sm:px-6 lg:px-8 ${x}`,children:e})})}export{p as P};

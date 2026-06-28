@@ -31,6 +31,25 @@ export default function TeamChartsPanel({ charts, rows }) {
         [rows],
     );
 
+    // Ranked-bar builders for the "many categories" charts (members / clients /
+    // apps). A donut caps at 8 slices + a useless "Others" — no good for 58
+    // people — so the bar variant shows a tall ranked list (the default), and
+    // donut/pie stay as a compact high-level alternate.
+    const rankedBuild = (items, barCap) => (type) => {
+        if (type === 'bar') {
+            const s = toShareData(items, { cap: barCap });
+            return toTrendData(s.labels, [{ label: 'Hours', data: s.datasets[0].data }], 'bar');
+        }
+        return toShareData(items);
+    };
+    const rankedOpts = (type) => getChartOptions({
+        type,
+        showLegend: type !== 'bar',
+        valueFormat: hours,
+        indexAxis: type === 'bar' ? 'y' : 'x',
+    });
+    const barHeight = (n) => Math.min(900, Math.max(280, n * 22));
+
     if (!charts) return null;
 
     const hasTrend = (charts.hours_per_day || []).some((v) => v > 0);
@@ -70,41 +89,39 @@ export default function TeamChartsPanel({ charts, rows }) {
                         buildData={(type) => toTrendData(dayLabels, [{ label: 'Activity', data: charts.activity_per_day, color: '#34d399' }], type)}
                         buildOptions={(type) => getChartOptions({ type, valueFormat: pct, overrides: { scales: { x: {}, y: { max: 100 } } } })}
                     />
+                    <div className="lg:col-span-2">
+                        <SwitchableChartCard
+                            title="Hours by member"
+                            subtitle="Every member, ranked — switch to donut for a high-level split"
+                            chartKey="team_composition_v2"
+                            allowedTypes={['bar', 'doughnut', 'pie']}
+                            defaultType="bar"
+                            isEmpty={composition.every((c) => c.value <= 0)}
+                            buildData={rankedBuild(composition, composition.length || 8)}
+                            buildOptions={rankedOpts}
+                            height={barHeight(composition.filter((c) => c.value > 0).length)}
+                        />
+                    </div>
                     <SwitchableChartCard
-                        title="Share of hours by member"
-                        chartKey="team_composition"
-                        allowedTypes={['doughnut', 'pie', 'bar']}
-                        defaultType="doughnut"
-                        isEmpty={composition.every((c) => c.value <= 0)}
-                        buildData={(type) => (type === 'bar'
-                            ? toTrendData(toShareData(composition).labels, [{ label: 'Hours', data: toShareData(composition).datasets[0].data }], 'bar')
-                            : toShareData(composition))}
-                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
-                        height={260}
-                    />
-                    <SwitchableChartCard
-                        title="Top clients"
-                        chartKey="team_top_clients"
-                        allowedTypes={['doughnut', 'pie', 'bar']}
-                        defaultType="doughnut"
+                        title="Top clients & work"
+                        subtitle="Client work + non-billable categories (office work, bidding, test tasks)"
+                        chartKey="team_top_clients_v2"
+                        allowedTypes={['bar', 'doughnut', 'pie']}
+                        defaultType="bar"
                         isEmpty={!(charts.top_clients || []).length}
-                        buildData={(type) => (type === 'bar'
-                            ? toTrendData(toShareData(charts.top_clients).labels, [{ label: 'Hours', data: toShareData(charts.top_clients).datasets[0].data }], 'bar')
-                            : toShareData(charts.top_clients))}
-                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
-                        height={260}
+                        buildData={rankedBuild(charts.top_clients, 25)}
+                        buildOptions={rankedOpts}
+                        height={barHeight((charts.top_clients || []).length)}
                     />
                     <SwitchableChartCard
                         title="Top apps"
-                        chartKey="team_top_apps"
-                        allowedTypes={['doughnut', 'pie', 'bar']}
-                        defaultType="doughnut"
+                        chartKey="team_top_apps_v2"
+                        allowedTypes={['bar', 'doughnut', 'pie']}
+                        defaultType="bar"
                         isEmpty={!(charts.top_apps || []).length}
-                        buildData={(type) => (type === 'bar'
-                            ? toTrendData(toShareData(charts.top_apps).labels, [{ label: 'Hours', data: toShareData(charts.top_apps).datasets[0].data }], 'bar')
-                            : toShareData(charts.top_apps))}
-                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
-                        height={260}
+                        buildData={rankedBuild(charts.top_apps, 25)}
+                        buildOptions={rankedOpts}
+                        height={barHeight((charts.top_apps || []).length)}
                     />
                 </div>
             )}

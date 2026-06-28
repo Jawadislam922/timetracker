@@ -258,7 +258,7 @@ class TeamController extends Controller
             ->filter(fn ($c) => $c['value'] > 0)
             ->sortByDesc('value')
             ->values()
-            ->take(12)
+            ->take(20)
             ->all();
 
         // Top apps across the range — aggregated in SQL (GROUP BY) rather than
@@ -271,7 +271,7 @@ class TeamController extends Controller
             ->selectRaw('active_app, COUNT(*) as c')
             ->groupBy('active_app')
             ->orderByDesc('c')
-            ->limit(12)
+            ->limit(20)
             ->get()
             ->map(fn ($r) => [
                 'label' => $r->active_app,
@@ -299,36 +299,36 @@ class TeamController extends Controller
 
         $sampleInterval = MonitoringSetting::current()->activity_sample_interval_seconds ?: 60;
 
-        $samplesQuery = TrackingActivitySample::query()
+        $base = TrackingActivitySample::query()
             ->whereBetween('captured_at', BusinessTime::utcRange($start, $end));
 
         if ($userId > 0) {
-            $samplesQuery->where('user_id', $userId);
+            $base->where('user_id', $userId);
         }
 
-        $samples = $samplesQuery->get(['id', 'user_id', 'active_app', 'url_domain']);
+        // Roll up per (app/url, user) with a GROUP BY aggregate instead of
+        // hydrating every raw sample row (a week is ~500k) — same fix as the team
+        // page. $column is one of two fixed literals, never user input.
+        $rollup = function (string $column) use ($base, $sampleInterval) {
+            $rows = (clone $base)
+                ->whereNotNull($column)->where($column, '!=', '')
+                ->selectRaw("$column as k, user_id, COUNT(*) as c")
+                ->groupBy($column, 'user_id')
+                ->get();
 
-        $userNames = User::whereIn('id', $samples->pluck('user_id')->unique())
-            ->pluck('name', 'id');
+            $names = User::whereIn('id', $rows->pluck('user_id')->unique())->pluck('name', 'id');
 
-        $rollup = function (string $key) use ($samples, $sampleInterval, $userNames) {
-            return $samples
-                ->filter(fn ($s) => ! empty($s->{$key}))
-                // Normalize domains so www./bare variants roll up together
-                // (older samples were stored unnormalized).
-                ->groupBy(fn ($s) => $key === 'url_domain'
-                    ? WebDomain::normalize($s->{$key})
-                    : $s->{$key})
-                ->map(function ($group, $name) use ($sampleInterval, $userNames) {
-                    $byUser = $group->groupBy('user_id')
-                        ->map(fn ($g) => $g->count())
-                        ->sortDesc();
+            return $rows
+                // Merge www./bare domain variants — over the small aggregate, not raw rows.
+                ->groupBy(fn ($r) => $column === 'url_domain' ? WebDomain::normalize($r->k) : $r->k)
+                ->map(function ($group, $name) use ($sampleInterval, $names) {
+                    $byUser = $group->groupBy('user_id')->map(fn ($g) => (int) $g->sum('c'))->sortDesc();
 
                     return [
                         'name' => $name,
-                        'total_seconds' => $group->count() * $sampleInterval,
+                        'total_seconds' => (int) $group->sum('c') * $sampleInterval,
                         'user_count' => $byUser->count(),
-                        'top_user' => $userNames[$byUser->keys()->first()] ?? null,
+                        'top_user' => $names[$byUser->keys()->first()] ?? null,
                     ];
                 })
                 ->sortByDesc('total_seconds')
@@ -346,8 +346,8 @@ class TeamController extends Controller
             'apps' => $rollup('active_app'),
             'urls' => $rollup('url_domain'),
             'totals' => [
-                'tracked_seconds' => $samples->count() * $sampleInterval,
-                'people' => $samples->pluck('user_id')->unique()->count(),
+                'tracked_seconds' => (clone $base)->count() * $sampleInterval,
+                'people' => (clone $base)->distinct()->count('user_id'),
             ],
         ]);
     }
