@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\MonitoringSetting;
+use App\Models\TimeEntry;
 use App\Models\TrackingActivitySample;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\ActivityDigestService;
+use App\Services\TrackingSessionService;
+use App\Support\AttendanceHours;
 use App\Support\BusinessTime;
 use App\Support\WebDomain;
 use Carbon\Carbon;
@@ -29,7 +32,9 @@ class TeamController extends Controller
         [$rangeStart, $rangeEnd] = $this->resolveRange($request, $request->input('range', 'today'));
         [$dayStart, $dayEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
 
-        $users = User::orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
+        // Only time-tracking staff appear in performance — HR/finance and other
+        // non-tracking roles are excluded so they don't read as "0% this week".
+        $users = User::tracksTime()->orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
 
         // Sessions that OVERLAP the selected day — including one that started
         // the previous evening and is still running. Each session's time is
@@ -165,12 +170,19 @@ class TeamController extends Controller
             'team_size' => $users->count(),
         ];
 
+        // Charts are computed from the SAME in-memory $sessions/$samples and the
+        // SAME inDaySeconds helper as the table above, so a chart can never
+        // disagree with a row total. Composition-by-member is derived on the
+        // client from $rows (no extra work here).
+        $charts = $this->buildTeamCharts($rangeStart, $rangeEnd, $sessions, $samples, $sampleIntervalSeconds, $svc);
+
         return Inertia::render('Team/Index', [
             'start' => $rangeStart->toDateString(),
             'end' => $rangeEnd->toDateString(),
             'range' => $request->input('range', $rangeStart->toDateString() === $rangeEnd->toDateString() ? 'today' : 'custom'),
             'rows' => $rows,
             'totals' => $totals,
+            'charts' => $charts,
             'permissions' => [
                 'view_screenshots' => $authUser->hasPermission('monitoring.view_screenshots'),
                 'send_slack' => $authUser->hasPermission('reports.send_slack'),
@@ -181,6 +193,92 @@ class TeamController extends Controller
                 'daily_time' => config('services.slack_reports.daily_digest_time', '09:00'),
             ],
         ]);
+    }
+
+    /**
+     * Per-day team trend + top clients/apps for the range, built from the SAME
+     * sessions/samples + inDaySeconds the table uses (so charts can't disagree).
+     * hours_per_day[i] = team total hours on labels[i]; activity_per_day[i] =
+     * time-weighted activity % (manual hours dilute at 0%, like the table).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildTeamCharts(Carbon $rangeStart, Carbon $rangeEnd, $sessions, $samples, int $sampleInterval, $svc): array
+    {
+        // Manual (non-tracker) work-diary hours per calendar day in the range.
+        $manualByDate = \App\Models\WorkHour::query()
+            ->whereBetween('date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+            ->where(function ($q) {
+                $q->whereNull('source')->orWhere('source', '!=', 'tracker');
+            })
+            ->get(['date', 'hours'])
+            ->groupBy(fn ($w) => substr((string) $w->date, 0, 10))
+            ->map(fn ($g) => (float) $g->sum('hours'));
+
+        $labels = [];
+        $hoursPerDay = [];
+        $activityPerDay = [];
+
+        for ($d = $rangeStart->copy()->startOfDay(); $d->lte($rangeEnd); $d->addDay()) {
+            $key = $d->toDateString();
+            [$dStart, $dEnd] = BusinessTime::utcRange($d->copy()->startOfDay(), $d->copy()->endOfDay());
+
+            $trackedSec = 0;
+            $weightedAct = 0;
+            foreach ($sessions as $s) {
+                $sec = $svc->inDaySeconds($s, $dStart, $dEnd);
+                if ($sec <= 0) {
+                    continue;
+                }
+                $trackedSec += $sec;
+                $weightedAct += (int) $s->activity_percent * $sec;
+            }
+            $manualSec = (int) round(($manualByDate[$key] ?? 0) * 3600);
+            $totalSec = $trackedSec + $manualSec;
+
+            $trackedAct = $trackedSec > 0 ? $weightedAct / $trackedSec : 0;
+            $activity = $totalSec > 0 ? (int) round($trackedAct * ($trackedSec / $totalSec)) : 0;
+
+            $labels[] = $key;
+            $hoursPerDay[] = round($totalSec / 3600, 2);
+            $activityPerDay[] = $activity;
+        }
+
+        // Top clients across the whole range (clamped to range bounds — the same
+        // total the table's tracked column sums to).
+        [$rStart, $rEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
+        $topClients = collect($sessions)
+            ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
+            ->map(fn ($g, $name) => [
+                'label' => $name,
+                'value' => round($g->sum(fn ($s) => $svc->inDaySeconds($s, $rStart, $rEnd)) / 3600, 2),
+            ])
+            ->filter(fn ($c) => $c['value'] > 0)
+            ->sortByDesc('value')
+            ->values()
+            ->take(12)
+            ->all();
+
+        // Top apps across the range (sample count × interval → hours).
+        $topApps = collect($samples)
+            ->filter(fn ($s) => ! empty($s->active_app))
+            ->groupBy('active_app')
+            ->map(fn ($g, $name) => [
+                'label' => $name,
+                'value' => round($g->count() * $sampleInterval / 3600, 2),
+            ])
+            ->sortByDesc('value')
+            ->values()
+            ->take(12)
+            ->all();
+
+        return [
+            'labels' => $labels,
+            'hours_per_day' => $hoursPerDay,
+            'activity_per_day' => $activityPerDay,
+            'top_clients' => $topClients,
+            'top_apps' => $topApps,
+        ];
     }
 
     public function apps(Request $request): Response
@@ -244,6 +342,114 @@ class TeamController extends Controller
                 'tracked_seconds' => $samples->count() * $sampleInterval,
                 'people' => $samples->pluck('user_id')->unique()->count(),
             ],
+        ]);
+    }
+
+    /**
+     * Per-person analytics over a date range — gated by analytics.view (charts
+     * only; the screenshot-level timeline stays behind timeline.view_others).
+     * Reuses resolveRange + inDaySeconds so the numbers match the team table,
+     * and overlays in-office hours (the tracked-vs-present gap) per day.
+     */
+    public function member(Request $request, User $user): Response
+    {
+        $authUser = $request->user();
+        abort_unless($authUser->hasPermission('analytics.view'), 403);
+
+        [$rangeStart, $rangeEnd] = $this->resolveRange($request, $request->input('range', '7d'));
+        [$dayStart, $dayEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
+        $svc = app(TrackingSessionService::class);
+
+        $sessions = TrackingSession::with('client:id,name')
+            ->where('user_id', $user->id)
+            ->where('started_at', '<', $dayEnd)
+            ->where(function ($q) use ($dayStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>', $dayStart);
+            })
+            ->where(function ($q) {
+                $q->where('total_seconds', '>=', 60)->orWhere('status', TrackingSession::STATUS_ACTIVE);
+            })
+            ->get(['id', 'user_id', 'client_id', 'started_at', 'stopped_at', 'total_seconds', 'activity_percent', 'status']);
+
+        $samples = TrackingActivitySample::where('user_id', $user->id)
+            ->whereBetween('captured_at', [$dayStart, $dayEnd])
+            ->get(['active_app']);
+
+        // In-office hours come from the user's own time-clock entries, grouped by
+        // their attendance day (already the worker's day from the timezone work).
+        $entriesByDate = TimeEntry::where('user_id', $user->id)
+            ->whereBetween('action_timestamp', [$dayStart, $dayEnd])
+            ->orderBy('action_timestamp')->orderBy('id')
+            ->get()
+            ->groupBy(fn ($e) => $e->action_date instanceof \Carbon\Carbon
+                ? $e->action_date->toDateString()
+                : substr((string) $e->action_date, 0, 10));
+
+        $labels = [];
+        $trackedHours = [];
+        $inOfficeHours = [];
+        $activity = [];
+
+        for ($d = $rangeStart->copy()->startOfDay(); $d->lte($rangeEnd); $d->addDay()) {
+            $key = $d->toDateString();
+            [$ds, $de] = BusinessTime::utcRange($d->copy()->startOfDay(), $d->copy()->endOfDay());
+
+            $trackedSec = 0;
+            $weightedAct = 0;
+            foreach ($sessions as $s) {
+                $sec = $svc->inDaySeconds($s, $ds, $de);
+                if ($sec <= 0) {
+                    continue;
+                }
+                $trackedSec += $sec;
+                $weightedAct += (int) $s->activity_percent * $sec;
+            }
+
+            $labels[] = $key;
+            $trackedHours[] = round($trackedSec / 3600, 2);
+            $inOfficeHours[] = round(AttendanceHours::dayInOfficeHours($entriesByDate[$key] ?? collect()), 2);
+            $activity[] = $trackedSec > 0 ? (int) round($weightedAct / $trackedSec) : 0;
+        }
+
+        $topClients = collect($sessions)
+            ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
+            ->map(fn ($g, $name) => [
+                'label' => $name,
+                'value' => round($g->sum(fn ($s) => $svc->inDaySeconds($s, $dayStart, $dayEnd)) / 3600, 2),
+            ])
+            ->filter(fn ($c) => $c['value'] > 0)
+            ->sortByDesc('value')->values()->take(12)->all();
+
+        $topApps = collect($samples)
+            ->filter(fn ($s) => ! empty($s->active_app))
+            ->groupBy('active_app')
+            ->map(fn ($g, $name) => ['label' => $name, 'value' => round($g->count() * 60 / 3600, 2)])
+            ->sortByDesc('value')->values()->take(12)->all();
+
+        return Inertia::render('Team/Member', [
+            'member' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'designation' => $user->designation,
+                'avatar_url' => $user->avatar_url,
+            ],
+            'start' => $rangeStart->toDateString(),
+            'end' => $rangeEnd->toDateString(),
+            'range' => $request->input('range', $rangeStart->toDateString() === $rangeEnd->toDateString() ? 'today' : 'custom'),
+            'charts' => [
+                'labels' => $labels,
+                'tracked_hours' => $trackedHours,
+                'in_office_hours' => $inOfficeHours,
+                'activity_per_day' => $activity,
+                'top_clients' => $topClients,
+                'top_apps' => $topApps,
+            ],
+            'totals' => [
+                'tracked_seconds' => (int) round(array_sum($trackedHours) * 3600),
+                'in_office_seconds' => (int) round(array_sum($inOfficeHours) * 3600),
+            ],
+            'canViewTimeline' => $authUser->hasPermission('timeline.view_others'),
         ]);
     }
 

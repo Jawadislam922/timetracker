@@ -86,10 +86,15 @@ class UserController extends Controller
             'role' => 'role',
         ];
 
+        // One correlated SUM on the paginated query gives every row its weekly
+        // hours, so the transform below just reads it instead of firing a query
+        // per user (the old code computed this twice — once to sort, once to show).
+        $query->withSum([
+            'workHours as weekly_hours_sum' => fn ($q) => $q->whereBetween('date', [$startOfWeek, $endOfWeek]),
+        ], 'hours');
+
         if ($sort === 'weekly_hours') {
-            $query->withSum([
-                'workHours as weekly_hours_sum' => fn ($q) => $q->whereBetween('date', [$startOfWeek, $endOfWeek]),
-            ], 'hours')->orderBy('weekly_hours_sum', $dir);
+            $query->orderBy('weekly_hours_sum', $dir);
         } else {
             $query->orderBy($sortColumns[$sort] ?? 'name', $dir);
         }
@@ -98,19 +103,13 @@ class UserController extends Controller
             ->paginate($perPage)
             ->appends($request->query());
 
-        $users->getCollection()->transform(function ($user) use ($startOfWeek, $endOfWeek) {
-            // Get the sum of hours for this week
-            $weeklyHours = $user->workHours()
-                ->whereBetween('date', [$startOfWeek, $endOfWeek])
-                ->sum('hours');
-
-            // Convert decimal hours to HH:MM format
+        $users->getCollection()->transform(function ($user) {
+            $weeklyHours = (float) ($user->weekly_hours_sum ?? 0);
             $hours = floor($weeklyHours);
             $minutes = round(($weeklyHours - $hours) * 60);
 
-            // Format as HH:MM
             $user->weekly_hours_worked = sprintf('%02d:%02d', $hours, $minutes);
-            $user->role_label = $user->role_label;
+            $user->role_label = $user->role_label; // force the accessor into the serialized payload
             $user->shift_start_display = $user->shift_start_time?->format('g:i A');
             $user->joining_date_display = $user->joining_date?->format('Y-m-d');
 
@@ -160,6 +159,7 @@ class UserController extends Controller
             'permissions' => 'nullable|array',
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'include_in_slack_reports' => 'nullable|boolean',
+            'tracks_time' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
@@ -192,6 +192,9 @@ class UserController extends Controller
                 : [],
             'include_in_slack_reports' => $request->user()->isSuperAdmin()
                 ? ($validated['include_in_slack_reports'] ?? true)
+                : true,
+            'tracks_time' => $request->user()->isSuperAdmin()
+                ? (bool) ($validated['tracks_time'] ?? true)
                 : true,
             'designation' => $validated['designation'] ?? null,
             'joining_date' => $validated['joining_date'] ?? null,
@@ -228,6 +231,7 @@ class UserController extends Controller
                 'role' => $user->role,
                 'permissions' => $user->permissions ?? [],
                 'include_in_slack_reports' => $user->include_in_slack_reports,
+                'tracks_time' => (bool) $user->tracks_time,
                 'avatar_url' => $user->avatar_url,
                 'designation' => $user->designation,
                 'joining_date' => $user->joining_date?->format('Y-m-d'),
@@ -258,6 +262,7 @@ class UserController extends Controller
             'permissions' => 'nullable|array',
             'permissions.*' => ['string', Rule::in($this->permissionKeys())],
             'include_in_slack_reports' => 'nullable|boolean',
+            'tracks_time' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
@@ -300,6 +305,7 @@ class UserController extends Controller
                 ? []
                 : $this->validatedPermissions($validated['permissions'] ?? []);
             $user->include_in_slack_reports = $validated['include_in_slack_reports'] ?? true;
+            $user->tracks_time = (bool) ($validated['tracks_time'] ?? true);
             $user->allow_multiple_devices = (bool) ($validated['allow_multiple_devices'] ?? false);
         }
 

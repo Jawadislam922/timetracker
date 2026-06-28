@@ -18,6 +18,12 @@ class StillWorkingThresholdTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
     private function fakeSlack(): SlackBotService
     {
         $fake = new class extends SlackBotService

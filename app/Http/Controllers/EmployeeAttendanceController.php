@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\CalculatesTimeStats;
 use App\Models\ManualAttendanceAudit;
 use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
@@ -20,6 +21,8 @@ use RuntimeException;
 
 class EmployeeAttendanceController extends Controller
 {
+    use CalculatesTimeStats;
+
     private const ATTENDANCE_STATUSES = [
         'P' => 'Present',
         'A' => 'Absent',
@@ -795,74 +798,8 @@ class EmployeeAttendanceController extends Controller
     /**
      * Calculate time statistics from entries
      */
-    private function calculateTimeStats($entries)
-    {
-        $totalWorkMinutes = 0;
-        $totalBreakMinutes = 0;
-        $currentSessionStart = null;
-        $currentBreakStart = null;
-        $lastAction = null;
-        $status = 'Not Started';
-
-        foreach ($entries as $entry) {
-            $entryTime = Carbon::parse($entry->action_timestamp)->setTimezone('Asia/Karachi');
-            $lastAction = $entry->action_type;
-
-            switch ($entry->action_type) {
-                case 'clock_in':
-                    $currentSessionStart = $entryTime;
-                    $status = 'Working';
-                    break;
-                case 'clock_out':
-                    if ($currentSessionStart) {
-                        $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $entryTime);
-                        $currentSessionStart = null;
-                    }
-                    $status = 'Clocked Out';
-                    break;
-                case 'break_start':
-                    $currentBreakStart = $entryTime;
-                    $status = 'On Break';
-                    break;
-                case 'break_end':
-                    if ($currentBreakStart) {
-                        $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $entryTime);
-                        $currentBreakStart = null;
-                    }
-                    $status = 'Working';
-                    break;
-            }
-        }
-
-        $now = Carbon::now('Asia/Karachi');
-
-        // Include a reasonable overnight session without counting stale clock-ins.
-        if ($currentSessionStart) {
-            $ongoingWorkMinutes = $this->positiveMinutesBetween($currentSessionStart, $now);
-
-            if ($ongoingWorkMinutes <= 18 * 60) {
-                $totalWorkMinutes += $ongoingWorkMinutes;
-            }
-        }
-
-        if ($currentBreakStart) {
-            $ongoingBreakMinutes = $this->positiveMinutesBetween($currentBreakStart, $now);
-
-            if ($ongoingBreakMinutes <= 18 * 60) {
-                $totalBreakMinutes += $ongoingBreakMinutes;
-            }
-        }
-
-        // Calculate effective work time (excluding breaks)
-        $effectiveWorkMinutes = max(0, $totalWorkMinutes - $totalBreakMinutes);
-
-        return [
-            'workHours' => round($effectiveWorkMinutes / 60, 2),
-            'breakHours' => round($totalBreakMinutes / 60, 2),
-            'lastAction' => $lastAction,
-            'status' => $status,
-        ];
-    }
+    // calculateTimeStats() now lives in the shared CalculatesTimeStats trait
+    // (used here and by TimeEntryController).
 
     /**
      * Build work and break sessions from entries
@@ -946,13 +883,7 @@ class EmployeeAttendanceController extends Controller
         return $sessions;
     }
 
-    /**
-     * Format duration in human readable format
-     */
-    private function positiveMinutesBetween(Carbon $start, Carbon $end): int
-    {
-        return max(0, (int) floor($start->diffInMinutes($end, false)));
-    }
+    // positiveMinutesBetween() now lives in the shared CalculatesTimeStats trait.
 
     private function resolveMonthlyStatus(
         User $employee,

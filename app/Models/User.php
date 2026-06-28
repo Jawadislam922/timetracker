@@ -35,6 +35,7 @@ class User extends Authenticatable
         'shift_hours',
         'clockout_reminder_minutes',
         'allow_multiple_devices',
+        'tracks_time',
     ];
 
     /**
@@ -74,6 +75,7 @@ class User extends Authenticatable
         'shift_hours' => 'decimal:2',
         'clockout_reminder_minutes' => 'integer',
         'allow_multiple_devices' => 'boolean',
+        'tracks_time' => 'boolean',
     ];
 
     const ROLES = [
@@ -267,6 +269,16 @@ class User extends Authenticatable
      * late detection all read this, so a per-day change applies everywhere at
      * once. Returns ['start_time' => ?Carbon, 'hours' => ?float].
      */
+    /**
+     * Only employees expected to track time. Excludes non-tracking staff (HR,
+     * finance, etc.) from team / performance aggregates so they never show as
+     * "0% this week". Attendance and the user directory still include everyone.
+     */
+    public function scopeTracksTime($query)
+    {
+        return $query->where('tracks_time', true);
+    }
+
     public function effectiveShiftFor(string|Carbon $date): array
     {
         $dateStr = $date instanceof Carbon ? $date->toDateString() : (string) $date;

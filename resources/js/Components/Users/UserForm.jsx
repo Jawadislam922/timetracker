@@ -48,6 +48,7 @@ export default function UserForm({
         role: user?.role || 'member',
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
+        tracks_time: user?.tracks_time ?? true,
         allow_multiple_devices: user?.allow_multiple_devices ?? false,
         avatar: null,
         return_to: returnTo || user?.return_to || '',
@@ -348,6 +349,24 @@ export default function UserForm({
                         </label>
                         {form.errors.include_in_slack_reports && (
                             <p className="px-5 pb-4 text-sm font-medium text-rose-600">{form.errors.include_in_slack_reports}</p>
+                        )}
+
+                        <label className="flex cursor-pointer items-start gap-3 border-t border-slate-200 p-5">
+                            <input
+                                type="checkbox"
+                                checked={form.data.tracks_time}
+                                onChange={(event) => form.setData('tracks_time', event.target.checked)}
+                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>
+                                <span className="block text-sm font-semibold text-slate-900">Tracks time (include in performance)</span>
+                                <span className="mt-1 block text-sm leading-5 text-slate-600">
+                                    On for staff who track work. Turn <b>off</b> for non-tracking roles (HR, finance) so they don&apos;t show as “0% this week” in Team Performance, the dashboard team view, and digests.
+                                </span>
+                            </span>
+                        </label>
+                        {form.errors.tracks_time && (
+                            <p className="px-5 pb-4 text-sm font-medium text-rose-600">{form.errors.tracks_time}</p>
                         )}
                     </section>
 

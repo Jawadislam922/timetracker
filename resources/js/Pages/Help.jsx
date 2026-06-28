@@ -1,148 +1,306 @@
-import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Head } from '@inertiajs/react';
+import axios from 'axios';
+import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
-import {
-    Clock, Play, Coffee, NotebookPen, CalendarClock, ShieldCheck,
-    HelpCircle, CheckCircle2, AlertTriangle, MonitorDown, Globe,
-} from 'lucide-react';
+import { Search, Send, ShieldCheck, LifeBuoy, MessageSquarePlus, CheckCircle2 } from 'lucide-react';
 
-function Section({ icon: Icon, title, children }) {
+// --- tiny markup renderer: blank-line paragraphs, "- " bullets, "1." steps, **bold** ---
+function renderInline(text, key) {
+    const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((p, i) => (p.startsWith('**') && p.endsWith('**')
+        ? <strong key={`${key}-${i}`} className="font-semibold text-slate-100">{p.slice(2, -2)}</strong>
+        : <span key={`${key}-${i}`}>{p}</span>));
+}
+
+function renderBody(body) {
+    const lines = String(body).split('\n');
+    const blocks = [];
+    let list = null;
+    const flush = () => { if (list) { blocks.push(list); list = null; } };
+    lines.forEach((line) => {
+        if (/^\s*-\s+/.test(line)) {
+            if (!list || list.type !== 'ul') { flush(); list = { type: 'ul', items: [] }; }
+            list.items.push(line.replace(/^\s*-\s+/, ''));
+        } else if (/^\s*\d+\.\s+/.test(line)) {
+            if (!list || list.type !== 'ol') { flush(); list = { type: 'ol', items: [] }; }
+            list.items.push(line.replace(/^\s*\d+\.\s+/, ''));
+        } else if (line.trim() === '') {
+            flush();
+        } else {
+            flush();
+            blocks.push({ type: 'p', text: line });
+        }
+    });
+    flush();
+
+    return blocks.map((b, i) => {
+        if (b.type === 'p') return <p key={i} className="text-sm leading-relaxed text-slate-300">{renderInline(b.text, i)}</p>;
+        if (b.type === 'ul') {
+            return (
+                <ul key={i} className="space-y-1">
+                    {b.items.map((it, j) => (
+                        <li key={j} className="flex gap-2 text-sm leading-relaxed text-slate-300">
+                            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-slate-500" />
+                            <span>{renderInline(it, `${i}-${j}`)}</span>
+                        </li>
+                    ))}
+                </ul>
+            );
+        }
+        return (
+            <ol key={i} className="space-y-1">
+                {b.items.map((it, j) => (
+                    <li key={j} className="flex gap-3 text-sm leading-relaxed text-slate-300">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[11px] font-bold text-orange-300">{j + 1}</span>
+                        <span>{renderInline(it, `${i}-${j}`)}</span>
+                    </li>
+                ))}
+            </ol>
+        );
+    });
+}
+
+const terms = (q) => q.toLowerCase().split(/\s+/).map((t) => t.trim()).filter(Boolean);
+
+function scoreArticle(article, qTerms) {
+    const title = article.title.toLowerCase();
+    const keywords = (article.keywords || '').toLowerCase();
+    const body = article.body.toLowerCase();
+    let score = 0;
+    qTerms.forEach((t) => {
+        if (title.includes(t)) score += 5;
+        if (keywords.includes(t)) score += 3;
+        if (body.includes(t)) score += 1;
+    });
+    return score;
+}
+
+const REQUEST_TYPES = [
+    ['missing_doc', 'Missing from Help'],
+    ['feature_request', 'Feature request'],
+    ['question', 'Question'],
+    ['bug', 'Something is broken'],
+];
+
+// An inline request form rendered as a chat message. Submits over XHR so the
+// conversation stays put; on success the parent swaps it for a "sent" bubble.
+function RequestForm({ query, onSent }) {
+    const [type, setType] = useState('missing_doc');
+    const [details, setDetails] = useState('');
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState(null);
+
+    const message = details.trim() || query || '';
+    const subject = (query || details.trim().slice(0, 80) || 'Request').slice(0, 160);
+
+    const send = () => {
+        if (!message) { setError('Add a little detail first.'); return; }
+        setSending(true);
+        setError(null);
+        axios.post(route('feedback.store'), {
+            type,
+            subject,
+            message,
+            context: query ? { query } : null,
+        }).then(() => onSent()).catch((e) => {
+            setError(e.response?.data?.message || 'Could not send — try again.');
+            setSending(false);
+        });
+    };
+
     return (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-            <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-white">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-orange-400">
-                    <Icon className="h-4 w-4" />
-                </span>
-                {title}
-            </h2>
-            <div className="space-y-2 text-sm leading-relaxed text-slate-300">{children}</div>
-        </section>
+        <div className="space-y-2.5">
+            <p className="text-sm text-slate-300">Send this to the team and they'll get back to you. {query && <>You searched <span className="text-slate-100">“{query}”</span>.</>}</p>
+            <div className="flex flex-wrap gap-1.5">
+                {REQUEST_TYPES.map(([k, l]) => (
+                    <button key={k} type="button" onClick={() => setType(k)}
+                        className={`rounded-md px-2 py-1 text-xs font-medium transition ${type === k ? 'bg-orange-500/20 text-orange-300' : 'border border-slate-700 text-slate-300 hover:bg-slate-800'}`}>
+                        {l}
+                    </button>
+                ))}
+            </div>
+            <textarea
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                rows={3}
+                maxLength={4000}
+                autoFocus
+                placeholder={query ? 'Add any extra detail (optional)…' : 'What do you need, or what is missing?'}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-orange-500/60 focus:outline-none"
+            />
+            {error && <p className="text-xs text-rose-400">{error}</p>}
+            <button type="button" onClick={send} disabled={sending}
+                className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-orange-600 disabled:opacity-50">
+                <Send className="h-4 w-4" /> {sending ? 'Sending…' : 'Send request'}
+            </button>
+        </div>
     );
 }
 
-function Step({ n, children }) {
+function BotBubble({ children }) {
     return (
-        <li className="flex gap-3">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[11px] font-bold text-orange-300">{n}</span>
-            <span>{children}</span>
-        </li>
+        <div className="flex gap-2.5">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-orange-400 ring-1 ring-slate-700">
+                <LifeBuoy className="h-4 w-4" />
+            </span>
+            <div className="max-w-[85%] space-y-2 rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-900/70 px-4 py-3">
+                {children}
+            </div>
+        </div>
     );
 }
 
-export default function Help({ auth }) {
-    const isAdmin = auth?.user?.is_super_admin || (auth?.user?.permissions || []).length > 0;
+function UserBubble({ text }) {
+    return (
+        <div className="flex justify-end">
+            <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-orange-500/20 px-4 py-2.5 text-sm text-orange-50">{text}</div>
+        </div>
+    );
+}
+
+export default function Help({ auth, articles = [] }) {
+    const [messages, setMessages] = useState([{ id: 'intro', role: 'bot', kind: 'intro' }]);
+    const [input, setInput] = useState('');
+    const idRef = useRef(1);
+    const endRef = useRef(null);
+    const nextId = () => `m${idRef.current++}`;
+
+    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages]);
+
+    const suggestions = useMemo(
+        () => articles.filter((a) => a.title.includes('?') || a.category === 'Schedule').slice(0, 4).map((a) => a.title),
+        [articles],
+    );
+
+    const ask = (text) => {
+        const q = (text || '').trim();
+        if (!q) return;
+        const qt = terms(q);
+        const results = articles
+            .map((a) => ({ a, s: scoreArticle(a, qt) }))
+            .filter((r) => r.s > 0)
+            .sort((x, y) => y.s - x.s || x.a.sort_order - y.a.sort_order)
+            .slice(0, 3)
+            .map((r) => r.a);
+
+        setMessages((m) => [
+            ...m,
+            { id: nextId(), role: 'user', text: q },
+            results.length
+                ? { id: nextId(), role: 'bot', kind: 'results', query: q, articles: results }
+                : { id: nextId(), role: 'bot', kind: 'noresults', query: q },
+        ]);
+        setInput('');
+    };
+
+    const startRequest = (query) => setMessages((m) => [...m, { id: nextId(), role: 'bot', kind: 'request', query }]);
+    const markSent = (id) => setMessages((m) => m.map((msg) => (msg.id === id ? { ...msg, kind: 'sent' } : msg)));
 
     return (
         <AuthenticatedLayout user={auth.user}>
-            <Head title="How to use SA Track" />
+            <Head title="Help" />
 
-            <PageShell width="max-w-4xl">
+            <PageShell width="max-w-3xl">
                 <PageHeader
-                    title="How to use SA Track"
-                    description="Everything you need to track your time correctly. Takes about 3 minutes to read."
+                    title="Help"
+                    description="Ask a question and I'll search our guides. No answer? Send it straight to the team — right here."
                 />
 
-                {/* The golden rules */}
-                <section className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-5">
-                    <h2 className="mb-3 text-base font-bold text-white">The 3 rules that matter most</h2>
-                    <ul className="space-y-2 text-sm text-slate-200">
-                        <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span><b>Clock in when you start, clock out when you leave.</b> This is your “in office” time.</span></li>
-                        <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span><b>You must be clocked in to track.</b> The tracker only runs while you’re clocked in and not on a break.</span></li>
-                        <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /><span><b>Clock out when you’re done.</b> If you forget, the system closes your day at your shift end automatically — but clocking out yourself keeps your hours accurate.</span></li>
-                    </ul>
-                </section>
+                <div className="flex h-[calc(100vh-16rem)] min-h-[26rem] flex-col rounded-2xl border border-slate-800 bg-slate-950/40">
+                    <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
+                        {messages.map((msg) => {
+                            if (msg.role === 'user') return <UserBubble key={msg.id} text={msg.text} />;
 
-                <Section icon={Clock} title="Clocking in & out (your attendance)">
-                    <p>Your <b>clock</b> records when you’re present at work. You can clock in/out from the <b>Dashboard</b> (web) or the <b>desktop app</b> — they’re the same clock.</p>
-                    <ul className="ml-1 space-y-1.5">
-                        <li>• <b>Clock In</b> — when you start your work day.</li>
-                        <li>• <b>Clock Out</b> — when you finish for the day.</li>
-                    </ul>
-                    <p className="text-slate-400">“In Office” on the dashboard = the time between your clock-in and clock-out (minus breaks). It is <i>not</i> the same as tracked work time.</p>
-                </Section>
+                            if (msg.kind === 'intro') {
+                                return (
+                                    <BotBubble key={msg.id}>
+                                        <p className="text-sm text-slate-200">Hi {auth.user?.name?.split(' ')[0] || 'there'}! Ask me anything about using SA Track — clocking in, changing your schedule, fixing times. I search our help guides (no AI).</p>
+                                        {suggestions.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {suggestions.map((s) => (
+                                                    <button key={s} type="button" onClick={() => ask(s)}
+                                                        className="rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800 hover:text-white">
+                                                        {s}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </BotBubble>
+                                );
+                            }
 
-                <Section icon={Play} title="Tracking your work (desktop app)">
-                    <p>The desktop app records your active work — screenshots, activity %, and keystrokes/clicks — for the client and task you pick.</p>
-                    <ul className="space-y-2">
-                        <Step n="1">Open the desktop app and <b>Clock In</b> (the shift bar at the bottom).</Step>
-                        <Step n="2">Pick a client, add a short description, and press the big <b>Start</b> button.</Step>
-                        <Step n="3">Press <b>Stop</b> when you switch tasks or finish.</Step>
-                    </ul>
-                    <p className="flex items-start gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-slate-300">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                        If the Start button is greyed out, it’ll say <b>“Clock in to start tracking.”</b> Clock in first (or end your break), then start.
-                    </p>
-                </Section>
+                            if (msg.kind === 'results') {
+                                return (
+                                    <BotBubble key={msg.id}>
+                                        <p className="text-xs font-medium text-slate-400">Here's what I found:</p>
+                                        {msg.articles.map((a) => (
+                                            <div key={a.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                                                <div className="mb-1.5 flex items-center gap-2">
+                                                    {a.admin_only && <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />}
+                                                    <span className="text-sm font-semibold text-white">{a.title}</span>
+                                                </div>
+                                                <div className="space-y-2">{renderBody(a.body)}</div>
+                                            </div>
+                                        ))}
+                                        <button type="button" onClick={() => startRequest(msg.query)}
+                                            className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-300 hover:text-orange-200">
+                                            <MessageSquarePlus className="h-3.5 w-3.5" /> Not what you needed? Send a request
+                                        </button>
+                                    </BotBubble>
+                                );
+                            }
 
-                <Section icon={Coffee} title="Breaks">
-                    <p>Going on a break? Press <b>Start Break</b> — this pauses tracking and your break time doesn’t count as work. Press <b>End Break</b> and then <b>Resume</b> when you’re back.</p>
-                </Section>
+                            if (msg.kind === 'noresults') {
+                                return (
+                                    <BotBubble key={msg.id}>
+                                        <p className="text-sm text-slate-200">I couldn't find a guide for “{msg.query}”.</p>
+                                        <button type="button" onClick={() => startRequest(msg.query)}
+                                            className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-orange-600">
+                                            <MessageSquarePlus className="h-4 w-4" /> Send this to the team
+                                        </button>
+                                    </BotBubble>
+                                );
+                            }
 
-                <Section icon={NotebookPen} title="Adding time manually (Work Diary)">
-                    <p>For work the tracker didn’t capture (a meeting, offline work, a phone call), add it by hand in the <b>Work Diary</b>:</p>
-                    <ul className="space-y-2">
-                        <Step n="1">Go to <b>Work Diary → Add</b> (or the “Add Manual Time” button).</Step>
-                        <Step n="2">Pick the client/work type, write what you did, and enter the <b>hours and minutes</b>.</Step>
-                        <Step n="3">Save.</Step>
-                    </ul>
-                    <p className="text-slate-400">Note: time the desktop app tracked is <b>locked</b> — you can’t hand-edit those hours. If a tracked entry is wrong, remove the relevant screenshots from the Timeline instead.</p>
-                </Section>
+                            if (msg.kind === 'request') {
+                                return <BotBubble key={msg.id}><RequestForm query={msg.query} onSent={() => markSent(msg.id)} /></BotBubble>;
+                            }
 
-                <Section icon={CalendarClock} title="Changing your shift for one day (My Schedule)">
-                    <p>Need a different shift on a specific day — e.g. start earlier on Friday because you’re off Saturday? If you have access, open <b>My Schedule</b>:</p>
-                    <ul className="space-y-2">
-                        <Step n="1">Pick the date (today or a future day).</Step>
-                        <Step n="2">Set the new start time and/or length, and an optional reason.</Step>
-                        <Step n="3">Save. That one day now uses your new shift; every other day stays normal.</Step>
-                    </ul>
-                    <p className="text-slate-400">This only moves your schedule for that day (when you’re expected in, and when a forgotten clock-out auto-closes). It never adds hours. Don’t have My Schedule? Ask an admin to enable it for you.</p>
-                </Section>
+                            if (msg.kind === 'sent') {
+                                return (
+                                    <BotBubble key={msg.id}>
+                                        <p className="flex items-center gap-2 text-sm text-emerald-300"><CheckCircle2 className="h-4 w-4" /> Sent! The team will see it in their inbox.</p>
+                                        <p className="text-xs text-slate-500">You can track it under “Requests” in the top menu.</p>
+                                    </BotBubble>
+                                );
+                            }
 
-                <Section icon={Globe} title="Times & time zones">
-                    <p>Every time in SA Track is shown in <b>your</b> time zone — you choose which one, once:</p>
-                    <ul className="space-y-2">
-                        <Step n="1">Open <b>Profile</b> (top-right menu) → <b>Time zone &amp; format</b>.</Step>
-                        <Step n="2">Pick your time zone and 12-hour / 24-hour format, then <b>Save</b>.</Step>
-                    </ul>
-                    <p className="text-slate-400">This only changes how times <i>display to you</i> — it never changes when something actually happened, and it works even if your computer&apos;s clock is set to the wrong time or zone. Two people in different countries see the same clock-in each in their own local time, and both are correct.</p>
-                </Section>
+                            return null;
+                        })}
+                        <div ref={endRef} />
+                    </div>
 
-                <Section icon={ShieldCheck} title="What the system does automatically">
-                    <ul className="ml-1 space-y-1.5">
-                        <li>• <b>Forgot to clock out?</b> The system closes your day at your <b>shift end + a short grace period</b>, so a forgotten clock-out doesn’t inflate your hours. If you’re genuinely still working (tracker running), it leaves you alone.</li>
-                        <li>• <b>Still working late?</b> You may get a friendly Slack “still working?” check. Reply, or it’ll close your day after a few unanswered nudges.</li>
-                        <li>• <b>Clocked out but tracker still on?</b> The tracker stops itself — you can’t record time outside a clock-in.</li>
-                    </ul>
-                </Section>
-
-                <Section icon={MonitorDown} title="Getting the desktop app">
-                    <p>Download the desktop app from the <b>Desktop Downloads</b> link in your profile menu (top-right). Install it, sign in with your SA Track email, and you’re ready to clock in and track.</p>
-                </Section>
-
-                <Section icon={HelpCircle} title="Quick answers">
-                    <p><b>“Why did my tracker stop on its own?”</b> — Either you (or the system) clocked you out, or your session was closed at shift end. Clock in again to keep tracking.</p>
-                    <p><b>“Why can’t I press Start?”</b> — You’re not clocked in, or you’re on a break. Clock in / end your break first.</p>
-                    <p><b>“My in-office time looks too high.”</b> — You probably forgot to clock out on a previous day. Going forward, clock out when you leave; the system also auto-closes forgotten days at shift end.</p>
-                    <p><b>“Tracked time vs in-office?”</b> — In-office = clock-in to clock-out (presence). Tracked = what the desktop app actually recorded. They’re different on purpose.</p>
-                    <p><b>“The times look a few hours off.”</b> — Check <b>Profile → Time zone</b> is set to where you are. Times always display in your chosen zone, never your computer’s clock — so a wrong PC clock can’t throw them off.</p>
-                </Section>
-
-                {isAdmin && (
-                    <Section icon={ShieldCheck} title="For admins & managers">
-                        <ul className="ml-1 space-y-1.5">
-                            <li>• <b>Fix someone’s clock times</b> — if an employee forgot to clock in/out, open <b>Attendance → Summary → Edit clock times</b> (needs the permission). Every edit is recorded in the audit history.</li>
-                            <li>• <b>Change anyone’s shift for a day</b> — with “Change anyone’s shift” you can set or backdate a one-day shift for any employee.</li>
-                            <li>• <b>Remote workers in another country</b> — set a person’s <b>Work timezone</b> on their <b>Users → Edit</b> page. Their work day, shift, and auto clock-out are then measured in their own country’s day, while you keep reading every time in your own time zone. Leave it on Asia/Karachi for local staff.</li>
-                            <li>• <b>Grant access</b> — Super Admins enable features per person on the <b>Users</b> page (clock-time editing, My Schedule, reports, screenshots, etc.).</li>
-                            <li>• <b>Reading the numbers</b> — the Dashboard team table shows In-Office vs Tracked vs Activity %. A big gap between in-office and tracked usually means present-but-not-tracking (meetings, offline work) or a forgotten clock-out.</li>
-                        </ul>
-                    </Section>
-                )}
-
-                <p className="pb-4 text-center text-xs text-slate-500">
-                    Questions this guide didn’t answer? Ask your team lead or an admin.
-                </p>
+                    <form
+                        onSubmit={(e) => { e.preventDefault(); ask(input); }}
+                        className="flex items-center gap-2 border-t border-slate-800 px-3 py-3"
+                    >
+                        <div className="relative flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                placeholder="Type your question…"
+                                className="w-full rounded-xl border border-slate-700 bg-slate-900 py-2.5 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-orange-500/60 focus:outline-none"
+                            />
+                        </div>
+                        <button type="submit" disabled={!input.trim()}
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-slate-950 transition hover:bg-orange-600 disabled:opacity-40">
+                            <Send className="h-4 w-4" />
+                        </button>
+                    </form>
+                </div>
             </PageShell>
         </AuthenticatedLayout>
     );

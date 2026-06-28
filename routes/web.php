@@ -76,8 +76,14 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile/display', [ProfileController::class, 'updateDisplay'])->name('profile.display');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Plain-language how-to for every employee (linked from the profile menu).
-    Route::get('/help', fn () => \Inertia\Inertia::render('Help'))->name('help');
+    // Searchable knowledge base for every employee (linked from the profile menu).
+    Route::get('/help', [\App\Http\Controllers\HelpController::class, 'index'])->name('help');
+
+    // Feedback / request inbox. Anyone may file or view their own; triage is
+    // gated by feedback.manage on the update route.
+    Route::get('/feedback', [\App\Http\Controllers\FeedbackController::class, 'index'])->name('feedback.index');
+    Route::post('/feedback', [\App\Http\Controllers\FeedbackController::class, 'store'])->name('feedback.store');
+    Route::patch('/feedback/{feedback}', [\App\Http\Controllers\FeedbackController::class, 'update'])->middleware('permission:feedback.manage')->name('feedback.update');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -137,8 +143,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/employee-attendance/timeline', [EmployeeAttendanceController::class, 'getTimeline'])->middleware('permission:attendance.view')->name('employee-attendance.timeline');
     Route::get('/employee-attendance/monthly', [EmployeeAttendanceController::class, 'getMonthlyGrid'])->middleware('permission:attendance.view')->name('employee-attendance.monthly');
     Route::get('/employee-attendance/manual-history', [EmployeeAttendanceController::class, 'getManualHistory'])->middleware('permission:attendance.view')->name('employee-attendance.manual-history');
-    Route::patch('/employee-attendance/manual-status', [EmployeeAttendanceController::class, 'updateManualStatus'])->middleware('permission:attendance.view')->name('employee-attendance.manual-status');
-    Route::post('/employee-attendance/calendar', [EmployeeAttendanceController::class, 'updateCalendar'])->middleware('permission:attendance.view')->name('employee-attendance.calendar');
+    Route::patch('/employee-attendance/manual-status', [EmployeeAttendanceController::class, 'updateManualStatus'])->middleware('permission:attendance.manual_mark')->name('employee-attendance.manual-status');
+    Route::post('/employee-attendance/calendar', [EmployeeAttendanceController::class, 'updateCalendar'])->middleware('permission:attendance.manual_mark')->name('employee-attendance.calendar');
     Route::post('/employee-attendance/slack', [EmployeeAttendanceController::class, 'sendSlack'])->middleware('permission:reports.send_slack')->name('employee-attendance.slack');
     Route::get('/employee-attendance/export', [EmployeeAttendanceController::class, 'export'])->middleware('permission:attendance.export')->name('employee-attendance.export');
 
@@ -164,6 +170,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/', [TimeEntryController::class, 'store'])->name('time-entries.store');
         Route::get('/today', [TimeEntryController::class, 'getTodaysEntries'])->name('time-entries.today');
         Route::get('/today-summary', [TimeEntryController::class, 'getTodaysSummary'])->name('time-entries.today-summary');
+        Route::get('/dashboard-trend', [TimeEntryController::class, 'dashboardTrend'])->name('time-entries.dashboard-trend');
+        Route::get('/team-activity', [TimeEntryController::class, 'teamActivity'])->name('time-entries.team-activity');
         Route::get('/export', [TimeEntryController::class, 'export'])->name('time-entries.export');
     });
 
@@ -180,7 +188,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/ai-assistant', [\App\Http\Controllers\AiAssistantController::class, 'index'])->middleware('permission:ai.assistant')->name('ai.assistant');
     Route::post('/ai-assistant/ask', [\App\Http\Controllers\AiAssistantController::class, 'ask'])->middleware(['permission:ai.assistant', 'throttle:20,1'])->name('ai.assistant.ask');
     Route::get('/ai-assistant/config', [\App\Http\Controllers\AiAssistantController::class, 'config'])->middleware('permission:ai.assistant')->name('ai.assistant.config');
-    Route::post('/ai-assistant/questions', [\App\Http\Controllers\AiAssistantController::class, 'saveQuestions'])->name('ai.assistant.questions');
+    Route::post('/ai-assistant/questions', [\App\Http\Controllers\AiAssistantController::class, 'saveQuestions'])->middleware('permission:monitoring.settings')->name('ai.assistant.questions');
 
 
     // Team day snapshot. Anyone with timeline.view_others sees the team
@@ -192,6 +200,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/team/apps', [TeamController::class, 'apps'])
         ->middleware('permission:timeline.view_others')
         ->name('team.apps');
+    // Per-person analytics (charts only) — separate, lighter gate than the
+    // screenshot-level timeline.
+    Route::get('/team/member/{user}', [TeamController::class, 'member'])
+        ->middleware('permission:analytics.view')
+        ->name('team.member');
     Route::post('/team/slack-digest', [TeamController::class, 'sendDigest'])
         ->middleware('permission:reports.send_slack')
         ->name('team.slack-digest');

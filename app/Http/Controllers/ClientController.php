@@ -21,7 +21,16 @@ class ClientController extends Controller
                 $perPage = 10;
             }
 
-            $query = Client::with(['upworkProfile', 'upworkProfiles'])->orderBy('name');
+            // Weekly hours per client come from one correlated SUM on the
+            // paginated query (not a query per row in the transform below).
+            $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
+            $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
+
+            $query = Client::with(['upworkProfile', 'upworkProfiles'])
+                ->withSum([
+                    'workHours as weekly_hours_sum' => fn ($q) => $q->whereBetween('date', [$startOfWeek, $endOfWeek]),
+                ], 'hours')
+                ->orderBy('name');
 
             // Apply search filter if search term is provided
             if (! empty($search)) {
@@ -30,21 +39,11 @@ class ClientController extends Controller
 
             $clients = $query->paginate($perPage)->appends($request->query());
 
-            // Calculate weekly hours for each client and format as HH:MM
-            $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
-            $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
-
-            $clients->getCollection()->transform(function ($client) use ($startOfWeek, $endOfWeek) {
-                // Get the sum of hours for this week
-                $weeklyHours = $client->workHours()
-                    ->whereBetween('date', [$startOfWeek, $endOfWeek])
-                    ->sum('hours');
-
-                // Convert decimal hours to HH:MM format
+            $clients->getCollection()->transform(function ($client) {
+                $weeklyHours = (float) ($client->weekly_hours_sum ?? 0);
                 $hours = floor($weeklyHours);
                 $minutes = round(($weeklyHours - $hours) * 60);
 
-                // Format as HH:MM
                 $client->weekly_hours_worked = sprintf('%02d:%02d', $hours, $minutes);
 
                 return $client;

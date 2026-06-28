@@ -15,6 +15,12 @@ class EmployeeAttendanceTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
     public function test_attendance_summary_never_returns_negative_break_time_for_future_entries(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-08 10:00:00', 'Asia/Karachi'));

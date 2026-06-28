@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     BarChart3,
@@ -10,6 +10,7 @@ import {
     Clock,
     Film,
     HelpCircle,
+    Inbox,
     LayoutDashboard,
     LayoutGrid,
     LogOut,
@@ -51,6 +52,11 @@ function NavItem({ item, onClick }) {
         >
             <Icon className="h-4 w-4" />
             <span>{item.label}</span>
+            {item.badge > 0 && (
+                <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                    {item.badge}
+                </span>
+            )}
         </Link>
     );
 }
@@ -102,37 +108,50 @@ export default function Authenticated({ user, header, children }) {
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
     const can = (permission) => user?.is_super_admin || user?.permissions?.includes(permission);
     const canCreateManualWorkHour = user?.can_create_manual_work_hour ?? true;
+    const feedback = usePage().props.feedback || { can_manage: false, open_count: 0 };
 
-    // Primary, always-visible links. Attendance is its own thing — not a
-    // sub-page of reporting — so it sits top-level for those who can see it.
+    // Nav is grouped into a few readable buckets so it scales from a phone to a
+    // wide monitor: Dashboard sits on its own, then Real-time (your work day),
+    // Performance (reporting), Admin (people/clients/system), and Help + Requests
+    // stay one tap away for everyone. Account actions live in the avatar menu.
     const primaryItems = useMemo(() => [
         { label: 'Dashboard', href: route('dashboard'), icon: LayoutDashboard, active: ['dashboard'] },
-        { label: 'Timeline', href: route('timeline.index'), icon: Film, active: ['timeline.index'] },
-        { label: 'Work Diary', href: route('work-hours.index'), icon: Clock, active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'] },
-        (can('shift.edit_own') || can('shift.manage_all')) && { label: 'My Schedule', href: route('shift-overrides.index'), icon: CalendarClock, active: ['shift-overrides.index'] },
-        can('attendance.view') && { label: 'Attendance', href: route('employee-attendance.index'), icon: CalendarDays, active: ['employee-attendance.index'] },
-        { label: 'Help', href: route('help'), icon: HelpCircle, active: ['help'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
-    // Reporting & analytics.
+    // Real-time — the operational, day-to-day pages.
+    const realtimeItems = useMemo(() => [
+        { label: 'Timeline', href: route('timeline.index'), icon: Film, active: ['timeline.index'] },
+        can('attendance.view') && { label: 'Attendance', href: route('employee-attendance.index'), icon: CalendarDays, active: ['employee-attendance.index'] },
+        { label: 'Work Diary', href: route('work-hours.index'), icon: Clock, active: ['work-hours.index', 'work-hours.create', 'work-hours.edit'] },
+        (can('shift.edit_own') || can('shift.manage_all')) && { label: 'My Schedule', href: route('shift-overrides.index'), icon: CalendarClock, active: ['shift-overrides.index'] },
+    ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
+
+    // Performance — reporting & analytics.
     const performanceItems = useMemo(() => [
         can('reports.view') && { label: 'Reports', href: route('work-hours.report'), icon: BarChart3, active: ['work-hours.report'] },
         can('timeline.view_others') && { label: 'Team Performance', href: route('team.index'), icon: Activity, active: ['team.index'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
 
-    // Internal management — people and client records.
-    const managementItems = useMemo(() => [
+    // Admin — people, clients, and system configuration (was Management + System).
+    const adminItems = useMemo(() => [
         can('users.view') && { label: 'Users', href: route('users.index'), icon: Users, active: ['users.index', 'users.create', 'users.edit'] },
         can('clients.view') && { label: 'Clients', href: route('clients.index'), icon: Briefcase, active: ['clients.index', 'clients.create', 'clients.edit'] },
         can('profiles.view') && { label: 'Profiles', href: route('upwork-profiles.index'), icon: UserCircle, active: ['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'] },
-    ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
-
-    // System configuration — admins only. The Desktop App download lives in
-    // the avatar menu so every employee can reach it.
-    const systemItems = useMemo(() => [
         can('monitoring.settings') && { label: 'Settings', href: route('settings.index'), icon: SettingsIcon, active: ['settings.index'] },
         user?.is_super_admin && { label: 'Developer', href: route('developer.index'), icon: Wrench, active: ['developer.index'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);
+
+    // Help + Requests — for everyone, always reachable.
+    const supportItems = useMemo(() => [
+        { label: 'Help', href: route('help'), icon: HelpCircle, active: ['help'] },
+        {
+            label: feedback.can_manage ? 'Inbox' : 'Requests',
+            href: route('feedback.index'),
+            icon: Inbox,
+            active: ['feedback.index'],
+            badge: feedback.can_manage ? feedback.open_count : 0,
+        },
+    ].filter(Boolean), [feedback.can_manage, feedback.open_count]);
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-900">
@@ -154,9 +173,12 @@ export default function Authenticated({ user, header, children }) {
                                 {primaryItems.map((item) => (
                                     <NavItem key={item.label} item={item} />
                                 ))}
+                                {realtimeItems.length > 0 && <NavGroup label="Real-time" icon={Activity} items={realtimeItems} />}
                                 {performanceItems.length > 0 && <NavGroup label="Performance" icon={BarChart3} items={performanceItems} />}
-                                {managementItems.length > 0 && <NavGroup label="Management" icon={LayoutGrid} items={managementItems} />}
-                                {systemItems.length > 0 && <NavGroup label="System" icon={SettingsIcon} items={systemItems} />}
+                                {adminItems.length > 0 && <NavGroup label="Admin" icon={LayoutGrid} items={adminItems} />}
+                                {supportItems.map((item) => (
+                                    <NavItem key={item.label} item={item} />
+                                ))}
                             </div>
                         </div>
 
@@ -225,32 +247,25 @@ export default function Authenticated({ user, header, children }) {
                                 <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
                             ))}
 
-                            {performanceItems.length > 0 && (
-                                <div className="pt-3">
-                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Performance</div>
-                                    {performanceItems.map((item) => (
+                            {[
+                                ['Real-time', realtimeItems],
+                                ['Performance', performanceItems],
+                                ['Admin', adminItems],
+                            ].map(([label, items]) => items.length > 0 && (
+                                <div key={label} className="pt-3">
+                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+                                    {items.map((item) => (
                                         <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
                                     ))}
                                 </div>
-                            )}
+                            ))}
 
-                            {managementItems.length > 0 && (
-                                <div className="pt-3">
-                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Management</div>
-                                    {managementItems.map((item) => (
-                                        <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
-                                    ))}
-                                </div>
-                            )}
-
-                            {systemItems.length > 0 && (
-                                <div className="pt-3">
-                                    <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">System</div>
-                                    {systemItems.map((item) => (
-                                        <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
-                                    ))}
-                                </div>
-                            )}
+                            <div className="pt-3">
+                                <div className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Support</div>
+                                {supportItems.map((item) => (
+                                    <NavItem key={item.label} item={item} onClick={() => setShowingNavigationDropdown(false)} />
+                                ))}
+                            </div>
 
                             {canCreateManualWorkHour && (
                                 <Link

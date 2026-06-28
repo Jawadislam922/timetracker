@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/react';
 import { useFormatters } from '@/lib/datetime';
 import {
     Activity,
+    AlertTriangle,
     CalendarDays,
     Coffee,
     Download,
@@ -13,6 +14,8 @@ import {
     RotateCcw,
     Square,
     Timer,
+    Users,
+    UserCheck,
     UserRound,
 } from 'lucide-react';
 import axios from 'axios';
@@ -25,6 +28,10 @@ import {
     showTimeActionSuccess,
 } from '@/Utils/notifications';
 import { formatHours, getTimeBasedGreeting } from '@/Utils/timeUtils';
+import MetricCard from '@/Components/MetricCard';
+import SwitchableChartCard from '@/Components/Charts/SwitchableChartCard';
+import NeedsAttentionList from '@/Components/NeedsAttentionList';
+import { getChartOptions, toTrendData, toShareData } from '@/lib/chartConfig';
 
 const ACTIONS = [
     { type: 'clock_in', label: 'Clock In', description: 'Start work', icon: PlayCircle, activeClass: 'bg-emerald-600 text-white hover:bg-emerald-700' },
@@ -108,8 +115,21 @@ export default function Dashboard({ auth }) {
     const { formatTime, tz } = useFormatters();
     const can = (permission) => auth.user?.is_super_admin || auth.user?.permissions?.includes(permission);
     const canViewTeam = can('dashboard.view_team') || can('attendance.view');
+    const canViewAnalytics = can('analytics.view');
     const [entries, setEntries] = useState([]);
     const [employeesData, setEmployeesData] = useState([]);
+    const [teamKpis, setTeamKpis] = useState(null);
+    const [needsAttention, setNeedsAttention] = useState([]);
+    // At-a-glance trend: own state + quick toggle (today / yesterday / week).
+    const [trendRange, setTrendRange] = useState('today');
+    const [trend, setTrend] = useState(null);
+    const [trendLoading, setTrendLoading] = useState(false);
+    // Team Activity table: a date filter (today / yesterday / this week / custom).
+    // "today" keeps the live status table; other ranges show historical totals.
+    const [tableRange, setTableRange] = useState('today');
+    const [tableCustom, setTableCustom] = useState({ start: '', end: '' });
+    const [rangedRows, setRangedRows] = useState([]);
+    const [rangedLoading, setRangedLoading] = useState(false);
     const [loading, setLoading] = useState(false);
     // Distinguishes "still loading the first time" from "loaded, genuinely
     // empty" so the team table never flashes "No activity recorded today"
@@ -147,6 +167,8 @@ export default function Dashboard({ auth }) {
         }
         if (summaryResult.status === 'fulfilled') {
             setEmployeesData(summaryResult.value.data.employees || []);
+            setTeamKpis(summaryResult.value.data.team_kpis || null);
+            setNeedsAttention(summaryResult.value.data.needs_attention || []);
         }
 
         setDashboardLoaded(true);
@@ -171,7 +193,100 @@ export default function Dashboard({ auth }) {
         };
     }, []);
 
+    // At-a-glance trend: refetch whenever the quick toggle changes. Only team
+    // viewers get the command center, so only they hit this endpoint.
+    useEffect(() => {
+        if (!canViewTeam) return undefined;
+        let cancelled = false;
+        setTrendLoading(true);
+        axios
+            .get('/time-entries/dashboard-trend', { params: { range: trendRange } })
+            .then((res) => {
+                if (!cancelled) setTrend(res.data);
+            })
+            .catch(() => {
+                if (!cancelled) setTrend(null);
+            })
+            .finally(() => {
+                if (!cancelled) setTrendLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [trendRange, canViewTeam]);
+
+    // Team Activity table for a non-today range. "today" reuses the live summary
+    // already loaded above, so we only hit the ranged endpoint when needed.
+    useEffect(() => {
+        if (!canViewTeam || tableRange === 'today') return undefined;
+        if (tableRange === 'custom' && (!tableCustom.start || !tableCustom.end)) return undefined;
+        let cancelled = false;
+        setRangedLoading(true);
+        const params = tableRange === 'custom'
+            ? { start: tableCustom.start, end: tableCustom.end }
+            : { range: tableRange };
+        axios
+            .get('/time-entries/team-activity', { params })
+            .then((res) => {
+                if (!cancelled) setRangedRows(res.data.employees || []);
+            })
+            .catch(() => {
+                if (!cancelled) setRangedRows([]);
+            })
+            .finally(() => {
+                if (!cancelled) setRangedLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [tableRange, tableCustom, canViewTeam]);
+
     const currentStatus = useMemo(() => statusFromAction(todayStats.lastAction), [todayStats.lastAction]);
+
+    // Trend labels: hourly buckets show as "9a"/"1p"; weekly buckets are ISO
+    // dates formatted to a weekday in the viewer's own display timezone.
+    const trendLabels = useMemo(() => {
+        if (!trend) return [];
+        if (trend.granularity === 'day') {
+            return trend.labels.map((d) => {
+                try {
+                    return new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });
+                } catch {
+                    return d;
+                }
+            });
+        }
+        return trend.labels.map((hhmm) => {
+            const h = parseInt(hhmm.slice(0, 2), 10);
+            const ampm = h < 12 ? 'a' : 'p';
+            const h12 = h % 12 === 0 ? 12 : h % 12;
+            return `${h12}${ampm}`;
+        });
+    }, [trend, tz]);
+
+    const TREND_RANGES = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week']];
+    const statusMix = teamKpis?.status_mix
+        ? teamKpis.status_mix.map((s) => ({
+            label: s.label,
+            value: s.value,
+            color: { Working: '#34d399', 'On break': '#f59e0b', 'Clocked out': '#fb7185', 'Not started': '#64748b' }[s.label],
+        }))
+        : [];
+    const hasStatusMix = statusMix.some((s) => s.value > 0);
+    const hasTrend = (trend?.hours || []).some((v) => v > 0);
+    const fmtH = (v) => `${Math.round(v * 10) / 10}h`;
+
+    const TABLE_RANGES = [['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['custom', 'Custom']];
+    const isTodayTable = tableRange === 'today';
+    const tableRangeLabel = tableRange === 'custom'
+        ? `${tableCustom.start || '…'} → ${tableCustom.end || '…'}`
+        : (TABLE_RANGES.find(([k]) => k === tableRange)?.[1] || 'Today');
+    const activityBadge = (pct) => {
+        const v = Math.max(0, Math.min(100, Number(pct) || 0));
+        const cls = v >= 60 ? 'bg-emerald-500/15 text-emerald-300' : v >= 30 ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300';
+        return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{v}%</span>;
+    };
+    const fmtSecs = (s) => formatHours((Number(s) || 0) / 3600);
 
     const isActionDisabled = (actionType) => {
         if (loading) return true;
@@ -206,6 +321,8 @@ export default function Dashboard({ auth }) {
             setTodayStats(calculateStats(nextEntries));
             const summaryResponse = await axios.get('/time-entries/today-summary');
             setEmployeesData(summaryResponse.data.employees || []);
+            setTeamKpis(summaryResponse.data.team_kpis || null);
+            setNeedsAttention(summaryResponse.data.needs_attention || []);
             toast.dismiss(loadingToast);
             showTimeActionSuccess(actionType);
         } catch (error) {
@@ -274,7 +391,7 @@ export default function Dashboard({ auth }) {
                         <div className="pointer-events-none absolute -bottom-32 left-1/3 h-56 w-72 rounded-full bg-amber-500/10 blur-3xl" aria-hidden="true" />
                         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div>
-                                <p className="text-sm font-semibold text-orange-400">{getTimeBasedGreeting()}</p>
+                                <p className="text-sm font-semibold text-orange-400">{getTimeBasedGreeting(tz)}</p>
                                 <h1 className="mt-1 text-2xl font-bold text-white">{auth.user.name}</h1>
                                 <p className="mt-1 text-sm text-slate-400">Track today&apos;s work and review current team activity.</p>
                             </div>
@@ -293,6 +410,65 @@ export default function Dashboard({ auth }) {
                             </div>
                         </div>
                     </section>
+
+                    {canViewTeam && (
+                        <section className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                                <MetricCard label="Present today" value={teamKpis ? `${teamKpis.present}/${teamKpis.team_size}` : '—'} icon={Users} />
+                                <MetricCard label="Working now" value={teamKpis ? teamKpis.working : '—'} icon={UserCheck} tone="success" />
+                                <MetricCard label="On break" value={teamKpis ? teamKpis.on_break : '—'} icon={Coffee} tone="warning" />
+                                <MetricCard label="Avg activity" value={teamKpis?.avg_activity == null ? '—' : `${teamKpis.avg_activity}%`} icon={Activity} />
+                                <MetricCard label="Tracked today" value={teamKpis ? `${teamKpis.total_tracked_hours}h` : '—'} icon={Timer} />
+                                <MetricCard label="Needs attention" value={teamKpis ? teamKpis.needs_attention : '—'} icon={AlertTriangle} tone={teamKpis?.needs_attention ? 'danger' : 'default'} />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                                <div className="lg:col-span-2">
+                                    <SwitchableChartCard
+                                        title="At a glance"
+                                        subtitle="Team tracked hours"
+                                        chartKey="dash_at_a_glance"
+                                        allowedTypes={['bar', 'line']}
+                                        defaultType="bar"
+                                        loading={trendLoading && !trend}
+                                        isEmpty={!hasTrend}
+                                        height={260}
+                                        actions={(
+                                            <div className="flex rounded-lg border border-slate-700 bg-slate-800/60 p-0.5">
+                                                {TREND_RANGES.map(([key, label]) => (
+                                                    <button
+                                                        key={key}
+                                                        type="button"
+                                                        onClick={() => setTrendRange(key)}
+                                                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                                                            trendRange === key ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        buildData={(type) => toTrendData(trendLabels, [{ label: 'Tracked', data: trend?.hours || [], color: '#f59e0b' }], type)}
+                                        buildOptions={(type) => getChartOptions({ type, valueFormat: fmtH })}
+                                    />
+                                </div>
+                                <SwitchableChartCard
+                                    title="Status mix"
+                                    subtitle="Where the team is right now"
+                                    chartKey="dash_status_mix"
+                                    allowedTypes={['doughnut', 'pie']}
+                                    defaultType="doughnut"
+                                    isEmpty={!hasStatusMix}
+                                    height={260}
+                                    buildData={() => toShareData(statusMix)}
+                                    buildOptions={(type) => getChartOptions({ type, showLegend: true, valueFormat: (v) => `${v}` })}
+                                />
+                            </div>
+
+                            <NeedsAttentionList items={needsAttention} canViewAnalytics={canViewAnalytics} />
+                        </section>
+                    )}
 
                     <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                         {metrics.map((metric) => {
@@ -351,36 +527,129 @@ export default function Dashboard({ auth }) {
                     </section>
 
                     <section className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
-                        <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h2 className="text-base font-bold text-white">
-                                    {canViewTeam ? 'Team Activity Today' : 'Your Activity Today'}
-                                </h2>
-                                <p className="text-sm text-slate-400">Work, break, and attendance status.</p>
+                        <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h2 className="text-base font-bold text-white">
+                                        {canViewTeam ? 'Team Activity' : 'Your Activity Today'}
+                                    </h2>
+                                    <p className="text-sm text-slate-400">
+                                        {!canViewTeam || isTodayTable
+                                            ? 'Work, break, and attendance status — right now.'
+                                            : `Tracked, in-office and activity · ${tableRangeLabel}`}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {can('attendance.view') && (
+                                        <Link
+                                            href={route('employee-attendance.index')}
+                                            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
+                                        >
+                                            Open Attendance
+                                        </Link>
+                                    )}
+                                    {isTodayTable && employeesData.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={downloadCSV}
+                                            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            Export
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                {can('attendance.view') && (
-                                    <Link
-                                        href={route('employee-attendance.index')}
-                                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
-                                    >
-                                        Open Attendance
-                                    </Link>
-                                )}
-                                {employeesData.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={downloadCSV}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-                                    >
-                                        <Download className="h-4 w-4" />
-                                        Export
-                                    </button>
-                                )}
-                            </div>
+
+                            {canViewTeam && (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex rounded-lg border border-slate-700 bg-slate-800/60 p-0.5">
+                                        {TABLE_RANGES.map(([key, label]) => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => setTableRange(key)}
+                                                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                                                    tableRange === key ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {tableRange === 'custom' && (
+                                        <div className="flex items-center gap-1.5">
+                                            <input
+                                                type="date"
+                                                value={tableCustom.start}
+                                                max={tableCustom.end || undefined}
+                                                onChange={(e) => setTableCustom((c) => ({ ...c, start: e.target.value }))}
+                                                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+                                            />
+                                            <span className="text-xs text-slate-500">→</span>
+                                            <input
+                                                type="date"
+                                                value={tableCustom.end}
+                                                min={tableCustom.start || undefined}
+                                                onChange={(e) => setTableCustom((c) => ({ ...c, end: e.target.value }))}
+                                                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        {!dashboardLoaded ? (
+                        {(canViewTeam && !isTodayTable) ? (
+                            rangedLoading ? (
+                                <div className="px-5 py-12 text-center">
+                                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+                                    <p className="mt-3 text-sm text-slate-400">Loading {tableRangeLabel}…</p>
+                                </div>
+                            ) : rangedRows.length === 0 ? (
+                                <div className="px-5 py-12 text-center">
+                                    <UserRound className="mx-auto h-10 w-10 text-slate-600" />
+                                    <h3 className="mt-3 font-semibold text-white">No activity in this range</h3>
+                                    <p className="mt-1 text-sm text-slate-400">Nobody tracked time or clocked in for {tableRangeLabel}.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-slate-800">
+                                        <thead className="bg-slate-950">
+                                            <tr>
+                                                {['Employee', 'In Office', 'Tracked', 'Activity', 'Days'].map((heading) => (
+                                                    <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800">
+                                            {rangedRows.map((employee) => (
+                                                <tr key={employee.user_id} className="hover:bg-white/5">
+                                                    <td className="whitespace-nowrap px-4 py-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
+                                                            <div>
+                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                                                    {employee.user_name}
+                                                                    {employee.is_live && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Tracking right now" />}
+                                                                </div>
+                                                                <div className="text-xs text-slate-400">{employee.designation}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{fmtSecs(employee.in_office_seconds)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{fmtSecs(employee.tracked_seconds)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3">
+                                                        {employee.tracked_seconds > 0 ? activityBadge(employee.activity_percent) : <span className="text-xs text-slate-400">—</span>}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.days_worked}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )
+                        ) : !dashboardLoaded ? (
                             <div className="px-5 py-12 text-center">
                                 <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
                                 <p className="mt-3 text-sm text-slate-400">Loading team activity…</p>

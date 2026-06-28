@@ -142,12 +142,24 @@ export const calculateProductivityMetrics = (entries) => {
 };
 
 /**
- * Get appropriate greeting based on time of day
+ * Get appropriate greeting based on time of day, in the viewer's chosen display
+ * timezone (not their machine clock — a remote viewer with a misset PC clock, or
+ * watching a Pakistan team from the US, still gets the right greeting). Pass the
+ * display timezone from `usePage().props.display.timezone`.
+ * @param {string} [timeZone] IANA timezone; falls back to the machine clock
  * @returns {string} Greeting message
  */
-export const getTimeBasedGreeting = () => {
-    const hour = new Date().getHours();
-    
+export const getTimeBasedGreeting = (timeZone) => {
+    let hour;
+    try {
+        hour = timeZone
+            ? Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone }).format(new Date()))
+            : new Date().getHours();
+    } catch {
+        hour = new Date().getHours();
+    }
+    if (hour === 24) hour = 0; // some engines format midnight as "24"
+
     if (hour < 5) return 'Working late night? 🌙';
     if (hour < 12) return 'Good morning! ☀️';
     if (hour < 17) return 'Good afternoon! 🌤️';

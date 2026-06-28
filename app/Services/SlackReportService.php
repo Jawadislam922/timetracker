@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\WorkHour;
+use App\Services\Concerns\FormatsSlackBlocks;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -12,6 +13,8 @@ use Throwable;
 
 class SlackReportService
 {
+    use FormatsSlackBlocks;
+
     private const MAX_TABLE_DATA_ROWS = 98;
 
     public function configured(): bool
@@ -286,29 +289,6 @@ class SlackReportService
         };
     }
 
-    private function tableTextCell(string $text): array
-    {
-        return [
-            'type' => 'raw_text',
-            'text' => $text,
-        ];
-    }
-
-    private function tableBoldCell(string $text): array
-    {
-        return [
-            'type' => 'rich_text',
-            'elements' => [[
-                'type' => 'rich_text_section',
-                'elements' => [[
-                    'type' => 'text',
-                    'text' => $text,
-                    'style' => ['bold' => true],
-                ]],
-            ]],
-        ];
-    }
-
     private function formatWorkType(?string $workType): string
     {
         return match ($workType) {
@@ -322,10 +302,5 @@ class SlackReportService
             null, '' => 'Not specified',
             default => ucwords(str_replace('_', ' ', $workType)),
         };
-    }
-
-    private function formatHours(float $hours): string
-    {
-        return rtrim(rtrim(number_format($hours, 2, '.', ''), '0'), '.');
     }
 }

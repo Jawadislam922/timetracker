@@ -32,10 +32,14 @@ class AttendanceCloser
             return null; // already closed / nothing open
         }
 
-        $clockIn = TimeEntry::where('user_id', $userId)
-            ->where('action_type', 'clock_in')
-            ->orderByDesc('action_timestamp')->orderByDesc('id')
-            ->first();
+        // Reuse $last when it already IS the clock-in; only re-query when the open
+        // state is a break (then the clock-in is an earlier row).
+        $clockIn = $last->action_type === 'clock_in'
+            ? $last
+            : TimeEntry::where('user_id', $userId)
+                ->where('action_type', 'clock_in')
+                ->orderByDesc('action_timestamp')->orderByDesc('id')
+                ->first();
 
         if (! $clockIn) {
             return null;

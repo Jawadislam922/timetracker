@@ -90,6 +90,10 @@ return [
                 'label' => 'View others\' timelines',
                 'description' => 'Opens Team Performance and any member\'s daily timeline (sessions, apps & URLs, activity ruler).',
             ],
+            'analytics.view' => [
+                'label' => 'View performance analytics',
+                'description' => 'Opens the per-person Analytics page (charts of hours, activity trend, and top apps/clients over a date range). Charts only — no screenshot-level timeline; grant this to managers who need trends without the privacy-sensitive timeline.',
+            ],
             'monitoring.view' => [
                 'label' => 'View tracking sessions',
                 'description' => 'Lists raw desktop-tracker sessions across the team (admin monitoring pages).',
@@ -143,6 +147,16 @@ return [
             'profiles.manage' => [
                 'label' => 'Manage profiles',
                 'description' => 'Can create, edit, and delete Upwork profiles.',
+            ],
+        ],
+        'Help & Feedback' => [
+            'feedback.manage' => [
+                'label' => 'Manage the feedback inbox',
+                'description' => 'Opens the Feedback Inbox: questions and feature requests submitted by the team (including searches the Help docs couldn\'t answer). Can change a request\'s status and reply. Everyone can submit feedback and see their own; this grants the triage view.',
+            ],
+            'help.manage' => [
+                'label' => 'Edit help articles',
+                'description' => 'Can add and edit the Help knowledge-base articles that power the searchable Help page. Content only — no access to anyone\'s data.',
             ],
         ],
         'System' => [

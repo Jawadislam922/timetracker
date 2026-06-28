@@ -148,6 +148,21 @@ class HandleInertiaRequests extends Middleware
             // Keep rendering with the bundled logo if the table is missing.
         }
 
+        // Feedback inbox: a small badge for managers (open requests awaiting
+        // triage) and a flag the nav uses to show the inbox link. One cheap
+        // COUNT, only for people who can actually manage the inbox.
+        $feedback = ['can_manage' => false, 'open_count' => 0];
+        if ($user) {
+            $feedback['can_manage'] = $user->isSuperAdmin() || $user->hasPermission('feedback.manage');
+            if ($feedback['can_manage']) {
+                try {
+                    $feedback['open_count'] = \App\Models\FeedbackItem::open()->count();
+                } catch (\Throwable $e) {
+                    // table not migrated yet — leave at 0
+                }
+            }
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -157,6 +172,7 @@ class HandleInertiaRequests extends Middleware
             'teamSettings' => $teamSettings,
             'display' => $display,
             'branding' => $branding,
+            'feedback' => $feedback,
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

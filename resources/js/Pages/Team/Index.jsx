@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Avatar from '@/Components/Avatar';
-import { Eye, Search, Send } from 'lucide-react';
+import { Eye, Search, Send, BarChart3 } from 'lucide-react';
+import TeamChartsPanel from './TeamChartsPanel';
 
 function fmtHm(seconds) {
     const s = Math.max(0, Math.floor(seconds || 0));
@@ -43,7 +44,7 @@ const PRESETS = [
     ['month', 'This month'],
 ];
 
-export default function TeamIndex({ auth, start, end, range, rows, totals, permissions, slack }) {
+export default function TeamIndex({ auth, start, end, range, rows, totals, charts, permissions, slack }) {
     DISPLAY = usePage().props.display || DISPLAY;
     const [sending, setSending] = useState(false);
     const [query, setQuery] = useState('');
@@ -53,6 +54,8 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
     const [customEnd, setCustomEnd] = useState(end);
     const flash = usePage().props.flash || {};
     const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
+    const canViewAnalytics = auth.user?.is_super_admin || auth.user?.permissions?.includes('analytics.view');
+    const rangeParams = range === 'custom' ? { start, end } : { range };
 
     // Tick once a second so a Live member's tracked time counts up in place.
     useEffect(() => {
@@ -196,6 +199,8 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                         </div>
                     </div>
 
+                    <TeamChartsPanel charts={charts} rows={rows} />
+
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-800 text-sm">
                             <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-400">
@@ -282,12 +287,22 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, permi
                                         <td className="px-4 py-3 text-xs text-slate-300">{row.top_app || '—'}</td>
                                         <td className="px-4 py-3 text-xs text-slate-400">{fmtRelative(row.last_heartbeat_at)}</td>
                                         <td className="px-4 py-3 text-right">
-                                            <Link
-                                                href={route('timeline.index', { user_id: row.id, date: end })}
-                                                className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
-                                            >
-                                                <Eye className="h-3 w-3" /> Timeline
-                                            </Link>
+                                            <div className="flex items-center justify-end gap-1.5">
+                                                {canViewAnalytics && (
+                                                    <Link
+                                                        href={route('team.member', { user: row.id, ...rangeParams })}
+                                                        className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+                                                    >
+                                                        <BarChart3 className="h-3 w-3" /> Analytics
+                                                    </Link>
+                                                )}
+                                                <Link
+                                                    href={route('timeline.index', { user_id: row.id, date: end })}
+                                                    className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+                                                >
+                                                    <Eye className="h-3 w-3" /> Timeline
+                                                </Link>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

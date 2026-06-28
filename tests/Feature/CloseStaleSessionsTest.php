@@ -14,6 +14,11 @@ class CloseStaleSessionsTest extends TestCase
 
     public function test_stale_active_sessions_are_closed_and_hours_synced(): void
     {
+        // Freeze to mid-day so the "3h/2h ago" session stays inside one day. Run
+        // near midnight it straddles the boundary and the work-hour sync (rightly)
+        // splits it across two dates, which would flake this single-row assert.
+        $this->travelTo(today()->addHours(12));
+
         $user = User::factory()->create();
 
         $stale = TrackingSession::create([
@@ -55,6 +60,8 @@ class CloseStaleSessionsTest extends TestCase
 
     public function test_dry_run_changes_nothing(): void
     {
+        $this->travelTo(today()->addHours(12));
+
         $user = User::factory()->create();
 
         $stale = TrackingSession::create([

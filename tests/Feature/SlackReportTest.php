@@ -22,6 +22,12 @@ class SlackReportTest extends TestCase
         config()->set('services.slack_reports.timezone', 'Asia/Karachi');
     }
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
+
     public function test_super_admin_can_send_a_selected_date_range_to_slack(): void
     {
         Http::fake(['hooks.slack.test/*' => Http::response('ok')]);

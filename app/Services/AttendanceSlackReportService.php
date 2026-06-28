@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
 use App\Models\User;
+use App\Services\Concerns\FormatsSlackBlocks;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -13,6 +14,8 @@ use Throwable;
 
 class AttendanceSlackReportService
 {
+    use FormatsSlackBlocks;
+
     private const MAX_TABLE_DATA_ROWS = 98;
 
     public function configured(): bool
@@ -342,31 +345,4 @@ class AttendanceSlackReportService
         };
     }
 
-    private function tableTextCell(string $text): array
-    {
-        return [
-            'type' => 'raw_text',
-            'text' => $text,
-        ];
-    }
-
-    private function tableBoldCell(string $text): array
-    {
-        return [
-            'type' => 'rich_text',
-            'elements' => [[
-                'type' => 'rich_text_section',
-                'elements' => [[
-                    'type' => 'text',
-                    'text' => $text,
-                    'style' => ['bold' => true],
-                ]],
-            ]],
-        ];
-    }
-
-    private function formatHours(float $hours): string
-    {
-        return rtrim(rtrim(number_format($hours, 2, '.', ''), '0'), '.');
-    }
 }

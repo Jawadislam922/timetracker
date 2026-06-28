@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\CalculatesTimeStats;
 use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Models\WorkHour;
 use App\Services\TrackingSessionService;
+use App\Support\AttendanceHours;
 use App\Support\BusinessTime;
 use App\Support\TimeClockRules;
 use Carbon\Carbon;
@@ -17,6 +19,8 @@ use Illuminate\Support\Facades\Auth;
 
 class TimeEntryController extends Controller
 {
+    use CalculatesTimeStats;
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -175,23 +179,34 @@ class TimeEntryController extends Controller
         $monthStart = Carbon::now('Asia/Karachi')->startOfMonth();
 
         if ($user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])) {
-            $employees = User::all();
+            // Eager-load shift overrides so the needs-attention pass can call
+            // effectiveShiftFor() per employee without an N+1 (one extra query
+            // for the whole team instead of one per person). Non-tracking staff
+            // (HR etc.) are excluded so they don't dilute the KPIs at 0%.
+            $employees = User::tracksTime()->with('shiftOverrides')->get();
             $ids = $employees->pluck('id')->all();
             $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
             $trackedByUserDate = $this->loadTrackedHours($ids, $now);
             $liveByUser = $this->loadLiveSessions($ids);
             $activityByUser = $this->loadDayActivity($ids, $now);
 
-            $employeesData = $employees->map(function ($employee) use ($now, $weekStart, $monthStart, $entriesByUser, $trackedByUserDate, $liveByUser, $activityByUser) {
-                return $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser);
-            })->filter(function ($employee) {
+            // Build every row first (the KPI strip + status mix count the whole
+            // team, including people who are clocked out or not started), then
+            // filter the live table to those who actually have activity today.
+            $allRows = $employees->map(fn ($employee) => $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser));
+
+            $employeesData = $allRows->filter(function ($employee) {
                 // Show anyone with attendance entries today OR a live tracker
                 // session (so someone tracking without clocking in still shows).
                 return $employee['total_entries'] > 0 || $employee['is_live'];
             });
 
+            [$kpis, $attention] = $this->teamOverview($employees->keyBy('id'), $allRows, $entriesByUser, $now);
+
             return response()->json([
                 'employees' => $employeesData->values(),
+                'team_kpis' => $kpis,
+                'needs_attention' => $attention,
             ]);
         } else {
             // Regular users see only their own data
@@ -204,6 +219,354 @@ class TimeEntryController extends Controller
                 'employees' => [$this->summaryStatsFor($user, $entriesByUser->get($user->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser)],
             ]);
         }
+    }
+
+    /**
+     * Ranged team-activity table for the dashboard's "Team Activity" panel, so a
+     * manager can flip the same list to Yesterday / This week / a custom range
+     * without leaving the dashboard. Per-member tracked + in-office + activity
+     * over the window, computed with the SAME inDaySeconds + dayInOfficeHours the
+     * Team Performance page and the live table use — so the numbers always agree.
+     * (The default "today" view keeps using today-summary's richer live columns;
+     * this powers the historical ranges, which have no "current status".)
+     */
+    public function teamActivity(Request $request)
+    {
+        $user = Auth::user();
+        abort_unless($user->hasAnyPermission(['dashboard.view_team', 'attendance.view']), 403);
+
+        [$rangeStart, $rangeEnd] = $this->resolveActivityRange($request);
+        [$dayStart, $dayEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
+        $svc = app(TrackingSessionService::class);
+
+        $users = User::tracksTime()->orderBy('name')->get(['id', 'name', 'designation', 'avatar']);
+        $ids = $users->pluck('id');
+
+        // Sessions overlapping the range (each clamped to its in-range share),
+        // grouped per user.
+        $sessionsByUser = TrackingSession::query()
+            ->whereIn('user_id', $ids)
+            ->where('started_at', '<', $dayEnd)
+            ->where(fn ($q) => $q->whereNull('stopped_at')->orWhere('stopped_at', '>', $dayStart))
+            ->where(fn ($q) => $q->where('total_seconds', '>=', 60)->orWhere('status', TrackingSession::STATUS_ACTIVE))
+            ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds', 'activity_percent', 'status'])
+            ->groupBy('user_id');
+
+        // Clock entries in the range, grouped per user → per attendance day, so
+        // in-office hours sum each day's clock-in/out window across the range.
+        $entriesByUser = TimeEntry::query()
+            ->whereIn('user_id', $ids)
+            ->whereBetween('action_timestamp', [$dayStart, $dayEnd])
+            ->orderBy('action_timestamp')->orderBy('id')
+            ->get()
+            ->groupBy('user_id');
+
+        // Manual (non-tracker) work-diary hours dilute activity at 0%, exactly
+        // like the Team table.
+        $manualByUser = WorkHour::query()
+            ->whereIn('user_id', $ids)
+            ->whereBetween('date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+            ->where(fn ($q) => $q->whereNull('source')->orWhere('source', '!=', 'tracker'))
+            ->get(['user_id', 'hours'])
+            ->groupBy('user_id');
+
+        $liveIds = TrackingSession::active()->pluck('user_id')->flip();
+
+        $rows = $users->map(function (User $u) use ($sessionsByUser, $entriesByUser, $manualByUser, $liveIds, $svc, $dayStart, $dayEnd) {
+            $sessions = $sessionsByUser->get($u->id, collect());
+            $trackedSeconds = (int) $sessions->sum(fn ($s) => $svc->inDaySeconds($s, $dayStart, $dayEnd));
+            $weighted = $sessions->sum(fn ($s) => (int) $s->activity_percent * $svc->inDaySeconds($s, $dayStart, $dayEnd));
+            $manualSeconds = (int) round((float) $manualByUser->get($u->id, collect())->sum('hours') * 3600);
+            $totalSeconds = $trackedSeconds + $manualSeconds;
+            $trackedActivity = $trackedSeconds > 0 ? $weighted / $trackedSeconds : 0;
+            $activity = $totalSeconds > 0 ? (int) round($trackedActivity * ($trackedSeconds / $totalSeconds)) : 0;
+
+            $byDay = $entriesByUser->get($u->id, collect())
+                ->groupBy(fn ($e) => $e->action_date instanceof Carbon ? $e->action_date->toDateString() : substr((string) $e->action_date, 0, 10));
+            $inOfficeSeconds = (int) round($byDay->sum(fn ($dayEntries) => AttendanceHours::dayInOfficeHours($dayEntries)) * 3600);
+
+            return [
+                'user_id' => $u->id,
+                'user_name' => $u->name,
+                'designation' => $u->designation ?? 'Employee',
+                'avatar' => $u->avatar_url ?? null,
+                'tracked_seconds' => $trackedSeconds + $manualSeconds,
+                'in_office_seconds' => $inOfficeSeconds,
+                'activity_percent' => $activity,
+                'days_worked' => $byDay->filter(fn ($d) => $d->isNotEmpty())->count(),
+                'is_live' => $liveIds->has($u->id),
+            ];
+        })
+            ->filter(fn ($r) => $r['tracked_seconds'] > 0 || $r['in_office_seconds'] > 0 || $r['is_live'])
+            ->sortBy([['is_live', 'desc'], ['tracked_seconds', 'desc'], ['user_name', 'asc']])
+            ->values();
+
+        return response()->json([
+            'range' => $request->input('range', 'today'),
+            'start' => $rangeStart->toDateString(),
+            'end' => $rangeEnd->toDateString(),
+            'employees' => $rows,
+        ]);
+    }
+
+    /**
+     * Resolve the dashboard team-activity range: a custom start+end, else a
+     * named preset. Mirrors TeamController::resolveRange so the dashboard panel
+     * and the Team Performance page bucket dates identically.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolveActivityRange(Request $request): array
+    {
+        $tz = BusinessTime::tz();
+
+        if ($request->filled('start') && $request->filled('end')) {
+            try {
+                return [
+                    Carbon::parse($request->input('start'), $tz)->startOfDay(),
+                    Carbon::parse($request->input('end'), $tz)->endOfDay(),
+                ];
+            } catch (\Throwable $e) {
+                // fall through to named ranges
+            }
+        }
+
+        $today = BusinessTime::today();
+
+        return match ($request->input('range', 'today')) {
+            'yesterday' => [$today->copy()->subDay(), $today->copy()->subDay()->endOfDay()],
+            'week' => [$today->copy()->startOfWeek(MonitoringSetting::weekStartDay()), $today->copy()->endOfDay()],
+            'month' => [$today->copy()->startOfMonth(), $today->copy()->endOfDay()],
+            default => [$today->copy(), $today->copy()->endOfDay()],
+        };
+    }
+
+    /**
+     * The dashboard "at a glance" trend. Team tracked-hours bucketed by hour for
+     * today / yesterday (24 buckets) or by day for this week (7 buckets), driven
+     * by the same quick toggle as the KPI strip. Every bucket is the SAME
+     * inDaySeconds proportional split the tables use, just over a narrower
+     * window, so the buckets always sum back to the day/range total — a bar can
+     * never claim hours a row doesn't have. Non-team viewers get their own.
+     */
+    public function dashboardTrend(Request $request)
+    {
+        $user = Auth::user();
+        $ids = $user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])
+            ? User::query()->pluck('id')->all()
+            : [$user->id];
+
+        $tz = 'Asia/Karachi';
+        $svc = app(TrackingSessionService::class);
+        $range = $request->query('range', 'today');
+
+        if ($range === 'week') {
+            // Seven day-buckets ending today; labels are dates the client
+            // formats in the viewer's own timezone.
+            $rangeStart = Carbon::now($tz)->subDays(6)->startOfDay();
+            $rangeEnd = Carbon::now($tz)->endOfDay();
+            $buckets = [];
+            $labels = [];
+            $cursor = $rangeStart->copy();
+            while ($cursor->lessThan($rangeEnd)) {
+                $buckets[] = [$cursor->copy(), $cursor->copy()->endOfDay()];
+                $labels[] = $cursor->toDateString();
+                $cursor->addDay();
+            }
+            $granularity = 'day';
+        } else {
+            // 24 hour-buckets for a single day (today or yesterday).
+            $day = $range === 'yesterday' ? Carbon::now($tz)->subDay() : Carbon::now($tz);
+            $rangeStart = $day->copy()->startOfDay();
+            $rangeEnd = $day->copy()->endOfDay();
+            $buckets = [];
+            $labels = [];
+            for ($h = 0; $h < 24; $h++) {
+                $bStart = $rangeStart->copy()->addHours($h);
+                $buckets[] = [$bStart, $bStart->copy()->addHour()];
+                $labels[] = sprintf('%02d:00', $h);
+            }
+            $granularity = 'hour';
+        }
+
+        $sessions = TrackingSession::query()
+            ->whereIn('user_id', $ids)
+            ->where('started_at', '<=', $rangeEnd)
+            ->where(function ($q) use ($rangeStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $rangeStart);
+            })
+            ->where(function ($q) {
+                $q->where('total_seconds', '>=', 60)->orWhere('status', TrackingSession::STATUS_ACTIVE);
+            })
+            ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds', 'status']);
+
+        $hours = array_map(
+            fn ($b) => round($sessions->sum(fn ($s) => $svc->inDaySeconds($s, $b[0], $b[1])) / 3600, 2),
+            $buckets,
+        );
+
+        return response()->json([
+            'range' => $range,
+            'granularity' => $granularity,
+            'labels' => $labels,
+            'hours' => $hours,
+        ]);
+    }
+
+    /**
+     * Roll the per-employee rows into the dashboard command-center: KPI counts,
+     * a status mix for the doughnut, and a needs-attention list the owner can
+     * act on. Computed entirely from data already loaded for the table (no new
+     * queries beyond the eager-loaded shift overrides), so it can never disagree
+     * with the rows below it. The stale-clock-out rule reuses the SAME shift end
+     * + buffer math as AutoCloseAttendance so the dashboard flags exactly the
+     * sessions auto-close will eventually close — never a different set.
+     *
+     * @param  Collection  $employeesById  every employee keyed by id (shiftOverrides loaded)
+     * @param  Collection  $allRows  the unfiltered summaryStatsFor rows
+     * @param  Collection  $entriesByUser  today+ entries grouped by user_id
+     * @return array{0: array<string,mixed>, 1: array<int,array<string,mixed>>}
+     */
+    private function teamOverview(Collection $employeesById, Collection $allRows, Collection $entriesByUser, Carbon $now): array
+    {
+        $buffer = (int) config('services.attendance.auto_close_buffer_minutes', 20);
+        $defaultHours = (float) config('services.attendance.prompt_after_hours', 8);
+
+        $present = 0;
+        $working = 0;
+        $onBreak = 0;
+        $totalTracked = 0.0;
+        $activitySum = 0;
+        $activityCount = 0;
+        $attention = [];
+
+        foreach ($allRows as $row) {
+            $emp = $employeesById->get($row['user_id']);
+            if (! $emp) {
+                continue;
+            }
+
+            $tracked = (float) $row['tracked_hours'];
+            $status = $row['current_status'];
+            $isLive = (bool) $row['is_live'];
+            $totalTracked += $tracked;
+
+            if ($row['total_entries'] > 0) {
+                $present++;
+            }
+            if ($status === 'Working') {
+                $working++;
+            }
+            if ($status === 'On Break') {
+                $onBreak++;
+            }
+            if ($tracked > 0) {
+                $activitySum += (int) $row['activity_percent'];
+                $activityCount++;
+            }
+
+            // This employee's entries for their own attendance day today (the
+            // first clock-in + last break_start drive the late / long-break /
+            // stale-clock-out checks).
+            $today = $emp->attendanceDateFor($now);
+            $todayEntries = $entriesByUser->get($emp->id, collect())
+                ->filter(fn ($e) => $e->action_date->toDateString() === $today)
+                ->values();
+            $firstClockIn = $todayEntries->firstWhere('action_type', 'clock_in');
+            $open = in_array($status, ['Working', 'On Break'], true);
+
+            $base = [
+                'user_id' => $emp->id,
+                'name' => $emp->name,
+                'avatar' => $emp->avatar_url ?? null,
+                'designation' => $emp->designation ?? 'Employee',
+            ];
+            $flags = [];
+
+            // 1. Forgot / stale clock-out (red): an open session past the same
+            // shift-end + buffer auto-close uses. Skip a live tracker — that's
+            // genuine overtime auto-close also leaves alone.
+            if ($open && $firstClockIn && ! $isLive) {
+                $tz = $emp->workTimezone();
+                $clockInTs = Carbon::parse($firstClockIn->action_timestamp)->setTimezone($tz);
+                $clockInDate = $firstClockIn->action_date instanceof Carbon
+                    ? $firstClockIn->action_date->toDateString()
+                    : (string) $firstClockIn->action_date;
+                $shift = $emp->effectiveShiftFor($clockInDate);
+                $shiftHours = $shift['hours'] ?? $defaultHours;
+                $shiftEnd = $shift['start_time']
+                    ? Carbon::parse($clockInDate.' '.$shift['start_time']->format('H:i:s'), $tz)
+                        ->addMinutes((int) round($shiftHours * 60))
+                    : $clockInTs->copy()->addMinutes((int) round($shiftHours * 60));
+                $closeAt = ($shiftEnd->greaterThan($clockInTs) ? $shiftEnd->copy() : $clockInTs->copy())
+                    ->addMinutes($buffer);
+                if ($now->greaterThan($closeAt)) {
+                    $flags[] = ['severity' => 'red', 'type' => 'stale_clock_out', 'message' => 'Clocked in past shift end — likely forgot to clock out'];
+                }
+            }
+
+            // 2. Clocked in but not tracking (amber): present, open session, but
+            // no tracker time and nothing running.
+            if ($status === 'Working' && ! $isLive && $tracked < 0.1) {
+                $flags[] = ['severity' => 'amber', 'type' => 'not_tracking', 'message' => 'Clocked in but not tracking'];
+            }
+
+            // 3. Tracking without clocking in (blue): a live tracker but no
+            // clock-in recorded for today.
+            if ($isLive && ! $firstClockIn) {
+                $flags[] = ['severity' => 'blue', 'type' => 'no_clock_in', 'message' => 'Tracking without clocking in'];
+            }
+
+            // 4. Low activity (amber): genuinely low — only when they DID track,
+            // so a zero-tracked person is caught by #2, not double-flagged here.
+            if ($tracked > 0 && (int) $row['activity_percent'] < 30) {
+                $flags[] = ['severity' => 'amber', 'type' => 'low_activity', 'message' => 'Low activity ('.((int) $row['activity_percent']).'%)'];
+            }
+
+            // 5. Late clock-in (amber): shared late-detection (shift start + grace
+            // in the worker's own tz).
+            if (AttendanceHours::isLateClockIn($emp, $now, $firstClockIn)) {
+                $flags[] = ['severity' => 'amber', 'type' => 'late', 'message' => 'Late clock-in'];
+            }
+
+            // 6. On break too long (amber): open break running over 90 minutes.
+            if ($status === 'On Break') {
+                $lastBreak = $todayEntries->filter(fn ($e) => $e->action_type === 'break_start')->last();
+                if ($lastBreak) {
+                    $mins = (int) Carbon::parse($lastBreak->action_timestamp)->setTimezone($emp->workTimezone())->diffInMinutes($now);
+                    if ($mins > 90) {
+                        $flags[] = ['severity' => 'amber', 'type' => 'long_break', 'message' => 'On break '.$mins.'m'];
+                    }
+                }
+            }
+
+            foreach ($flags as $f) {
+                $attention[] = $base + $f + ['is_live' => $isLive];
+            }
+        }
+
+        // Most urgent first (red → amber → blue), then by name for a stable order.
+        $rank = ['red' => 0, 'amber' => 1, 'blue' => 2];
+        usort($attention, fn ($a, $b) => [$rank[$a['severity']] ?? 9, $a['name']] <=> [$rank[$b['severity']] ?? 9, $b['name']]);
+
+        $kpis = [
+            'team_size' => $employeesById->count(),
+            'present' => $present,
+            'working' => $working,
+            'on_break' => $onBreak,
+            'clocked_out' => max(0, $present - $working - $onBreak),
+            'avg_activity' => $activityCount > 0 ? (int) round($activitySum / $activityCount) : null,
+            'total_tracked_hours' => round($totalTracked, 1),
+            'needs_attention' => count($attention),
+            'status_mix' => [
+                ['label' => 'Working', 'value' => $working],
+                ['label' => 'On break', 'value' => $onBreak],
+                ['label' => 'Clocked out', 'value' => max(0, $present - $working - $onBreak)],
+                ['label' => 'Not started', 'value' => max(0, $employeesById->count() - $present)],
+            ],
+        ];
+
+        return [$kpis, $attention];
     }
 
     /**
@@ -392,77 +755,6 @@ class TimeEntryController extends Controller
         ];
     }
 
-    private function calculateTimeStats($entries)
-    {
-        $totalWorkMinutes = 0;
-        $totalBreakMinutes = 0;
-        $currentSessionStart = null;
-        $currentBreakStart = null;
-        $lastAction = null;
-        $status = 'Not Started';
-
-        foreach ($entries as $entry) {
-            $entryTime = Carbon::parse($entry->action_timestamp)->setTimezone('Asia/Karachi');
-            $lastAction = $entry->action_type;
-
-            switch ($entry->action_type) {
-                case 'clock_in':
-                    $currentSessionStart = $entryTime;
-                    $status = 'Working';
-                    break;
-                case 'clock_out':
-                    if ($currentSessionStart) {
-                        $totalWorkMinutes += $this->positiveMinutesBetween($currentSessionStart, $entryTime);
-                        $currentSessionStart = null;
-                    }
-                    $status = 'Clocked Out';
-                    break;
-                case 'break_start':
-                    $currentBreakStart = $entryTime;
-                    $status = 'On Break';
-                    break;
-                case 'break_end':
-                    if ($currentBreakStart) {
-                        $totalBreakMinutes += $this->positiveMinutesBetween($currentBreakStart, $entryTime);
-                        $currentBreakStart = null;
-                    }
-                    $status = 'Working';
-                    break;
-            }
-        }
-
-        $now = Carbon::now('Asia/Karachi');
-
-        // Include a reasonable overnight session without counting stale clock-ins.
-        if ($currentSessionStart) {
-            $ongoingWorkMinutes = $this->positiveMinutesBetween($currentSessionStart, $now);
-
-            if ($ongoingWorkMinutes <= 18 * 60) {
-                $totalWorkMinutes += $ongoingWorkMinutes;
-            }
-        }
-
-        if ($currentBreakStart) {
-            $ongoingBreakMinutes = $this->positiveMinutesBetween($currentBreakStart, $now);
-
-            if ($ongoingBreakMinutes <= 18 * 60) {
-                $totalBreakMinutes += $ongoingBreakMinutes;
-            }
-        }
-
-        // Calculate effective work time (excluding breaks)
-        $effectiveWorkMinutes = max(0, $totalWorkMinutes - $totalBreakMinutes);
-
-        return [
-            'workHours' => round($effectiveWorkMinutes / 60, 2),
-            'breakHours' => round($totalBreakMinutes / 60, 2),
-            'lastAction' => $lastAction,
-            'status' => $status,
-        ];
-    }
-
-    private function positiveMinutesBetween(Carbon $start, Carbon $end): int
-    {
-        return max(0, (int) floor($start->diffInMinutes($end, false)));
-    }
+    // calculateTimeStats() + positiveMinutesBetween() now live in the shared
+    // CalculatesTimeStats trait (used here and by EmployeeAttendanceController).
 }

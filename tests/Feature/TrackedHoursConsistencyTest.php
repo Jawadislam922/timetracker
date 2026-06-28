@@ -23,6 +23,12 @@ class TrackedHoursConsistencyTest extends TestCase
 
     public function test_live_session_agrees_across_dashboard_timeline_and_team(): void
     {
+        // Freeze to mid-day so the "one hour ago → now" live session below stays
+        // fully inside today. Without this the test is flaky near midnight: a
+        // session opened at 23:30 straddles the day boundary, so inDaySeconds
+        // correctly credits today only its post-midnight share (not the full 1h).
+        $this->travelTo(Carbon::today(config('app.timezone'))->setTime(12, 0));
+
         $member = User::factory()->create(['role' => 'member', 'permissions' => []]);
         $admin = User::factory()->create([
             'role' => 'admin',
@@ -57,15 +63,20 @@ class TrackedHoursConsistencyTest extends TestCase
                 ->where('totals.day', 3600)
             );
 
-        // Dashboard (member): even though the session hasn't stopped (so there
-        // is no work_hours row), today reads 1h because live sessions are folded
-        // into the per-day sums.
-        $this->actingAs($member)
-            ->get('/dashboard')
+        // Dashboard (member): the page is now client-driven — it renders, then
+        // fetches the same figure from /time-entries/today-summary, which folds
+        // the still-running session (no work_hours row yet) into tracked_hours.
+        // So the member's own feed reads 1h, agreeing with Timeline and Team.
+        $this->actingAs($member)->get('/dashboard')->assertOk();
+
+        $tracked = $this->actingAs($member)
+            ->getJson('/time-entries/today-summary')
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('analytics.summary.today', '1h')
-            );
+            ->json('employees.0.tracked_hours');
+
+        $this->assertEqualsWithDelta(1.0, $tracked, 0.01);
+
+        $this->travelBack();
     }
 
     public function test_today_summary_tracked_matches_timeline_for_overnight_session(): void
