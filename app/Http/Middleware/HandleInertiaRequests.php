@@ -6,6 +6,7 @@ use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use App\Models\UserMonitoringSetting;
 use Carbon\Carbon;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -26,6 +27,27 @@ class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         return parent::version($request);
+    }
+
+    /**
+     * An Inertia visit returns application/json. If a browser or a proxy caches
+     * that response and later serves it to a NORMAL page navigation to the same
+     * URL, the user sees RAW JSON instead of the app — the "from time to time it
+     * shows the JSON screen" bug. Inertia already sets `Vary: X-Inertia`, but
+     * some shared caches and back/forward navigations ignore it, so we mark the
+     * Inertia JSON responses no-store outright (they're authenticated and must
+     * never be cached anyway).
+     */
+    public function handle(Request $request, Closure $next)
+    {
+        $response = parent::handle($request, $next);
+
+        if ($request->headers->has('X-Inertia') && isset($response->headers)) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+            $response->headers->set('Pragma', 'no-cache');
+        }
+
+        return $response;
     }
 
     /**
