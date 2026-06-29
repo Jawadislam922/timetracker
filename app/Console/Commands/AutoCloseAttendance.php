@@ -7,6 +7,7 @@ use App\Models\TimeEntry;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\AttendanceCloser;
+use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -53,7 +54,7 @@ class AutoCloseAttendance extends Command
         $idleHours = (float) $this->option('idle-hours');
         $defaultHours = (float) config('services.attendance.prompt_after_hours', 8);
         $dry = (bool) $this->option('dry-run');
-        $now = Carbon::now('Asia/Karachi');
+        $now = Carbon::now(BusinessTime::tz());
 
         $users = User::query()
             ->when($this->option('user'), fn ($q) => $q->where('id', $this->option('user')))
@@ -192,7 +193,7 @@ class AutoCloseAttendance extends Command
                 if ($ts === null) {
                     continue;
                 }
-                $candidate = Carbon::parse($ts)->setTimezone('Asia/Karachi');
+                $candidate = Carbon::parse($ts)->setTimezone(BusinessTime::tz());
                 if ($latest === null || $candidate->greaterThan($latest)) {
                     $latest = $candidate;
                 }

@@ -80,14 +80,14 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
         }
     };
 
-    const roleOptions = filterOptions.roles || [];
-    const designationOptions = [
+    const roleOptions = useMemo(() => filterOptions.roles || [], [filterOptions.roles]);
+    const designationOptions = useMemo(() => [
         { value: noDesignationValue, label: 'No designation' },
         ...(filterOptions.designations || []).map((designation) => ({
             value: String(designation),
             label: String(designation),
         })),
-    ];
+    ], [filterOptions.designations]);
 
     const applyFilters = (changes = {}) => {
         const next = {

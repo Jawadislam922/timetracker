@@ -202,7 +202,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         // Round to 2 decimal places for precision
         const roundedTotal = Math.round(totalHours * 100) / 100;
         
-        form.post(route('work-hours.store', { hours: roundedTotal }));
+        form.post(route('work-hours.store'));
     };
 
     const workTypes = [

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
@@ -326,7 +326,7 @@ export default function WorkHoursList({
         }
     };
 
-    const filteredData = workHours?.data?.filter(entry => {
+    const filteredData = useMemo(() => workHours?.data?.filter(entry => {
         if (searchTerm) {
             const search = searchTerm.toLowerCase();
             return (
@@ -336,14 +336,17 @@ export default function WorkHoursList({
             );
         }
         return true;
-    }) || [];
+    }) || [], [workHours?.data, searchTerm]);
 
-    const totalHours = filteredData.reduce((sum, entry) => sum + Number(entry.hours || 0), 0);
+    const totalHours = useMemo(
+        () => filteredData.reduce((sum, entry) => sum + Number(entry.hours || 0), 0),
+        [filteredData],
+    );
 
     // Surface a subtotal for any client logged more than once on the same day
     // (the confusing "same client, three rows" case) — without touching the
     // editable rows below, which stay individually editable/deletable.
-    const dailyGroups = (() => {
+    const dailyGroups = useMemo(() => {
         const map = new Map();
         for (const e of filteredData) {
             const key = `${e.date}|${e.client?.name || 'No Client'}`;
@@ -355,7 +358,7 @@ export default function WorkHoursList({
             g.total += Number(e.hours || 0);
         }
         return [...map.values()].filter((g) => g.count > 1).sort((a, b) => (a.date < b.date ? 1 : -1));
-    })();
+    }, [filteredData]);
 
     return (
         <AuthenticatedLayout user={auth.user}>

@@ -26,6 +26,47 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
         trackerSearch: '',
         clientSearch: '',
     });
+
+    // Filter clients by the selected work type (mirrors WorkHourCreate) so the
+    // dropdown can't offer — and the form can't save — a client whose work_type
+    // doesn't match. The server enforces the same rule in update().
+    const getFilteredClients = () => {
+        if (!form.data.work_type) return clients;
+
+        const workTypeMapping = {
+            'tracker': ['tracker_manual'],
+            'manual': ['tracker_manual'],
+            'fixed': ['fixed'],
+            'outside_of_upwork': ['outside_of_upwork'],
+        };
+
+        const possibleClientWorkTypes = workTypeMapping[form.data.work_type];
+        if (!possibleClientWorkTypes) return clients;
+
+        return clients.filter(client => possibleClientWorkTypes.includes(client.work_type));
+    };
+
+    // Filter trackers to the selected client's Upwork profiles (if it has any).
+    const getFilteredTrackers = () => {
+        if (!form.data.client_id) return trackers;
+
+        const selectedClient = clients.find(client => client.id == form.data.client_id);
+        if (!selectedClient) return trackers;
+
+        let availableProfiles = [];
+        if (selectedClient.upwork_profiles && selectedClient.upwork_profiles.length > 0) {
+            availableProfiles = selectedClient.upwork_profiles.map(profile => profile.name);
+        } else if (selectedClient.upwork_profile && selectedClient.upwork_profile.name) {
+            availableProfiles = [selectedClient.upwork_profile.name];
+        }
+
+        if (availableProfiles.length > 0) {
+            return trackers.filter(tracker => availableProfiles.includes(tracker));
+        }
+
+        return trackers;
+    };
+
     const [showTrackerOptions, setShowTrackerOptions] = React.useState(false);
     const [showClientOptions, setShowClientOptions] = React.useState(false);
     const [clientValidationError, setClientValidationError] = React.useState('');
@@ -76,7 +117,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
         }
 
         // Check if the entered value exactly matches a client name
-        const matchingClient = clients.find(client => client.name === searchValue);
+        const matchingClient = getFilteredClients().find(client => client.name === searchValue);
         if (!matchingClient) {
             setClientValidationError('Please select a valid client from the dropdown');
             return false;
@@ -400,7 +441,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                     className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 shadow-xl"
                                                 >
                                                     <div className="p-2">
-                                                        {trackers.filter(tracker => 
+                                                        {getFilteredTrackers().filter(tracker => 
                                                             !form.data.trackerSearch || tracker.toLowerCase().includes(form.data.trackerSearch.toLowerCase())
                                                         ).map((tracker, index) => (
                                                             <button
@@ -413,7 +454,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                                 {tracker}
                                                             </button>
                                                         ))}
-                                                        {trackers.filter(tracker => 
+                                                        {getFilteredTrackers().filter(tracker => 
                                                             !form.data.trackerSearch || tracker.toLowerCase().includes(form.data.trackerSearch.toLowerCase())
                                                         ).length === 0 && form.data.trackerSearch && (
                                                             <div className="px-3 py-2 text-slate-400 text-sm">
@@ -456,7 +497,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                     className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 shadow-xl"
                                                 >
                                                     <div className="p-2">
-                                                        {clients.filter(client => {
+                                                        {getFilteredClients().filter(client => {
                                                             const label = client.name;
                                                             return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
                                                         }).map(client => (
@@ -470,7 +511,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
                                                                 {client.name}
                                                             </button>
                                                         ))}
-                                                        {clients.filter(client => {
+                                                        {getFilteredClients().filter(client => {
                                                             const label = client.name;
                                                             return !form.data.clientSearch || label.toLowerCase().includes(form.data.clientSearch.toLowerCase());
                                                         }).length === 0 && form.data.clientSearch && (

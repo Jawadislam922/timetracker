@@ -147,11 +147,12 @@ class User extends Authenticatable
             'timeline.view_others' => [],
         ];
 
+        $expanded = $assigned;
         foreach ($assigned as $permission) {
-            $assigned = [...$assigned, ...($implications[$permission] ?? [])];
+            $expanded = array_merge($expanded, $implications[$permission] ?? []);
         }
 
-        return array_values(array_unique($assigned));
+        return array_values(array_unique($expanded));
     }
 
     /**

@@ -7,6 +7,8 @@ import { Pencil, Send, Sparkles, X } from 'lucide-react';
  * reports. Config (suggested questions + enabled flag) loads lazily on first
  * open so closed widgets cost nothing.
  */
+const capMessages = (msgs) => msgs.slice(-100); // bound DOM/memory on long chats
+
 export default function AiChatWidget() {
     const [open, setOpen] = useState(false);
     const [config, setConfig] = useState(null);
@@ -35,16 +37,16 @@ export default function AiChatWidget() {
         if (!content || loading) return;
 
         const next = [...messages, { role: 'user', content }];
-        setMessages(next);
+        setMessages(capMessages(next));
         setInput('');
         setLoading(true);
 
         try {
             const res = await axios.post(route('ai.assistant.ask'), { messages: next.slice(-10) });
-            setMessages([...next, { role: 'assistant', content: res.data.reply }]);
+            setMessages(capMessages([...next, { role: 'assistant', content: res.data.reply }]));
         } catch (err) {
             const msg = err.response?.data?.message || 'Something went wrong — try again.';
-            setMessages([...next, { role: 'assistant', content: `⚠️ ${msg}` }]);
+            setMessages(capMessages([...next, { role: 'assistant', content: `⚠️ ${msg}` }]));
         } finally {
             setLoading(false);
         }

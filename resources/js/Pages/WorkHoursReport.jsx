@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import AuthenticatedLayout from '../Layouts/AuthenticatedLayout';
@@ -112,6 +112,7 @@ export default function WorkHoursReport({
     const [selectedTrackers, setSelectedTrackers] = useState(selectedFilters.trackers || []);
     const [selectedDesignations, setSelectedDesignations] = useState(selectedFilters.designations || []);
     const [searchTerm, setSearchTerm] = useState(search);
+    const searchTimeoutRef = useRef(null);
     const [rowsPerPage, setRowsPerPage] = useState(String(perPage));
     const [isExporting, setIsExporting] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -517,8 +518,8 @@ export default function WorkHoursReport({
                                         setSearchTerm(value);
                                         // Debounced server-side search so matches on
                                         // other pages are found, not just this page.
-                                        clearTimeout(window.reportSearchTimeout);
-                                        window.reportSearchTimeout = setTimeout(() => {
+                                        clearTimeout(searchTimeoutRef.current);
+                                        searchTimeoutRef.current = setTimeout(() => {
                                             applyFilters({ searchTerm: value });
                                         }, 400);
                                     }}

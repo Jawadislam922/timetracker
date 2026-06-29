@@ -2,7 +2,11 @@ import React from 'react';
 
 const TimeDisplay = ({ timestamp, format = 'full' }) => {
     const date = new Date(timestamp);
-    
+
+    if (timestamp == null || isNaN(date.getTime())) {
+        return <span className="pkt-time">—</span>;
+    }
+
     const formatOptions = {
         full: {
             timeZone: 'Asia/Karachi',

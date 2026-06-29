@@ -7,8 +7,10 @@ use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\AttendanceCloser;
 use App\Services\SlackBotService;
+use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Friendly companion to the auto clock-out cap. When someone has been clocked
@@ -38,16 +40,25 @@ class StillWorkingCheck extends Command
         $snoozeHours = (float) $this->option('snooze-hours');
         $force = (bool) $this->option('force');
         $dry = (bool) $this->option('dry-run');
-        $now = Carbon::now('Asia/Karachi');
+        $now = Carbon::now(BusinessTime::tz());
 
         // Anyone running the screenshot monitor right now is clearly active —
         // we never nudge (or auto-close) them. One query, O(1) lookup.
         $activeTrackerIds = array_flip(
             TrackingSession::where('status', TrackingSession::STATUS_ACTIVE)
-                ->distinct()->pluck('user_id')->all()
+                ->select('user_id')->distinct()->pluck('user_id')->all()
         );
 
+        // Only consider people who have ever clocked in (superset of those with
+        // an OPEN clock-in — openClockIn() re-checks below), and eager-load shift
+        // overrides so effectiveShiftFor() doesn't lazy-query per user. Avoids
+        // walking every user (2+ queries each) for a handful of open clock-ins.
         $users = User::query()
+            ->with('shiftOverrides')
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('time_entries')
+                ->whereColumn('time_entries.user_id', 'users.id')
+                ->where('action_type', 'clock_in'))
             ->when($this->option('user'), fn ($q) => $q->where('id', $this->option('user')))
             ->get();
 

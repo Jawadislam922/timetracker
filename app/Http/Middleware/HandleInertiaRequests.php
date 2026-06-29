@@ -8,6 +8,7 @@ use App\Models\UserMonitoringSetting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -75,7 +76,7 @@ class HandleInertiaRequests extends Middleware
                         ->value('action_type');
                 }
             } catch (\Throwable $e) {
-                // Silently ignore to avoid breaking responses
+                Log::warning('Inertia share: clock-state lookup failed', ['user_id' => $user->id, 'exception' => $e->getMessage()]);
                 $lastActionToday = null;
             }
         }
@@ -117,6 +118,7 @@ class HandleInertiaRequests extends Middleware
                     }
                 }
             } catch (\Throwable $e) {
+                Log::warning('Inertia share: team/display settings lookup failed', ['user_id' => $user->id, 'exception' => $e->getMessage()]);
                 $teamSettings = null;
             }
         }
@@ -146,6 +148,7 @@ class HandleInertiaRequests extends Middleware
             });
         } catch (\Throwable $e) {
             // Keep rendering with the bundled logo if the table is missing.
+            Log::warning('Inertia share: branding lookup failed', ['exception' => $e->getMessage()]);
         }
 
         // Feedback inbox: a small badge for managers (open requests awaiting
@@ -158,7 +161,7 @@ class HandleInertiaRequests extends Middleware
                 try {
                     $feedback['open_count'] = \App\Models\FeedbackItem::open()->count();
                 } catch (\Throwable $e) {
-                    // table not migrated yet — leave at 0
+                    Log::warning('Inertia share: feedback open_count failed', ['user_id' => $user->id, 'exception' => $e->getMessage()]);
                 }
             }
         }

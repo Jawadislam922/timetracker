@@ -32,6 +32,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
     const [selectedClients, setSelectedClients] = useState(new Set());
     const [selectAll, setSelectAll] = useState(false);
     const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+    const searchTimeoutRef = useRef(null);
 
     const currentListUrl = () => (
         typeof window === 'undefined'
@@ -78,8 +79,8 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
         setSearchTerm(value);
         
         // Debounce search - only search after user stops typing for 300ms
-        clearTimeout(window.searchTimeout);
-        window.searchTimeout = setTimeout(() => {
+        clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = setTimeout(() => {
             router.get(route('clients.index'), {
                 search: value,
                 perPage: selectedPerPage

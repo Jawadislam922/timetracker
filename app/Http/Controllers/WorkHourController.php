@@ -13,6 +13,7 @@ use App\Services\SlackReportService;
 use App\Services\TrackingSessionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class WorkHourController extends Controller
@@ -247,6 +248,8 @@ class WorkHourController extends Controller
             'tracker' => 'nullable|string|max:255',
         ]);
 
+        $this->assertClientMatchesWorkType($validated['client_id'] ?? null, $validated['work_type']);
+
         if ((int) $validated['hours'] === 0 && (int) $validated['minutes'] === 0) {
             return back()->withErrors(['hours' => 'Please enter at least some time.']);
         }
@@ -268,7 +271,11 @@ class WorkHourController extends Controller
         // Load the client relationship
         $workHour->load('client');
 
-        $clients = Client::select('id', 'name')
+        // Same shape as create(): work_type + profiles let the Edit form filter
+        // the client/tracker dropdowns by work type (so it can't offer an
+        // invalid combo). The server still enforces it in update().
+        $clients = Client::with(['upworkProfile', 'upworkProfiles'])
+            ->select('id', 'name', 'work_type', 'upwork_profile_id')
             ->orderBy('name')
             ->get();
 
@@ -298,6 +305,8 @@ class WorkHourController extends Controller
             'tracker' => 'nullable|string|max:255',
         ]);
 
+        $this->assertClientMatchesWorkType($validated['client_id'] ?? null, $validated['work_type']);
+
         // Tracker-recorded time is LOCKED: the hours always reflect what the
         // desktop tracker measured, so an entry can't be edited to show more (or
         // different) hours than were actually tracked. Description / client /
@@ -319,6 +328,36 @@ class WorkHourController extends Controller
 
         return redirect()->route('work-hours.index')
             ->with('success', 'Work hour entry updated successfully.');
+    }
+
+    /**
+     * A manual entry's work_type constrains which clients are valid: tracker/
+     * manual attaches a 'tracker_manual' client, fixed → 'fixed', and
+     * outside_of_upwork → 'outside_of_upwork'. (office_work / test_task /
+     * upwork_bidding aren't client-filtered — same as the Create form, which
+     * only narrows these four.) Mirrors getFilteredClients() in
+     * WorkHourCreate.jsx so Edit can't persist a combo Create would block.
+     */
+    private function assertClientMatchesWorkType($clientId, string $workType): void
+    {
+        $allowed = [
+            'tracker' => ['tracker_manual'],
+            'manual' => ['tracker_manual'],
+            'fixed' => ['fixed'],
+            'outside_of_upwork' => ['outside_of_upwork'],
+        ];
+
+        $clientId = $clientId ? (int) $clientId : null;
+        if (! $clientId || ! isset($allowed[$workType])) {
+            return; // no client, or a work type the form doesn't client-filter
+        }
+
+        $clientWorkType = Client::whereKey($clientId)->value('work_type');
+        if (! in_array($clientWorkType, $allowed[$workType], true)) {
+            throw ValidationException::withMessages([
+                'client_id' => 'The selected client is not valid for this work type.',
+            ]);
+        }
     }
 
     public function destroy(Request $request, WorkHour $workHour)

@@ -7,6 +7,7 @@ use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\SlackBotService;
+use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
@@ -33,7 +34,7 @@ class SilentTrackerCheck extends Command
         $minutes = (int) $this->option('minutes');
         $dry = (bool) $this->option('dry-run');
         $force = (bool) $this->option('force');
-        $now = Carbon::now('Asia/Karachi');
+        $now = Carbon::now(BusinessTime::tz());
         $cutoff = $now->copy()->subMinutes($minutes);
         $liveCutoff = $now->copy()->subMinutes(5);
 
@@ -45,11 +46,23 @@ class SilentTrackerCheck extends Command
             ->when($this->option('user'), fn ($q) => $q->where('user_id', $this->option('user')))
             ->get();
 
+        // Batch the "last capture" lookups: one grouped query each instead of
+        // two max() queries per session inside the loop (was 2N queries / run).
+        $ids = $sessions->pluck('id');
+        $lastShots = TrackingScreenshot::whereIn('tracking_session_id', $ids)
+            ->groupBy('tracking_session_id')
+            ->selectRaw('tracking_session_id, MAX(captured_at) as m')
+            ->pluck('m', 'tracking_session_id');
+        $lastSamples = TrackingActivitySample::whereIn('tracking_session_id', $ids)
+            ->groupBy('tracking_session_id')
+            ->selectRaw('tracking_session_id, MAX(captured_at) as m')
+            ->pluck('m', 'tracking_session_id');
+
         $flagged = 0;
 
         foreach ($sessions as $s) {
-            $lastShot = TrackingScreenshot::where('tracking_session_id', $s->id)->max('captured_at');
-            $lastSample = TrackingActivitySample::where('tracking_session_id', $s->id)->max('captured_at');
+            $lastShot = $lastShots[$s->id] ?? null;
+            $lastSample = $lastSamples[$s->id] ?? null;
             $last = collect([$lastShot, $lastSample])->filter()->map(fn ($d) => Carbon::parse($d))->max();
 
             $silent = ! $last || $last->lt($cutoff);

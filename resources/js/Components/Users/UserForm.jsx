@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Camera, Check, ShieldCheck, UserRound, Users } from 'lucide-react';
 import Avatar from '@/Components/Avatar';
@@ -74,6 +74,14 @@ export default function UserForm({
         form.setData('avatar', file);
         setAvatarPreview(file ? URL.createObjectURL(file) : user?.avatar_url || null);
     };
+
+    // Release the blob URL created for a freshly-picked avatar so repeated picks
+    // and unmount don't leak it. Only blob: URLs (never a saved avatar_url).
+    useEffect(() => {
+        if (avatarPreview?.startsWith('blob:')) {
+            return () => URL.revokeObjectURL(avatarPreview);
+        }
+    }, [avatarPreview]);
 
     const submit = (event) => {
         event.preventDefault();
