@@ -41,6 +41,12 @@ class HelpArticleSeeder extends Seeder
                 'body' => "Going on a break? Press **Start Break** — this pauses tracking and your break time doesn't count as work. Press **End Break** and then **Resume** when you're back.",
             ],
             [
+                'category' => 'Tracking',
+                'title' => 'Understanding your Activity %',
+                'keywords' => 'activity percent level low activity how is activity calculated keys clicks keyboard mouse idle keep activity up score',
+                'body' => "**Activity %** is simply how much of your tracked time you were actively using your keyboard or mouse. The desktop app checks every few seconds whether you've had input, and the percentage is the share of your tracked time that was **active** rather than **idle**.\n\nIt is **not** a measure of how hard you work, and it does not reward fast typing or extra clicks. The keys and clicks shown on a screenshot are just the raw counts for that window — the % is about how much of the *time* you were active.\n\n**100% is not the goal.** A healthy range for real work is about **50–70%**. Reading, thinking, meetings, and phone calls all count as idle time — that's completely normal.\n\nTo keep your activity healthy:\n\n- Stay hands-on while you work — scroll or highlight while reading, take notes while on a call.\n- When you genuinely step away, take a **break** or let the tracker auto-pause (it pauses after a few minutes idle). Breaks stop the clock instead of lowering your score.\n- Don't use mouse-jigglers or auto-clickers — the system flags automated input for a manager to review.",
+            ],
+            [
                 'category' => 'Work Diary',
                 'title' => 'Adding time manually (Work Diary)',
                 'keywords' => 'manual time work diary add hours meeting offline phone call log time',
