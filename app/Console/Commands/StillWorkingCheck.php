@@ -54,6 +54,7 @@ class StillWorkingCheck extends Command
         // overrides so effectiveShiftFor() doesn't lazy-query per user. Avoids
         // walking every user (2+ queries each) for a handful of open clock-ins.
         $users = User::query()
+            ->active()
             ->with('shiftOverrides')
             ->whereExists(fn ($q) => $q->select(DB::raw(1))
                 ->from('time_entries')

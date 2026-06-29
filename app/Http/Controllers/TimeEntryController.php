@@ -183,7 +183,7 @@ class TimeEntryController extends Controller
             // effectiveShiftFor() per employee without an N+1 (one extra query
             // for the whole team instead of one per person). Non-tracking staff
             // (HR etc.) are excluded so they don't dilute the KPIs at 0%.
-            $employees = User::tracksTime()->with('shiftOverrides')->get();
+            $employees = User::active()->tracksTime()->with('shiftOverrides')->get();
             $ids = $employees->pluck('id')->all();
             $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
             $trackedByUserDate = $this->loadTrackedHours($ids, $now);
@@ -239,7 +239,7 @@ class TimeEntryController extends Controller
         [$dayStart, $dayEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
         $svc = app(TrackingSessionService::class);
 
-        $users = User::tracksTime()->orderBy('name')->get(['id', 'name', 'designation', 'avatar']);
+        $users = User::active()->tracksTime()->orderBy('name')->get(['id', 'name', 'designation', 'avatar']);
         $ids = $users->pluck('id');
 
         // Sessions overlapping the range (each clamped to its in-range share),
@@ -353,7 +353,7 @@ class TimeEntryController extends Controller
     {
         $user = Auth::user();
         $ids = $user->hasAnyPermission(['dashboard.view_team', 'attendance.view'])
-            ? User::query()->pluck('id')->all()
+            ? User::active()->pluck('id')->all()
             : [$user->id];
 
         $tz = 'Asia/Karachi';

@@ -49,6 +49,7 @@ export default function UserForm({
         permissions: user?.permissions || [],
         include_in_slack_reports: user?.include_in_slack_reports ?? true,
         tracks_time: user?.tracks_time ?? true,
+        is_active: user?.is_active ?? true,
         allow_multiple_devices: user?.allow_multiple_devices ?? false,
         avatar: null,
         return_to: returnTo || user?.return_to || '',
@@ -375,6 +376,24 @@ export default function UserForm({
                         </label>
                         {form.errors.tracks_time && (
                             <p className="px-5 pb-4 text-sm font-medium text-rose-400">{form.errors.tracks_time}</p>
+                        )}
+
+                        <label className="flex cursor-pointer items-start gap-3 border-t border-slate-800 p-5">
+                            <input
+                                type="checkbox"
+                                checked={form.data.is_active}
+                                onChange={(event) => form.setData('is_active', event.target.checked)}
+                                className="mt-0.5 rounded border-slate-700 bg-slate-900 text-orange-500 focus:ring-orange-500"
+                            />
+                            <span>
+                                <span className="block text-sm font-semibold text-slate-100">Account active</span>
+                                <span className="mt-1 block text-sm leading-5 text-slate-400">
+                                    On for current staff. Turn <b>off</b> to deactivate someone who left — they can no longer sign in to the web app or desktop tracker (existing tokens are revoked) and drop out of active directory, assignment, and performance views. Their history is kept; reactivate anytime.
+                                </span>
+                            </span>
+                        </label>
+                        {form.errors.is_active && (
+                            <p className="px-5 pb-4 text-sm font-medium text-rose-400">{form.errors.is_active}</p>
                         )}
                     </section>
 

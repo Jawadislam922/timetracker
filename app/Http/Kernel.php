@@ -4,6 +4,7 @@ namespace App\Http;
 
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\EncryptCookies;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PermissionMiddleware;
 use App\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -62,6 +63,7 @@ class Kernel extends HttpKernel
             ShareErrorsFromSession::class,
             VerifyCsrfToken::class,
             SubstituteBindings::class,
+            EnsureUserIsActive::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ],
@@ -85,6 +87,7 @@ class Kernel extends HttpKernel
         'auth.basic' => AuthenticateWithBasicAuth::class,
         'auth.session' => AuthenticateSession::class,
         'cache.headers' => SetCacheHeaders::class,
+        'active' => EnsureUserIsActive::class,
         'can' => Authorize::class,
         'guest' => RedirectIfAuthenticated::class,
         'password.confirm' => RequirePassword::class,

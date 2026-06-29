@@ -41,6 +41,7 @@ class ActivityDigestService
         $users = User::whereIn('id', $userIds)
             ->where('include_in_slack_reports', true)
             ->where('tracks_time', true)
+            ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name'])
             ->keyBy('id');

@@ -219,6 +219,7 @@ class WorkHourController extends Controller
         $this->ensureCanCreateManual();
 
         $clients = Client::with(['upworkProfile', 'upworkProfiles'])
+            ->active()
             ->select('id', 'name', 'work_type', 'upwork_profile_id')
             ->orderBy('name')
             ->get();
@@ -244,7 +245,7 @@ class WorkHourController extends Controller
             'minutes' => 'required|integer|min:0|max:59',
             'description' => 'required|string|max:5000',
             'work_type' => ['required', Rule::in(self::WORK_TYPES)],
-            'client_id' => 'nullable|integer|exists:clients,id',
+            'client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')->where('is_active', true)],
             'tracker' => 'nullable|string|max:255',
         ]);
 
@@ -273,8 +274,11 @@ class WorkHourController extends Controller
 
         // Same shape as create(): work_type + profiles let the Edit form filter
         // the client/tracker dropdowns by work type (so it can't offer an
-        // invalid combo). The server still enforces it in update().
+        // invalid combo). Active clients only, PLUS this entry's own client even
+        // if it has since been archived — so editing an old entry never loses or
+        // is forced to change its (now-archived) client.
         $clients = Client::with(['upworkProfile', 'upworkProfiles'])
+            ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $workHour->client_id))
             ->select('id', 'name', 'work_type', 'upwork_profile_id')
             ->orderBy('name')
             ->get();

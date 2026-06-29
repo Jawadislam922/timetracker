@@ -19,6 +19,7 @@ class MetaController extends Controller
         // misses every client whose profile lives in the pivot, leaving the
         // desktop "Tracker" chip stuck on "Not attached".
         $clients = Client::query()
+            ->active()
             ->with(['upworkProfile:id,name', 'upworkProfiles:id,name'])
             ->orderBy('name')
             ->get(['id', 'name', 'work_type', 'upwork_profile_id'])
@@ -55,6 +56,7 @@ class MetaController extends Controller
     public function upworkProfiles(): JsonResponse
     {
         $profiles = UpworkProfile::query()
+            ->active()
             ->orderBy('name')
             ->get(['id', 'name']);
 

@@ -15,10 +15,16 @@ class ClientController extends Controller
         try {
             $perPage = $request->get('perPage', 10);
             $search = $request->get('search', '');
+            $status = $request->get('status', 'all');
 
             // Validate perPage to ensure it's within reasonable limits
             if (! in_array($perPage, [10, 25, 50, 100])) {
                 $perPage = 10;
+            }
+
+            // Validate status filter
+            if (! in_array($status, ['all', 'active', 'archived'])) {
+                $status = 'all';
             }
 
             // Weekly hours per client come from one correlated SUM on the
@@ -37,6 +43,13 @@ class ClientController extends Controller
                 $query->where('name', 'like', '%'.$search.'%');
             }
 
+            // Apply status filter (default 'all' shows active + archived together)
+            if ($status === 'active') {
+                $query->active();
+            } elseif ($status === 'archived') {
+                $query->archived();
+            }
+
             $clients = $query->paginate($perPage)->appends($request->query());
 
             $clients->getCollection()->transform(function ($client) {
@@ -45,6 +58,7 @@ class ClientController extends Controller
                 $minutes = round(($weeklyHours - $hours) * 60);
 
                 $client->weekly_hours_worked = sprintf('%02d:%02d', $hours, $minutes);
+                $client->is_active = (bool) $client->is_active;
 
                 return $client;
             });
@@ -54,6 +68,14 @@ class ClientController extends Controller
                 'filters' => [
                     'search' => $search,
                     'perPage' => $perPage,
+                    'status' => $status,
+                ],
+                'filterOptions' => [
+                    'status' => [
+                        ['value' => 'all', 'label' => 'All'],
+                        ['value' => 'active', 'label' => 'Active'],
+                        ['value' => 'archived', 'label' => 'Archived'],
+                    ],
                 ],
                 'workTypes' => Client::getWorkTypes(),
             ]);
@@ -211,6 +233,63 @@ class ClientController extends Controller
 
             return $this->redirectToReturnPath($request, 'clients.index', [
                 'error' => 'Failed to delete selected clients.',
+            ]);
+        }
+    }
+
+    public function setStatus(Request $request, Client $client)
+    {
+        $validated = $request->validate([
+            'is_active' => 'required|boolean',
+        ]);
+
+        $client->update(['is_active' => $request->boolean('is_active')]);
+
+        return $this->redirectToReturnPath($request, 'clients.index', [
+            'success' => $request->boolean('is_active') ? 'Client restored.' : 'Client archived.',
+        ]);
+    }
+
+    public function bulkStatus(Request $request)
+    {
+        $request->validate([
+            'is_active' => 'required|boolean',
+            'ids' => 'nullable|array',
+            'ids.*' => 'integer',
+            'all_matching' => 'nullable|boolean',
+            'search' => 'nullable|string',
+            'status' => 'nullable|string',
+        ]);
+
+        try {
+            if ($request->boolean('all_matching')) {
+                // Rebuild the SAME query index() uses from the provided filters,
+                // IGNORING the status filter, then pluck ids.
+                $search = $request->get('search', '');
+
+                $query = Client::query();
+                if (! empty($search)) {
+                    $query->where('name', 'like', '%'.$search.'%');
+                }
+
+                $ids = $query->pluck('id')->all();
+            } else {
+                $ids = $request->input('ids', []);
+            }
+
+            $isActive = $request->boolean('is_active');
+            $count = Client::whereIn('id', $ids)->update(['is_active' => $isActive]);
+
+            $action = $isActive ? 'Restored' : 'Archived';
+
+            return $this->redirectToReturnPath($request, 'clients.index', [
+                'success' => "{$action} {$count} client(s).",
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Bulk status update error: '.$e->getMessage());
+
+            return $this->redirectToReturnPath($request, 'clients.index', [
+                'error' => 'Failed to update selected clients.',
             ]);
         }
     }

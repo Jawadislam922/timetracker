@@ -96,6 +96,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->middleware('permission:users.manage')->name('users.create');
     Route::post('/users/bulk-update', [UserController::class, 'bulkUpdate'])->middleware('permission:users.manage')->name('users.bulk-update');
+    Route::post('/users/bulk-status', [UserController::class, 'bulkStatus'])->middleware('permission:users.manage')->name('users.bulk-status');
+    Route::patch('/users/{user}/status', [UserController::class, 'setStatus'])->middleware('permission:users.manage')->name('users.set-status');
     Route::post('/users/designations', [UserController::class, 'storeDesignation'])->middleware('permission:users.manage')->name('users.designations.store');
     Route::delete('/users/designations/{designation}', [UserController::class, 'destroyDesignation'])->middleware('permission:users.manage')->name('users.designations.destroy');
     Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.manage')->name('users.store');
@@ -122,6 +124,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/clients/bulk-destroy', [ClientController::class, 'bulkDestroy'])
         ->middleware('permission:clients.manage')
         ->name('clients.bulk-destroy');
+    Route::post('/clients/bulk-status', [ClientController::class, 'bulkStatus'])
+        ->middleware('permission:clients.manage')
+        ->name('clients.bulk-status');
+    Route::patch('/clients/{client}/status', [ClientController::class, 'setStatus'])
+        ->middleware('permission:clients.manage')
+        ->name('clients.set-status');
     Route::get('/clients', [ClientController::class, 'index'])->middleware('permission:clients.view')->name('clients.index');
     Route::get('/clients/create', [ClientController::class, 'create'])->middleware('permission:clients.manage')->name('clients.create');
     Route::post('/clients', [ClientController::class, 'store'])->middleware('permission:clients.manage')->name('clients.store');
@@ -132,6 +140,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/upwork-profiles', [UpworkProfileController::class, 'index'])->middleware('permission:profiles.view')->name('upwork-profiles.index');
     Route::get('/upwork-profiles/create', [UpworkProfileController::class, 'create'])->middleware('permission:profiles.manage')->name('upwork-profiles.create');
     Route::post('/upwork-profiles', [UpworkProfileController::class, 'store'])->middleware('permission:profiles.manage')->name('upwork-profiles.store');
+    Route::post('/upwork-profiles/bulk-status', [UpworkProfileController::class, 'bulkStatus'])->middleware('permission:profiles.manage')->name('upwork-profiles.bulk-status');
+    Route::patch('/upwork-profiles/{upwork_profile}/status', [UpworkProfileController::class, 'setStatus'])->middleware('permission:profiles.manage')->name('upwork-profiles.set-status');
     Route::get('/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'show'])->middleware('permission:profiles.view')->name('upwork-profiles.show');
     Route::get('/upwork-profiles/{upwork_profile}/edit', [UpworkProfileController::class, 'edit'])->middleware('permission:profiles.manage')->name('upwork-profiles.edit');
     Route::match(['put', 'patch'], '/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'update'])->middleware('permission:profiles.manage')->name('upwork-profiles.update');

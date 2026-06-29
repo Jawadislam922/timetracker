@@ -38,7 +38,7 @@ Route::post('/slack/interact', [SlackInteractionController::class, 'handle'])->n
 Route::prefix('desktop')->group(function () {
     Route::post('/login', [DesktopAuthController::class, 'login'])->name('desktop.login');
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/me', [DesktopAuthController::class, 'me'])->name('desktop.me');
         Route::post('/logout', [DesktopAuthController::class, 'logout'])->name('desktop.logout');
 

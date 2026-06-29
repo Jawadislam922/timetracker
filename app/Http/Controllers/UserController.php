@@ -72,6 +72,16 @@ class UserController extends Controller
             $query->whereIn('role', $roles);
         }
 
+        // Active / deactivated filter — defaults to "all" so the directory shows
+        // everyone (deactivated rows are badged in the UI), with optional
+        // narrowing to active-only or archived-only.
+        $status = (string) $request->get('status', 'all');
+        if ($status === 'active') {
+            $query->where('is_active', true);
+        } elseif ($status === 'archived') {
+            $query->where('is_active', false);
+        }
+
         $startOfWeek = now()->startOfWeek(MonitoringSetting::weekStartDay())->format('Y-m-d');
         $endOfWeek = now()->endOfWeek(MonitoringSetting::weekEndDay())->format('Y-m-d');
 
@@ -130,6 +140,7 @@ class UserController extends Controller
                 'search' => $request->get('search', ''),
                 'designations' => $designations,
                 'roles' => $roles,
+                'status' => $status,
                 'sort' => $sort,
                 'dir' => $dir,
             ],
@@ -168,6 +179,7 @@ class UserController extends Controller
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
+            'is_active' => 'nullable|boolean',
         ];
 
         // Only add avatar validation if file is present
@@ -206,6 +218,7 @@ class UserController extends Controller
             'allow_multiple_devices' => $request->user()->isSuperAdmin()
                 ? (bool) ($validated['allow_multiple_devices'] ?? false)
                 : false,
+            'is_active' => (bool) ($validated['is_active'] ?? true),
         ];
 
         // Only add avatar if we have one
@@ -241,6 +254,7 @@ class UserController extends Controller
                 'shift_hours' => $user->shift_hours !== null ? (float) $user->shift_hours : '',
                 'clockout_reminder_minutes' => $user->clockout_reminder_minutes !== null ? (int) $user->clockout_reminder_minutes : '',
                 'allow_multiple_devices' => (bool) $user->allow_multiple_devices,
+                'is_active' => (bool) $user->is_active,
                 'return_to' => request('return_to'),
             ],
             ...$this->accessFormProps(),
@@ -271,6 +285,7 @@ class UserController extends Controller
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
+            'is_active' => 'nullable|boolean',
         ];
 
         // Only add avatar validation if file is present
@@ -307,6 +322,12 @@ class UserController extends Controller
             $user->include_in_slack_reports = $validated['include_in_slack_reports'] ?? true;
             $user->tracks_time = (bool) ($validated['tracks_time'] ?? true);
             $user->allow_multiple_devices = (bool) ($validated['allow_multiple_devices'] ?? false);
+
+            $newActive = (bool) ($validated['is_active'] ?? true);
+            if (! $newActive && $request->user()->is($user)) {
+                throw ValidationException::withMessages(['is_active' => 'You cannot deactivate your own account.']);
+            }
+            $user->is_active = $newActive;
         }
 
         // Only update password if it's provided and not empty
@@ -324,6 +345,10 @@ class UserController extends Controller
 
         $user->save();
         $this->rememberDesignation($user->designation);
+
+        if (! $user->isActive()) {
+            $user->tokens()->delete(); // deactivated → revoke desktop tokens immediately
+        }
 
         return $this->redirectToReturnPath($request, 'users.index', [
             'success' => 'User updated successfully!',
@@ -516,6 +541,130 @@ class UserController extends Controller
         }
 
         return response()->json(['message' => "Updated {$updated} user(s).", 'updated' => $updated]);
+    }
+
+    /**
+     * Activate / deactivate a single user. Deactivating someone who left the
+     * company blocks their web + desktop login and revokes any live desktop
+     * token immediately; their history is untouched. Can't touch a Super Admin
+     * (unless you are one) or deactivate your own account.
+     */
+    public function setStatus(Request $request, User $user)
+    {
+        $data = $request->validate(['is_active' => ['required', 'boolean']]);
+        $this->guardSuperAdminTarget($user);
+
+        if (! $data['is_active'] && $request->user()->is($user)) {
+            throw ValidationException::withMessages(['is_active' => 'You cannot deactivate your own account.']);
+        }
+
+        $user->is_active = $data['is_active'];
+        $user->save();
+
+        if (! $user->is_active) {
+            $user->tokens()->delete(); // revoke desktop access immediately
+        }
+
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => $data['is_active'] ? 'User reactivated.' : 'User deactivated.',
+        ]);
+    }
+
+    /**
+     * Bulk activate / deactivate. Either an explicit list of ids, or — for the
+     * first big cleanup — every user matching the current directory filters
+     * ("select all N matching"). Skips Super Admins (unless the actor is one)
+     * and the actor's own account; revokes desktop tokens for anyone deactivated.
+     */
+    public function bulkStatus(Request $request)
+    {
+        $actor = $request->user();
+
+        $data = $request->validate([
+            'is_active' => ['required', 'boolean'],
+            'ids' => ['nullable', 'array'],
+            'ids.*' => ['integer'],
+            'all_matching' => ['nullable', 'boolean'],
+            'search' => ['nullable', 'string'],
+            'roles' => ['nullable', 'array'],
+            'designations' => ['nullable', 'array'],
+            'status' => ['nullable', 'string'],
+        ]);
+
+        $ids = ! empty($data['all_matching'])
+            ? $this->filteredUserQuery($request)->pluck('id')->all()
+            : ($data['ids'] ?? []);
+
+        $isActive = (bool) $data['is_active'];
+        $changed = 0;
+
+        foreach (User::whereIn('id', $ids)->get() as $user) {
+            if ($user->isSuperAdmin() && ! $actor->isSuperAdmin()) {
+                continue; // can't touch a Super Admin unless you are one
+            }
+            if ($actor->is($user)) {
+                continue; // never flip your own account in a bulk action
+            }
+            if ((bool) $user->is_active === $isActive) {
+                continue;
+            }
+
+            $user->is_active = $isActive;
+            $user->save();
+            if (! $isActive) {
+                $user->tokens()->delete();
+            }
+            $changed++;
+        }
+
+        $verb = $isActive ? 'Reactivated' : 'Deactivated';
+
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => "{$verb} {$changed} user(s).",
+        ]);
+    }
+
+    /**
+     * The directory query with the same search / role / designation filters
+     * index() applies (status filter intentionally excluded so "select all
+     * matching" targets the whole filtered set regardless of active state).
+     */
+    private function filteredUserQuery(Request $request)
+    {
+        $rawRoles = $request->input('roles', $request->input('role', []));
+        $rawDesignations = $request->input('designations', $request->input('designation', []));
+        $roles = collect(is_array($rawRoles) ? $rawRoles : [$rawRoles])
+            ->map(fn ($role) => (string) $role)
+            ->filter(fn ($role) => $role !== '' && $role !== 'all')->unique()->values()->all();
+        $designations = collect(is_array($rawDesignations) ? $rawDesignations : [$rawDesignations])
+            ->map(fn ($d) => (string) $d)
+            ->filter(fn ($d) => $d !== '' && $d !== 'all')->unique()->values()->all();
+
+        $query = User::query();
+
+        if ($request->filled('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%'.$search.'%')->orWhere('email', 'like', '%'.$search.'%');
+            });
+        }
+        if (! empty($designations)) {
+            $query->where(function ($dq) use ($designations) {
+                $regular = array_values(array_diff($designations, ['no_designation']));
+                if (! empty($regular)) {
+                    $dq->whereIn('designation', $regular);
+                }
+                if (in_array('no_designation', $designations, true)) {
+                    $method = empty($regular) ? 'where' : 'orWhere';
+                    $dq->{$method}(fn ($eq) => $eq->whereNull('designation')->orWhere('designation', ''));
+                }
+            });
+        }
+        if (! empty($roles)) {
+            $query->whereIn('role', $roles);
+        }
+
+        return $query;
     }
 
     private function permissionKeys(): array

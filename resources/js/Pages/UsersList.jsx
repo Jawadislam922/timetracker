@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
-import { Pencil, Plus, Search, ShieldCheck, Trash2, Users } from 'lucide-react';
+import { Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, UserX } from 'lucide-react';
+
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Avatar from '@/Components/Avatar';
 import ActiveFilterChips from '@/Components/Filters/ActiveFilterChips';
@@ -22,12 +23,14 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
     const [roles, setRoles] = useState((filters.roles || []).map(String));
     const [designations, setDesignations] = useState((filters.designations || []).map(String));
     const [perPage, setPerPage] = useState(users?.per_page || 10);
+    const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [deleteUser, setDeleteUser] = useState(null);
     const [showDesignationDialog, setShowDesignationDialog] = useState(false);
     const [newDesignation, setNewDesignation] = useState('');
 
     // Bulk edit: only the sections the admin enables get applied.
     const [selectedIds, setSelectedIds] = useState(new Set());
+    const [selectAllMatching, setSelectAllMatching] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [bulkSaving, setBulkSaving] = useState(false);
     const [bulk, setBulk] = useState({
@@ -47,6 +50,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
     ), [permissionGroups]);
 
     const toggleSelected = (id) => {
+        setSelectAllMatching(false);
         setSelectedIds((prev) => {
             const next = new Set(prev);
             next.has(id) ? next.delete(id) : next.add(id);
@@ -95,6 +99,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
             roles: changes.roles ?? roles,
             designations: changes.designations ?? designations,
             perPage: changes.perPage ?? perPage,
+            status: changes.status ?? statusFilter,
             sort: changes.sort ?? (filters.sort || 'name'),
             dir: changes.dir ?? (filters.dir || 'asc'),
         };
@@ -196,6 +201,30 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
         });
     };
 
+    // Deactivate someone who left (or reactivate). Their history is kept; a
+    // deactivated user can't log in or track, and drops out of active views.
+    const setStatus = (user) => {
+        const isActive = !user.is_active;
+        if (!isActive && !window.confirm(`Deactivate ${user.name}? They can no longer sign in or track time. History is kept; you can reactivate anytime.`)) return;
+        router.patch(route('users.set-status', user.id), { is_active: isActive, return_to: currentListUrl() }, { preserveScroll: true });
+    };
+
+    // Bulk activate/deactivate: either the explicit ticked set, or — for the
+    // first cleanup — everyone matching the current filters ("select all N").
+    const bulkStatus = (isActive) => {
+        const count = selectAllMatching ? users.total : selectedIds.size;
+        if (!count) return;
+        const verb = isActive ? 'Reactivate' : 'Deactivate';
+        if (!window.confirm(`${verb} ${count} user${count === 1 ? '' : 's'}? History is kept; this is reversible.`)) return;
+        const payload = selectAllMatching
+            ? { is_active: isActive, all_matching: true, search, roles, designations, status: statusFilter, return_to: currentListUrl() }
+            : { is_active: isActive, ids: [...selectedIds], return_to: currentListUrl() };
+        router.post(route('users.bulk-status'), payload, {
+            preserveScroll: true,
+            onFinish: () => { setSelectedIds(new Set()); setSelectAllMatching(false); },
+        });
+    };
+
     return (
         <AuthenticatedLayout user={auth.user}>
             <Head title="Users" />
@@ -228,7 +257,7 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                     </section>
 
                     <section className="rounded-lg border border-slate-800 bg-slate-900 shadow-sm">
-                        <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_260px_260px_130px]">
+                        <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_210px_210px_150px_120px]">
                             <label className="block">
                                 <span className="mb-2 block text-sm font-semibold text-slate-300">Search</span>
                                 <span className="relative block">
@@ -263,6 +292,24 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 placeholder="All designations"
                             />
                             <label className="block">
+                                <span className="mb-2 block text-sm font-semibold text-slate-300">Status</span>
+                                <select
+                                    value={statusFilter}
+                                    onChange={(event) => {
+                                        const next = event.target.value;
+                                        setStatusFilter(next);
+                                        setSelectedIds(new Set());
+                                        setSelectAllMatching(false);
+                                        applyFilters({ status: next });
+                                    }}
+                                    className="w-full rounded-lg border-slate-700 bg-slate-900 py-2 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
+                                >
+                                    <option value="all">All</option>
+                                    <option value="active">Active</option>
+                                    <option value="archived">Deactivated</option>
+                                </select>
+                            </label>
+                            <label className="block">
                                 <span className="mb-2 block text-sm font-semibold text-slate-300">Rows</span>
                                 <select
                                     value={perPage}
@@ -294,18 +341,36 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 </div>
                             </div>
                             {selectedIds.size > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-semibold text-orange-600">{selectedIds.size} selected</span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-semibold text-orange-400">
+                                        {selectAllMatching ? `All ${users.total} matching selected` : `${selectedIds.size} selected`}
+                                    </span>
                                     <button
                                         type="button"
                                         onClick={() => setShowBulkModal(true)}
-                                        className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+                                        disabled={selectAllMatching}
+                                        title={selectAllMatching ? 'Bulk edit works on an explicit selection' : undefined}
+                                        className="rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-amber-600 disabled:opacity-50"
                                     >
                                         Bulk edit
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedIds(new Set())}
+                                        onClick={() => bulkStatus(false)}
+                                        className="rounded-lg border border-rose-500/40 px-3 py-1.5 text-sm font-semibold text-rose-300 hover:bg-rose-500/15"
+                                    >
+                                        Deactivate
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => bulkStatus(true)}
+                                        className="rounded-lg border border-emerald-500/40 px-3 py-1.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/15"
+                                    >
+                                        Reactivate
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedIds(new Set()); setSelectAllMatching(false); }}
                                         className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
                                     >
                                         Clear
@@ -313,6 +378,16 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 </div>
                             )}
                         </div>
+
+                        {!selectAllMatching && selectedIds.size > 0 && users.total > users.data.length
+                            && selectedIds.size >= users.data.filter((u) => !(u.role === 'super_admin' && !auth.user.is_super_admin)).length && (
+                            <div className="border-b border-slate-800 bg-orange-500/5 px-5 py-2 text-center text-sm text-slate-300">
+                                All {selectedIds.size} on this page selected.{' '}
+                                <button type="button" onClick={() => setSelectAllMatching(true)} className="font-semibold text-orange-400 hover:text-orange-300">
+                                    Select all {users.total} matching your filters
+                                </button>
+                            </div>
+                        )}
 
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-800">
@@ -381,6 +456,9 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                         const canDelete = can('users.delete')
                                             && user.id !== auth.user.id
                                             && (auth.user.is_super_admin || user.role !== 'super_admin');
+                                        const canSetStatus = can('users.manage')
+                                            && user.id !== auth.user.id
+                                            && (auth.user.is_super_admin || user.role !== 'super_admin');
 
                                         return (
                                             <tr key={user.id} className={`bg-slate-900 transition hover:bg-slate-800/40 ${selectedIds.has(user.id) ? 'bg-orange-500/10' : ''}`}>
@@ -399,7 +477,12 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                                     <div className="flex items-center gap-3">
                                                         <Avatar user={user} size="md" />
                                                         <div className="min-w-0">
-                                                            <div className="truncate text-sm font-semibold text-slate-100">{user.name}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="truncate text-sm font-semibold text-slate-100">{user.name}</span>
+                                                                {!user.is_active && (
+                                                                    <span className="shrink-0 rounded-full bg-slate-700/40 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-300">Deactivated</span>
+                                                                )}
+                                                            </div>
                                                             <div className="truncate text-sm text-slate-400">{user.email}</div>
                                                         </div>
                                                     </div>
@@ -452,7 +535,17 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                                                 <Trash2 className="h-4 w-4" />
                                                             </button>
                                                         )}
-                                                        {!canEdit && !canDelete && <span className="text-sm text-slate-500">-</span>}
+                                                        {canSetStatus && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setStatus(user)}
+                                                                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${user.is_active ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/15'}`}
+                                                                title={user.is_active ? `Deactivate ${user.name}` : `Reactivate ${user.name}`}
+                                                            >
+                                                                {user.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                                                            </button>
+                                                        )}
+                                                        {!canEdit && !canDelete && !canSetStatus && <span className="text-sm text-slate-500">-</span>}
                                                     </div>
                                                 </td>
                                             </tr>

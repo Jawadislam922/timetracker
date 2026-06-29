@@ -13,12 +13,29 @@ class Client extends Model
         'name',
         'tags',
         'work_type',
+        'is_active',
         'upwork_profile_id', // Keep for backward compatibility during transition
     ];
 
     protected $casts = [
         'tags' => 'array',
+        'is_active' => 'boolean',
     ];
+
+    /**
+     * Active (not archived) clients. Archived clients — finished contracts —
+     * are hidden from the pickers used to log NEW work, but stay visible in all
+     * historical reports and on existing entries that reference them.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeArchived($query)
+    {
+        return $query->where('is_active', false);
+    }
 
     public function workHours()
     {

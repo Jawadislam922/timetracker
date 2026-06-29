@@ -30,6 +30,16 @@ class AuthController extends Controller
             ]);
         }
 
+        // Deactivated accounts can't get a desktop token. Also revoke any token
+        // already issued so an old token can't keep the tracker alive.
+        if (! $user->isActive()) {
+            $user->tokens()->delete();
+
+            throw ValidationException::withMessages([
+                'email' => ['Your account has been deactivated.'],
+            ]);
+        }
+
         // Allow only one active token per device_name
         $user->tokens()->where('name', $data['device_name'])->delete();
 

@@ -36,6 +36,7 @@ class User extends Authenticatable
         'clockout_reminder_minutes',
         'allow_multiple_devices',
         'tracks_time',
+        'is_active',
     ];
 
     /**
@@ -76,6 +77,7 @@ class User extends Authenticatable
         'clockout_reminder_minutes' => 'integer',
         'allow_multiple_devices' => 'boolean',
         'tracks_time' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     const ROLES = [
@@ -278,6 +280,27 @@ class User extends Authenticatable
     public function scopeTracksTime($query)
     {
         return $query->where('tracks_time', true);
+    }
+
+    /**
+     * Active (not deactivated) users. Deactivated users — people who left the
+     * company — are hidden from active directory / assignment / performance
+     * views, blocked from logging in and tracking, but keep all their history.
+     * Chain alongside tracksTime() where both apply.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
+     * Single source of truth for "may this user use the app?". Null-safe so
+     * rows created before the is_active column (and the default true) read as
+     * active — and so a stray direct ->is_active read can't bypass the gate.
+     */
+    public function isActive(): bool
+    {
+        return (bool) ($this->is_active ?? true);
     }
 
     public function effectiveShiftFor(string|Carbon $date): array

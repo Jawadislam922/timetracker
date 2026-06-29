@@ -34,7 +34,7 @@ class TeamController extends Controller
 
         // Only time-tracking staff appear in performance — HR/finance and other
         // non-tracking roles are excluded so they don't read as "0% this week".
-        $users = User::tracksTime()->orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
+        $users = User::active()->tracksTime()->orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
 
         // Sessions that OVERLAP the selected day — including one that started
         // the previous evening and is still running. Each session's time is
@@ -342,7 +342,7 @@ class TeamController extends Controller
             'start' => $start->toDateString(),
             'end' => $end->toDateString(),
             'userId' => $userId ?: null,
-            'users' => User::orderBy('name')->get(['id', 'name']),
+            'users' => User::active()->orderBy('name')->get(['id', 'name']),
             'apps' => $rollup('active_app'),
             'urls' => $rollup('url_domain'),
             'totals' => [

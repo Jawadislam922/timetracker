@@ -20,7 +20,7 @@ function Toast({ message, onClose, type = 'success' }) {
     );
 }
 
-export default function ClientsList({ auth, clients, flash, filters = {}, workTypes = {} }) {
+export default function ClientsList({ auth, clients, flash, filters = {}, filterOptions = {}, workTypes = {} }) {
     const canManage = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.manage');
     const canImportExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.import_export');
     const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
@@ -29,10 +29,20 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
     const [selectedPerPage, setSelectedPerPage] = useState(Number(filters.perPage || clients?.per_page || 10));
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
+    const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [selectedClients, setSelectedClients] = useState(new Set());
     const [selectAll, setSelectAll] = useState(false);
+    const [selectAllMatching, setSelectAllMatching] = useState(false);
     const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
     const searchTimeoutRef = useRef(null);
+
+    const statusOptions = filterOptions.status || [
+        { value: 'all', label: 'All' },
+        { value: 'active', label: 'Active' },
+        { value: 'archived', label: 'Archived' },
+    ];
+
+    const totalMatching = clients?.total ?? (clients?.data?.length || 0);
 
     const currentListUrl = () => (
         typeof window === 'undefined'
@@ -68,22 +78,24 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
 
     const handlePerPageChange = (newPerPage) => {
         setSelectedPerPage(newPerPage);
-        router.get(route('clients.index'), { 
+        router.get(route('clients.index'), {
             perPage: newPerPage,
-            search: searchTerm 
+            search: searchTerm,
+            status: statusFilter,
         });
     };
 
     const handleSearch = (e) => {
         const value = e.target.value;
         setSearchTerm(value);
-        
+
         // Debounce search - only search after user stops typing for 300ms
         clearTimeout(searchTimeoutRef.current);
         searchTimeoutRef.current = setTimeout(() => {
             router.get(route('clients.index'), {
                 search: value,
-                perPage: selectedPerPage
+                perPage: selectedPerPage,
+                status: statusFilter,
             }, {
                 preserveState: true,
                 preserveScroll: true,
@@ -94,7 +106,21 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
     const clearSearch = () => {
         setSearchTerm('');
         router.get(route('clients.index'), {
-            perPage: selectedPerPage
+            perPage: selectedPerPage,
+            status: statusFilter,
+        });
+    };
+
+    const handleStatusChange = (value) => {
+        setStatusFilter(value);
+        clearAllSelections();
+        router.get(route('clients.index'), {
+            search: searchTerm,
+            perPage: selectedPerPage,
+            status: value,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
         });
     };
 
@@ -172,7 +198,8 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
             newSelected.add(clientId);
         }
         setSelectedClients(newSelected);
-        
+        setSelectAllMatching(false);
+
         // Update select all state based on current page selection
         const currentPageIds = clients?.data?.map(client => client.id) || [];
         const allCurrentPageSelected = currentPageIds.every(id => newSelected.has(id));
@@ -194,12 +221,71 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
         
         setSelectedClients(newSelected);
         setSelectAll(!selectAll);
+        setSelectAllMatching(false);
     };
 
     // Clear all selections
     const clearAllSelections = () => {
         setSelectedClients(new Set());
         setSelectAll(false);
+        setSelectAllMatching(false);
+    };
+
+    // Select every row matching the current filters across all pages
+    const handleSelectAllMatching = () => {
+        setSelectAllMatching(true);
+    };
+
+    // Bulk archive/restore wired to clients.bulk-status
+    const handleBulkStatus = (isActive) => {
+        if (!selectAllMatching && selectedClients.size === 0) return;
+
+        const data = {
+            is_active: isActive,
+            return_to: currentListUrl(),
+        };
+
+        if (selectAllMatching) {
+            data.all_matching = true;
+            data.search = searchTerm;
+            data.status = statusFilter;
+        } else {
+            data.ids = Array.from(selectedClients);
+        }
+
+        router.post(route('clients.bulk-status'), data, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                setToast(isActive ? 'Selected clients restored.' : 'Selected clients archived.');
+                setToastType('success');
+                clearAllSelections();
+            },
+            onError: () => {
+                setToast('Failed to update selected clients.');
+                setToastType('error');
+            },
+        });
+    };
+
+    // Per-row archive/restore wired to clients.set-status
+    const handleSetStatus = (client) => {
+        const newStatus = !client.is_active;
+        router.patch(route('clients.set-status', client.id), {
+            is_active: newStatus,
+            return_to: currentListUrl(),
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                setToast(newStatus ? 'Client restored.' : 'Client archived.');
+                setToastType('success');
+            },
+            onError: () => {
+                setToast('Failed to update client.');
+                setToastType('error');
+            },
+        });
     };
 
     // Handle bulk delete
@@ -250,11 +336,31 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                             <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                                 <div className="flex flex-wrap items-center gap-2">
                                     {/* Bulk Actions */}
-                                    {canManage && selectedClients.size > 0 && (
-                                        <div className="flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2">
+                                    {canManage && (selectedClients.size > 0 || selectAllMatching) && (
+                                        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2">
                                             <span className="text-orange-300 text-sm font-medium">
-                                                {selectedClients.size} selected
+                                                {selectAllMatching
+                                                    ? `All ${totalMatching} matching selected`
+                                                    : `${selectedClients.size} selected`}
                                             </span>
+                                            <button
+                                                onClick={() => handleBulkStatus(false)}
+                                                className="inline-flex items-center rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-600"
+                                            >
+                                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
+                                                </svg>
+                                                Archive
+                                            </button>
+                                            <button
+                                                onClick={() => handleBulkStatus(true)}
+                                                className="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                                            >
+                                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                Restore
+                                            </button>
                                             <button
                                                 onClick={handleBulkDelete}
                                                 className="inline-flex items-center rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
@@ -336,6 +442,20 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                 </div>
 
                                 <div className="flex shrink-0 items-center gap-2">
+                                        <label htmlFor="clients-status" className="text-xs font-semibold uppercase text-slate-500">Status</label>
+                                        <select
+                                            id="clients-status"
+                                            value={statusFilter}
+                                            onChange={(e) => handleStatusChange(e.target.value)}
+                                            className="rounded-lg border border-slate-700 bg-slate-900 py-2 pl-3 pr-8 text-sm font-medium text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
+                                        >
+                                            {statusOptions.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                </div>
+
+                                <div className="flex shrink-0 items-center gap-2">
                                         <label htmlFor="clients-per-page" className="text-xs font-semibold uppercase text-slate-500">Rows</label>
                                         <select 
                                             id="clients-per-page"
@@ -351,6 +471,19 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                 </div>
                             </div>
                             
+                            {/* Select all N matching banner */}
+                            {canManage && selectAll && !selectAllMatching && totalMatching > (clients?.data?.length || 0) && (
+                                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-sm text-orange-200">
+                                    <span>All {clients?.data?.length || 0} clients on this page are selected.</span>
+                                    <button
+                                        onClick={handleSelectAllMatching}
+                                        className="font-semibold text-orange-300 underline hover:text-orange-200"
+                                    >
+                                        Select all {totalMatching} matching
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="mt-3 overflow-x-auto rounded-lg border border-slate-800">
                                 <table className="min-w-full divide-y divide-slate-800 table-fixed">
                                     <thead className="bg-slate-950/60">
@@ -378,24 +511,31 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                 {canManage && <td className="px-6 py-4 whitespace-nowrap">
                                                     <input
                                                         type="checkbox"
-                                                        checked={selectedClients.has(client.id)}
+                                                        checked={selectAllMatching || selectedClients.has(client.id)}
                                                         onChange={() => handleClientSelect(client.id)}
                                                         className="w-4 h-4 text-orange-500 bg-slate-800 border-slate-600 rounded focus:ring-orange-500 focus:ring-2"
                                                     />
                                                 </td>}
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-400">{client.id}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-100 font-medium">
-                                                    {canViewReports ? (
-                                                        <Link
-                                                            href={route('work-hours.report', { clients: [client.name] })}
-                                                            className="hover:text-orange-400 hover:underline"
-                                                            title={`View ${client.name}'s report`}
-                                                        >
-                                                            {client.name}
-                                                        </Link>
-                                                    ) : (
-                                                        client.name
-                                                    )}
+                                                    <div className="flex items-center gap-2">
+                                                        {canViewReports ? (
+                                                            <Link
+                                                                href={route('work-hours.report', { clients: [client.name] })}
+                                                                className="hover:text-orange-400 hover:underline"
+                                                                title={`View ${client.name}'s report`}
+                                                            >
+                                                                {client.name}
+                                                            </Link>
+                                                        ) : (
+                                                            client.name
+                                                        )}
+                                                        {!client.is_active && (
+                                                            <span className="inline-flex px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-slate-700/60 text-slate-300 rounded border border-slate-600">
+                                                                Archived
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm">
                                                     {client.work_type && (
@@ -457,6 +597,15 @@ export default function ClientsList({ auth, clients, flash, filters = {}, workTy
                                                         <Link href={editClientHref(client.id)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                             Edit
                                                         </Link>
+                                                        {client.is_active ? (
+                                                            <button onClick={() => handleSetStatus(client)} className="inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
+                                                                Archive
+                                                            </button>
+                                                        ) : (
+                                                            <button onClick={() => handleSetStatus(client)} className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
+                                                                Restore
+                                                            </button>
+                                                        )}
                                                         <button onClick={() => confirmDelete(client.id)} className="inline-flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                             Delete
                                                         </button>

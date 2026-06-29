@@ -272,7 +272,25 @@ class EmployeeAttendanceController extends Controller
             'total_work_hours' => 0,
         ];
 
+        // User ids that have real history (time entries or manual marks) in the
+        // viewed month, derived from the already-fetched collections. The keys are
+        // "userId|date", so split off the user id.
+        $usersWithHistory = $entriesByUserDate->keys()
+            ->merge($manualMarks->keys())
+            ->map(fn (string $key) => (int) explode('|', $key)[0])
+            ->unique()
+            ->values();
+
+        // Live grid hides deactivated staff going forward, but a deactivated user
+        // who has entries/manual marks in the viewed month still renders so the
+        // historical period stays intact.
         $employees = User::query()
+            ->where(function ($query) use ($usersWithHistory) {
+                $query->active();
+                if ($usersWithHistory->isNotEmpty()) {
+                    $query->orWhereIn('id', $usersWithHistory->all());
+                }
+            })
             ->orderBy('name')
             ->get()
             ->map(function (User $employee) use ($days, $carbonDays, $entriesByUserDate, $manualMarks, $now, $today, $summaryTemplate) {
@@ -434,8 +452,11 @@ class EmployeeAttendanceController extends Controller
             ]);
         }
 
+        // Company-scope scheduling only targets active staff so a bulk apply
+        // doesn't recreate marks for archived users. Explicit selections are
+        // honoured as-is (admin-chosen ids).
         $userIds = $validated['scope'] === 'company'
-            ? User::query()->pluck('id')->all()
+            ? User::query()->active()->pluck('id')->all()
             : array_values(array_unique($validated['user_ids'] ?? []));
 
         if ($userIds === []) {
@@ -614,7 +635,10 @@ class EmployeeAttendanceController extends Controller
 
         $entriesByUser = $this->entriesForDateByUser($date);
 
-        $employees = User::orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+        // Live summary view: only iterate active staff. Deactivated users with no
+        // entries are already skipped (the null-on-empty filter below), and their
+        // historical day entries remain queryable by explicit user id elsewhere.
+        $employees = User::active()->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
             $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
@@ -657,7 +681,9 @@ class EmployeeAttendanceController extends Controller
 
         $entriesByUser = $this->entriesForDateByUser($date);
 
-        $activities = User::orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+        // Live detailed view iterates active staff only (deactivated users are
+        // hidden going forward); empty-entry users are dropped below.
+        $activities = User::active()->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
             $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
@@ -700,7 +726,9 @@ class EmployeeAttendanceController extends Controller
 
         $entriesByUser = $this->entriesForDateByUser($date);
 
-        $timelines = User::orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+        // Live timeline view iterates active staff only; empty-entry users are
+        // dropped below.
+        $timelines = User::active()->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
             $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
@@ -736,7 +764,8 @@ class EmployeeAttendanceController extends Controller
         $csv = "Employee,Designation,Status,Work Hours,Break Hours,First Clock In,Last Action,Total Actions\n";
 
         $entriesByUser = $this->entriesForDateByUser($date);
-        $employees = User::orderBy('name')->get();
+        // Live export iterates active staff only; empty-entry users are skipped below.
+        $employees = User::active()->orderBy('name')->get();
 
         foreach ($employees as $employee) {
             $entries = $entriesByUser->get($employee->id, collect());
