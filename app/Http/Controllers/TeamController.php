@@ -15,6 +15,7 @@ use App\Support\WebDomain;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
@@ -62,7 +63,13 @@ class TeamController extends Controller
         // hydrating every raw sample row. A week of samples is ~half a million
         // rows; loading them into PHP made this page take ~25s. The aggregate
         // returns only distinct (user, app) pairs.
-        $topAppByUser = TrackingActivitySample::query()
+        // Counting a month of ~10-second samples is the page's slowest work
+        // (~1.7s each for two app aggregations). It's a "top apps" breakdown, not
+        // live data, so cache it by range + user set — a few minutes stale is
+        // invisible, and a fully-past range is immutable (cached for a day). The
+        // table's live tracked-seconds and "active now" below stay uncached.
+        $rangeKey = md5($dayStart.'|'.$dayEnd.'|'.$userIds->sort()->values()->implode(','));
+        $topAppByUser = Cache::remember("team:topapp:$rangeKey", $this->appsCacheTtl($dayEnd), fn () => TrackingActivitySample::query()
             ->whereBetween('captured_at', [$dayStart, $dayEnd])
             ->whereIn('user_id', $userIds)
             ->whereNotNull('active_app')->where('active_app', '!=', '')
@@ -71,7 +78,7 @@ class TeamController extends Controller
             ->orderByDesc('c')
             ->get()
             ->groupBy('user_id')
-            ->map(fn ($g) => $g->first()->active_app); // first = highest count (ordered desc)
+            ->map(fn ($g) => $g->first()->active_app)); // first = highest count (ordered desc)
 
         // Manually logged work-diary hours for the day (Add Entry / edits —
         // anything not synced from the tracker). They count as valid hours
@@ -176,7 +183,11 @@ class TeamController extends Controller
         // (so a chart can't disagree with a row total); top-apps is aggregated in
         // SQL inside, not from raw sample rows. Composition-by-member is derived
         // on the client from $rows.
-        $charts = $this->buildTeamCharts($rangeStart, $rangeEnd, $sessions, $userIds, $sampleIntervalSeconds, $svc);
+        // Same deal: the charts include the team-wide top-apps aggregation (the
+        // other ~1.8s query) plus the per-day hours/activity loop. Cache the whole
+        // computed payload by range so repeat views (and other managers) are
+        // instant; live per-user rows above are recomputed each request.
+        $charts = Cache::remember("team:charts:$rangeKey", $this->appsCacheTtl($dayEnd), fn () => $this->buildTeamCharts($rangeStart, $rangeEnd, $sessions, $userIds, $sampleIntervalSeconds, $svc));
 
         return Inertia::render('Team/Index', [
             'start' => $rangeStart->toDateString(),
@@ -205,6 +216,17 @@ class TeamController extends Controller
      *
      * @return array<string, mixed>
      */
+    /**
+     * Cache TTL for the heavy activity-sample aggregations. A range that has
+     * fully ended is immutable → cache a day; one that includes today is still
+     * filling → keep it short (the apps/day charts a few minutes stale is
+     * invisible; the live table numbers aren't cached).
+     */
+    private function appsCacheTtl(Carbon $end): int
+    {
+        return $end->isPast() ? 86400 : 300;
+    }
+
     private function buildTeamCharts(Carbon $rangeStart, Carbon $rangeEnd, $sessions, $userIds, int $sampleInterval, $svc): array
     {
         // Manual (non-tracker) work-diary hours per calendar day in the range.
