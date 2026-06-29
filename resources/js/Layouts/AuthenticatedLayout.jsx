@@ -108,7 +108,7 @@ export default function Authenticated({ user, header, children }) {
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
     const can = (permission) => user?.is_super_admin || user?.permissions?.includes(permission);
     const canCreateManualWorkHour = user?.can_create_manual_work_hour ?? true;
-    const feedback = usePage().props.feedback || { can_manage: false, open_count: 0 };
+    const feedback = usePage().props.feedback || { can_manage: false, open_count: 0, unseen_count: 0 };
 
     // Nav is grouped into a few readable buckets so it scales from a phone to a
     // wide monitor: Dashboard sits on its own, then Real-time (your work day),
@@ -149,9 +149,9 @@ export default function Authenticated({ user, header, children }) {
             href: route('feedback.index'),
             icon: Inbox,
             active: ['feedback.index'],
-            badge: feedback.can_manage ? feedback.open_count : 0,
+            badge: feedback.can_manage ? feedback.open_count : feedback.unseen_count,
         },
-    ].filter(Boolean), [feedback.can_manage, feedback.open_count]);
+    ].filter(Boolean), [feedback.can_manage, feedback.open_count, feedback.unseen_count]);
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100">

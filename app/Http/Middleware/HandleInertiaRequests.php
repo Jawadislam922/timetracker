@@ -154,15 +154,18 @@ class HandleInertiaRequests extends Middleware
         // Feedback inbox: a small badge for managers (open requests awaiting
         // triage) and a flag the nav uses to show the inbox link. One cheap
         // COUNT, only for people who can actually manage the inbox.
-        $feedback = ['can_manage' => false, 'open_count' => 0];
+        $feedback = ['can_manage' => false, 'open_count' => 0, 'unseen_count' => 0];
         if ($user) {
             $feedback['can_manage'] = $user->isSuperAdmin() || $user->hasPermission('feedback.manage');
-            if ($feedback['can_manage']) {
-                try {
+            try {
+                if ($feedback['can_manage']) {
                     $feedback['open_count'] = \App\Models\FeedbackItem::open()->count();
-                } catch (\Throwable $e) {
-                    Log::warning('Inertia share: feedback open_count failed', ['user_id' => $user->id, 'exception' => $e->getMessage()]);
                 }
+                // Submitter badge: this person's own requests with a reply they
+                // haven't seen yet (cleared when they open the inbox).
+                $feedback['unseen_count'] = \App\Models\FeedbackItem::unseenFor($user->id)->count();
+            } catch (\Throwable $e) {
+                Log::warning('Inertia share: feedback counts failed', ['user_id' => $user->id, 'exception' => $e->getMessage()]);
             }
         }
 

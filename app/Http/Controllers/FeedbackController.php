@@ -29,6 +29,10 @@ class FeedbackController extends Controller
     {
         $canManage = $this->canManage($request);
 
+        // Opening the inbox means the submitter has now seen any replies on
+        // their own requests — clear their "you have a reply" badge.
+        FeedbackItem::unseenFor($request->user()->id)->update(['response_seen_at' => now()]);
+
         $query = FeedbackItem::with(['user:id,name,avatar', 'handler:id,name'])->latest();
 
         if ($canManage) {
