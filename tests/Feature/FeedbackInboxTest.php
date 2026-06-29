@@ -79,9 +79,12 @@ class FeedbackInboxTest extends TestCase
 
         $item->refresh();
         $this->assertSame('planned', $item->status);
-        $this->assertSame('On the roadmap', $item->response);
         $this->assertSame($manager->id, $item->handled_by);
         $this->assertNotNull($item->handled_at);
+        // The reply now lives in the ticket thread, not a single column.
+        $this->assertDatabaseHas('feedback_messages', [
+            'feedback_item_id' => $item->id, 'user_id' => $manager->id, 'body' => 'On the roadmap',
+        ]);
     }
 
     public function test_open_count_badge_counts_only_open_statuses(): void

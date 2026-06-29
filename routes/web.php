@@ -84,6 +84,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/feedback', [\App\Http\Controllers\FeedbackController::class, 'index'])->name('feedback.index');
     Route::post('/feedback', [\App\Http\Controllers\FeedbackController::class, 'store'])->name('feedback.store');
     Route::patch('/feedback/{feedback}', [\App\Http\Controllers\FeedbackController::class, 'update'])->middleware('permission:feedback.manage')->name('feedback.update');
+    // Reply + read-receipt are open to the submitter (own ticket) and managers — authorized in the controller.
+    Route::post('/feedback/{feedback}/reply', [\App\Http\Controllers\FeedbackController::class, 'reply'])->name('feedback.reply');
+    Route::post('/feedback/{feedback}/seen', [\App\Http\Controllers\FeedbackController::class, 'seen'])->name('feedback.seen');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

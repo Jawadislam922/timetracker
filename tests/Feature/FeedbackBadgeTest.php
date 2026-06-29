@@ -3,14 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\FeedbackItem;
+use App\Models\FeedbackMessage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Submitter "you have a reply" badge: a request a manager handled after the
- * submitter last saw it counts as unseen (drives the Inbox badge), and opening
- * the inbox clears it. Reusable unread pattern (response_seen_at vs handled_at).
+ * Submitter "you have a reply" badge: a ticket with a manager reply posted
+ * since the submitter last read it counts as unseen, and opening the ticket
+ * clears it. (Reusable unread pattern: a message newer than last-read.)
  */
 class FeedbackBadgeTest extends TestCase
 {
@@ -26,65 +27,65 @@ class FeedbackBadgeTest extends TestCase
         return User::factory()->create(['role' => 'admin', 'permissions' => ['feedback.manage']]);
     }
 
-    private function requestFrom(User $member): FeedbackItem
+    private function ticket(User $owner): FeedbackItem
     {
         return FeedbackItem::create([
-            'user_id' => $member->id, 'type' => 'question',
+            'user_id' => $owner->id, 'type' => 'question',
             'subject' => 'Q', 'message' => 'why?', 'status' => 'new',
         ]);
     }
 
-    public function test_a_handled_request_becomes_unseen_for_its_submitter(): void
+    private function managerReply(FeedbackItem $item, User $manager, string $body = 'reply'): FeedbackMessage
+    {
+        return $item->messages()->create(['user_id' => $manager->id, 'body' => $body]);
+    }
+
+    public function test_a_manager_reply_makes_the_ticket_unseen_for_its_submitter(): void
     {
         $member = $this->member();
-        $item = $this->requestFrom($member);
-
-        // Brand-new, unanswered request — nothing unseen yet.
+        $item = $this->ticket($member);
         $this->assertSame(0, FeedbackItem::unseenFor($member->id)->count());
 
-        $this->actingAs($this->manager())
-            ->patch(route('feedback.update', $item), ['status' => 'done', 'response' => 'handled'])
-            ->assertRedirect();
+        $this->managerReply($item, $this->manager());
 
         $this->assertSame(1, FeedbackItem::unseenFor($member->id)->count());
     }
 
-    public function test_opening_the_inbox_clears_the_submitters_badge(): void
+    public function test_opening_a_ticket_clears_the_submitters_badge(): void
     {
         $member = $this->member();
-        $item = $this->requestFrom($member);
-        $item->update(['status' => 'done', 'response' => 'handled', 'handled_at' => now()]);
-
+        $item = $this->ticket($member);
+        $this->managerReply($item, $this->manager());
         $this->assertSame(1, FeedbackItem::unseenFor($member->id)->count());
 
-        $this->actingAs($member)->get(route('feedback.index'))->assertOk();
+        $this->actingAs($member)->post(route('feedback.seen', $item))->assertRedirect();
 
         $this->assertSame(0, FeedbackItem::unseenFor($member->id)->count());
     }
 
-    public function test_a_later_reply_makes_it_unseen_again(): void
+    public function test_a_later_reply_after_reading_shows_unseen_again(): void
     {
         $member = $this->member();
-        $item = $this->requestFrom($member);
+        $manager = $this->manager();
+        $item = $this->ticket($member);
 
-        // Seen AFTER it was last handled -> not unseen.
-        $item->update([
-            'status' => 'done', 'response' => 'first',
-            'handled_at' => now()->subMinutes(5), 'response_seen_at' => now()->subMinutes(3),
-        ]);
+        $first = $this->managerReply($item, $manager, 'first');
+        $first->created_at = now()->subMinutes(5);
+        $first->save();
+        $item->response_seen_at = now()->subMinutes(3); // read after the first reply
+        $item->save();
         $this->assertSame(0, FeedbackItem::unseenFor($member->id)->count());
 
-        // A fresh reply now (handled after last seen) -> unseen again.
-        $item->update(['handled_at' => now()]);
+        $this->managerReply($item, $manager, 'second'); // posted now, after last read
         $this->assertSame(1, FeedbackItem::unseenFor($member->id)->count());
     }
 
-    public function test_one_persons_unseen_reply_does_not_leak_to_another(): void
+    public function test_unseen_does_not_leak_between_submitters(): void
     {
         $a = $this->member();
         $b = $this->member();
-        $item = $this->requestFrom($a);
-        $item->update(['status' => 'done', 'response' => 'x', 'handled_at' => now()]);
+        $item = $this->ticket($a);
+        $this->managerReply($item, $this->manager());
 
         $this->assertSame(1, FeedbackItem::unseenFor($a->id)->count());
         $this->assertSame(0, FeedbackItem::unseenFor($b->id)->count());
