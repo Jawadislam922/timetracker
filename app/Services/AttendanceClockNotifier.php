@@ -25,14 +25,24 @@ class AttendanceClockNotifier
             return;
         }
 
-        // Back-dated admin edits aren't someone clocking in/out right now.
-        if (str_starts_with((string) $entry->notes, 'Admin clock edit')) {
+        // Back-dated admin edits / an admin clocking someone out aren't the
+        // worker clocking in/out right now — don't post them to the channel.
+        if (str_starts_with((string) $entry->notes, 'Admin clock edit')
+            || str_starts_with((string) $entry->notes, 'Admin clock-out')) {
             return;
         }
 
         // The auto clock-out path posts its own lockout message; don't double up.
         if ($entry->action_type === 'clock_out'
             && str_starts_with((string) $entry->notes, 'Auto clock-out')) {
+            return;
+        }
+
+        // The break-end a close() writes when ending an open break (auto-close or
+        // admin clock-out) is system bookkeeping, not the worker resuming work —
+        // never announce ":back: ended their break" for it.
+        if ($entry->action_type === 'break_end'
+            && str_starts_with((string) $entry->notes, 'Auto break-end')) {
             return;
         }
 

@@ -28,7 +28,11 @@ class AttendanceCloser
             ->orderByDesc('action_timestamp')->orderByDesc('id')
             ->first();
 
-        if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start'], true)) {
+        // Open = the latest action leaves the person on the clock: a clock_in, an
+        // ongoing break (break_start), or working again after a break (break_end).
+        // break_end matters for the admin "clock out for them" action — someone
+        // who resumed after a break and forgot to clock out is still clocked in.
+        if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
             return null; // already closed / nothing open
         }
 
@@ -100,7 +104,11 @@ class AttendanceCloser
             ->orderByDesc('action_timestamp')->orderByDesc('id')
             ->first();
 
-        if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start'], true)) {
+        // Open = still on the clock: a clock-in, an unfinished break
+        // (break_start), or working again after a break (break_end). Mirrors
+        // close()'s open set so the auto-close cap, the "still working?" nudge
+        // and the dashboard all agree on who is clocked in.
+        if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
             return null;
         }
 

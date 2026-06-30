@@ -68,9 +68,11 @@ class AutoCloseAttendance extends Command
                 ->orderByDesc('action_timestamp')->orderByDesc('id')
                 ->first();
 
-            // Only act on an OPEN session (latest action is a clock-in or an
-            // unfinished break). Anything else is already closed.
-            if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start'], true)) {
+            // Only act on an OPEN session: latest action is a clock-in, an
+            // unfinished break (break_start), or working again after a break
+            // (break_end). A worker who resumed from a break and then forgot to
+            // clock out is still on the clock and must be auto-closed too.
+            if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
                 continue;
             }
 

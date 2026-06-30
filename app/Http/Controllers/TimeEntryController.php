@@ -8,6 +8,7 @@ use App\Models\TimeEntry;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Models\WorkHour;
+use App\Services\ShiftBoardService;
 use App\Services\TrackingSessionService;
 use App\Support\AttendanceHours;
 use App\Support\BusinessTime;
@@ -234,10 +235,21 @@ class TimeEntryController extends Controller
 
             [$kpis, $attention] = $this->teamOverview($employees->keyBy('id'), $allRows, $entriesByUser, $now);
 
+            $canClockOthers = (bool) $user->hasPermission('attendance.edit_times');
+            $shiftBoard = app(ShiftBoardService::class)->build(
+                $employees,
+                $entriesByUser,
+                $allRows->keyBy('user_id'),
+                $now,
+                $canClockOthers,
+            );
+
             return response()->json([
                 'employees' => $employeesData->values(),
                 'team_kpis' => $kpis,
                 'needs_attention' => $attention,
+                'shift_board' => $shiftBoard,
+                'can_clock_out_others' => $canClockOthers,
             ]);
         } else {
             // Regular users see only their own data
@@ -746,8 +758,12 @@ class TimeEntryController extends Controller
         $stats['tracked_hours'] = round((float) ($trackedByUserDate?->get($employee->id) ?? 0), 2);
 
         // Live flag drives the "Working" badge / sort; the running time is
-        // already included in tracked_hours above via inDaySeconds.
-        $stats['is_live'] = (bool) $liveByUser?->get($employee->id);
+        // already included in tracked_hours above via inDaySeconds. live_since
+        // (the active session's start) lets the Live board show a running
+        // "current session" duration.
+        $live = $liveByUser?->get($employee->id);
+        $stats['is_live'] = (bool) $live;
+        $stats['live_since'] = $live ? Carbon::parse($live->started_at)->toISOString() : null;
 
         // Day-level activity: how active they actually were while tracked
         // (replaces the confusing tracked-vs-clocked "coverage" ratio).

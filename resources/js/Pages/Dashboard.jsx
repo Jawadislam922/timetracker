@@ -6,17 +6,26 @@ import {
     Activity,
     AlertTriangle,
     CalendarDays,
+    Clock,
     Coffee,
     Download,
     Loader2,
+    LogOut,
+    Moon,
     PauseCircle,
     PlayCircle,
+    Radio,
     RotateCcw,
     Square,
+    Sunrise,
+    Sunset,
+    Table,
     Timer,
+    Trophy,
     Users,
     UserCheck,
     UserRound,
+    X,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -109,6 +118,225 @@ function EmployeeAvatar({ src, name }) {
     );
 }
 
+// ---- Team panel: shared bits for the Shift Board / Live / Leaderboard tabs ----
+
+const SHIFT_STATUS = {
+    working: { label: 'Working', pill: 'bg-emerald-500/15 text-emerald-300', dot: 'bg-emerald-400' },
+    on_break: { label: 'On break', pill: 'bg-amber-500/15 text-amber-300', dot: 'bg-amber-400' },
+    clocked_out: { label: 'Clocked out', pill: 'bg-slate-500/15 text-slate-300', dot: 'bg-slate-400' },
+    still_in: { label: 'Still clocked in', pill: 'bg-rose-500/15 text-rose-300', dot: 'bg-rose-400' },
+    not_in_yet: { label: 'Not clocked in', pill: 'bg-amber-500/15 text-amber-300', dot: 'bg-amber-400' },
+    not_started: { label: 'Not started', pill: 'bg-slate-700/40 text-slate-400', dot: 'bg-slate-500' },
+};
+
+const BAND_ICON = { day: Sunrise, evening: Sunset, night: Moon, unscheduled: Clock };
+
+const secondsToHours = (s) => formatHours((Number(s) || 0) / 3600);
+
+function activityPill(pct) {
+    const v = Math.max(0, Math.min(100, Number(pct) || 0));
+    const cls = v >= 60 ? 'bg-emerald-500/15 text-emerald-300' : v >= 30 ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300';
+    return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{v}%</span>;
+}
+
+// Running duration since an ISO instant (the active tracker session's start).
+function durationSince(iso) {
+    if (!iso) return null;
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(ms) || ms < 0) return null;
+    const mins = Math.floor(ms / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// Shift handover board: the team grouped by shift band, exceptions surfaced.
+function ShiftBoardView({ board, canManage, onClockOut }) {
+    const bands = board?.bands || [];
+    if (!bands.length) {
+        return (
+            <div className="px-5 py-12 text-center">
+                <UserRound className="mx-auto h-10 w-10 text-slate-600" />
+                <h3 className="mt-3 font-semibold text-white">No one scheduled</h3>
+                <p className="mt-1 text-sm text-slate-400">Shift activity will appear here.</p>
+            </div>
+        );
+    }
+    return (
+        <div className="divide-y divide-slate-800">
+            {bands.map((band) => {
+                const Icon = BAND_ICON[band.key] || Clock;
+                const s = band.summary;
+                return (
+                    <div key={band.key} className="px-5 py-4">
+                        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-800 text-slate-300"><Icon className="h-4 w-4" /></span>
+                                <h3 className="text-sm font-bold text-white">{band.label}</h3>
+                                <span className="text-xs text-slate-500">{band.range}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                                {s.on_now > 0 && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-300">{s.on_now} on now</span>}
+                                {s.still_in > 0 && <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-rose-300">{s.still_in} still in</span>}
+                                {s.not_in_yet > 0 && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-300">{s.not_in_yet} not in yet</span>}
+                                {s.clocked_out > 0 && <span className="rounded-full bg-slate-700/40 px-2 py-0.5 text-slate-400">{s.clocked_out} done</span>}
+                                <span className="text-slate-500">· {s.total} total</span>
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            {band.members.map((m) => {
+                                const st = SHIFT_STATUS[m.status] || SHIFT_STATUS.not_started;
+                                const alert = m.severity === 'red' ? 'border-rose-500/30 bg-rose-500/5' : m.severity === 'amber' ? 'border-amber-500/25 bg-amber-500/5' : 'border-transparent';
+                                return (
+                                    <div key={m.user_id} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${alert}`}>
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <EmployeeAvatar src={m.avatar} name={m.name} />
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 truncate text-sm font-semibold text-slate-100">
+                                                    {m.name}
+                                                    {m.is_live && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" title="Tracking now" />}
+                                                    {m.shift_start && <span className="shrink-0 text-[11px] font-normal text-slate-500">{m.shift_start}</span>}
+                                                </div>
+                                                <div className="truncate text-xs text-slate-400">
+                                                    {m.exception
+                                                        ? <span className={m.severity === 'red' ? 'text-rose-300' : 'text-amber-300'}>{m.exception}</span>
+                                                        : (m.first_in ? `In ${m.first_in}${m.last_out ? ` → ${m.last_out}` : ''}` : m.designation)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${st.pill}`}>
+                                                <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
+                                            </span>
+                                            {canManage && m.can_clock_out && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onClockOut(m)}
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:border-rose-600 hover:bg-rose-600 hover:text-white"
+                                                    title="Clock this person out"
+                                                >
+                                                    <LogOut className="h-3.5 w-3.5" /> Clock out
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// Live work board: who's clocked in and working right now.
+function LiveBoardView({ employees }) {
+    const rank = (s) => (s === 'Working' ? 0 : s === 'On Break' ? 1 : 2);
+    const live = [...employees]
+        .filter((e) => e.is_live || e.current_status === 'Working' || e.current_status === 'On Break')
+        .sort((a, b) => {
+            const d = rank(a.current_status) - rank(b.current_status);
+            if (d) return d;
+            return (Number(b.activity_percent) || 0) - (Number(a.activity_percent) || 0);
+        });
+    if (!live.length) {
+        return (
+            <div className="px-5 py-12 text-center">
+                <Radio className="mx-auto h-10 w-10 text-slate-600" />
+                <h3 className="mt-3 font-semibold text-white">Nobody working right now</h3>
+                <p className="mt-1 text-sm text-slate-400">People currently clocked in and tracking show here live.</p>
+            </div>
+        );
+    }
+    return (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-800">
+                <thead className="bg-slate-950">
+                    <tr>{['Member', 'Status', 'Session', 'Activity', 'Tracked today'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{h}</th>
+                    ))}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                    {live.map((e) => {
+                        const onBreak = e.current_status === 'On Break';
+                        const hasData = e.is_live || (Number(e.tracked_hours) || 0) > 0;
+                        return (
+                            <tr key={e.user_id} className="hover:bg-white/5">
+                                <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        <EmployeeAvatar src={e.avatar} name={e.user_name} />
+                                        <div>
+                                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                                {e.user_name}
+                                                {e.is_live && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Tracking now" />}
+                                            </div>
+                                            <div className="text-xs text-slate-400">{e.designation}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3">
+                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${onBreak ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${onBreak ? 'bg-amber-400' : 'bg-emerald-400'}`} />{e.current_status}
+                                    </span>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{durationSince(e.live_since) || '—'}</td>
+                                <td className="whitespace-nowrap px-4 py-3">{hasData ? activityPill(e.activity_percent) : <span className="text-xs text-slate-400">—</span>}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(e.tracked_hours || 0)}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// Leaderboard: ranked by tracked time, low activity flagged.
+function LeaderboardView({ rows, loading, rangeLabel }) {
+    if (loading) {
+        return (
+            <div className="px-5 py-12 text-center">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+                <p className="mt-3 text-sm text-slate-400">Loading {rangeLabel}…</p>
+            </div>
+        );
+    }
+    if (!rows.length) {
+        return (
+            <div className="px-5 py-12 text-center">
+                <Trophy className="mx-auto h-10 w-10 text-slate-600" />
+                <h3 className="mt-3 font-semibold text-white">No tracked time yet</h3>
+                <p className="mt-1 text-sm text-slate-400">Rankings for {rangeLabel} appear once people start tracking.</p>
+            </div>
+        );
+    }
+    const max = Math.max(...rows.map((r) => r.seconds), 1);
+    return (
+        <div className="space-y-1.5 px-5 py-4">
+            {rows.map((r, i) => (
+                <div key={r.user_id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5">
+                    <div className={`w-6 text-center text-sm font-bold ${i === 0 ? 'text-amber-300' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-orange-300' : 'text-slate-500'}`}>{i + 1}</div>
+                    <EmployeeAvatar src={r.avatar} name={r.user_name} />
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="truncate text-sm font-semibold text-slate-100">{r.user_name}</div>
+                            <div className="shrink-0 text-sm font-semibold text-orange-300">{secondsToHours(r.seconds)}</div>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                <div className="h-full rounded-full bg-orange-500/70" style={{ width: `${Math.round((r.seconds / max) * 100)}%` }} />
+                            </div>
+                            {r.activity_percent != null ? activityPill(r.activity_percent) : null}
+                        </div>
+                    </div>
+                    {r.low && <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" title="Low activity" />}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export default function Dashboard({ auth }) {
     // Renders the live clock in the viewer's chosen display timezone (Profile →
     // Time zone), not a hard-coded Asia/Karachi, so the switcher applies here too.
@@ -130,6 +358,16 @@ export default function Dashboard({ auth }) {
     const [tableCustom, setTableCustom] = useState({ start: '', end: '' });
     const [rangedRows, setRangedRows] = useState([]);
     const [rangedLoading, setRangedLoading] = useState(false);
+    // Team panel: which view (shifts handover / live / leaderboard / table).
+    const [teamTab, setTeamTab] = useState('shifts');
+    const [shiftBoard, setShiftBoard] = useState(null);
+    const [canClockOutOthers, setCanClockOutOthers] = useState(false);
+    // Admin "clock out for them" modal: the target member + chosen time/note.
+    const [clockOut, setClockOut] = useState(null);
+    // Leaderboard: today (from the live summary) vs this week (ranged endpoint).
+    const [lbRange, setLbRange] = useState('today');
+    const [lbWeekRows, setLbWeekRows] = useState([]);
+    const [lbLoading, setLbLoading] = useState(false);
     const [loading, setLoading] = useState(false);
     // Distinguishes "still loading the first time" from "loaded, genuinely
     // empty" so the team table never flashes "No activity recorded today"
@@ -169,6 +407,8 @@ export default function Dashboard({ auth }) {
             setEmployeesData(summaryResult.value.data.employees || []);
             setTeamKpis(summaryResult.value.data.team_kpis || null);
             setNeedsAttention(summaryResult.value.data.needs_attention || []);
+            setShiftBoard(summaryResult.value.data.shift_board || null);
+            setCanClockOutOthers(!!summaryResult.value.data.can_clock_out_others);
         }
 
         setDashboardLoaded(true);
@@ -240,6 +480,28 @@ export default function Dashboard({ auth }) {
             cancelled = true;
         };
     }, [tableRange, tableCustom, canViewTeam]);
+
+    // Leaderboard "this week": fetch the ranged totals only when that view + range
+    // is actually open ("today" derives from the live summary already in hand).
+    useEffect(() => {
+        if (!canViewTeam || teamTab !== 'leaderboard' || lbRange !== 'week') return undefined;
+        let cancelled = false;
+        setLbLoading(true);
+        axios
+            .get('/time-entries/team-activity', { params: { range: 'week' } })
+            .then((res) => {
+                if (!cancelled) setLbWeekRows(res.data.employees || []);
+            })
+            .catch(() => {
+                if (!cancelled) setLbWeekRows([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLbLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [canViewTeam, teamTab, lbRange]);
 
     const currentStatus = useMemo(() => statusFromAction(todayStats.lastAction), [todayStats.lastAction]);
 
@@ -323,6 +585,8 @@ export default function Dashboard({ auth }) {
             setEmployeesData(summaryResponse.data.employees || []);
             setTeamKpis(summaryResponse.data.team_kpis || null);
             setNeedsAttention(summaryResponse.data.needs_attention || []);
+            setShiftBoard(summaryResponse.data.shift_board || null);
+            setCanClockOutOthers(!!summaryResponse.data.can_clock_out_others);
             toast.dismiss(loadingToast);
             showTimeActionSuccess(actionType);
         } catch (error) {
@@ -356,6 +620,47 @@ export default function Dashboard({ auth }) {
         }
     };
 
+    const submitClockOut = async () => {
+        if (!clockOut) return;
+        setClockOut((c) => ({ ...c, submitting: true }));
+        const loadingToast = showLoading('Clocking out…');
+        try {
+            const res = await axios.post('/employee-attendance/clock-out', {
+                user_id: clockOut.user_id,
+                time: clockOut.time || null,
+                note: clockOut.note || null,
+            });
+            toast.dismiss(loadingToast);
+            toast.success(res.data?.message || 'Clocked out.');
+            setClockOut(null);
+            await loadDashboard(false);
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            showError(error.response?.data?.message || error.response?.data?.errors?.user_id?.[0] || 'Could not clock out.');
+            setClockOut((c) => (c ? { ...c, submitting: false } : c));
+        }
+    };
+
+    // Leaderboard rows: "today" from the live summary already loaded; "week"
+    // from the ranged endpoint. Normalised to { seconds } and sorted desc.
+    const leaderboardRows = useMemo(() => {
+        const source = lbRange === 'today'
+            ? employeesData.map((e) => ({
+                user_id: e.user_id, user_name: e.user_name, avatar: e.avatar,
+                seconds: Math.round((Number(e.tracked_hours) || 0) * 3600),
+                activity_percent: (e.is_live || (Number(e.tracked_hours) || 0) > 0) ? e.activity_percent : null,
+            }))
+            : lbWeekRows.map((e) => ({
+                user_id: e.user_id, user_name: e.user_name, avatar: e.avatar,
+                seconds: Number(e.tracked_seconds) || 0,
+                activity_percent: (Number(e.tracked_seconds) || 0) > 0 ? e.activity_percent : null,
+            }));
+        return source
+            .filter((r) => r.seconds > 0)
+            .sort((a, b) => b.seconds - a.seconds)
+            .map((r) => ({ ...r, low: r.activity_percent != null && Number(r.activity_percent) < 30 }));
+    }, [lbRange, employeesData, lbWeekRows]);
+
     // Presence (clock in/out) vs actual work product (tracker + manual
     // entries) — two different clocks, labeled honestly.
     const myTracked = employeesData.find((e) => e.user_id === auth.user.id)?.tracked_hours;
@@ -379,6 +684,133 @@ export default function Dashboard({ auth }) {
         if (sa !== sb) return sa < sb ? -1 : 1;
         return (a.user_name || '').localeCompare(b.user_name || '');
     });
+
+    const TEAM_TABS = [
+        ['shifts', 'Shifts', Sunrise],
+        ['live', 'Live', Radio],
+        ['leaderboard', 'Leaderboard', Trophy],
+        ['table', 'Table', Table],
+    ];
+
+    const teamLoading = (
+        <div className="px-5 py-12 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+            <p className="mt-3 text-sm text-slate-400">Loading team activity…</p>
+        </div>
+    );
+
+    // The live "today" status table (also the whole panel for a non-team viewer).
+    const todayStatusBody = !dashboardLoaded ? teamLoading : employeesData.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+            <UserRound className="mx-auto h-10 w-10 text-slate-600" />
+            <h3 className="mt-3 font-semibold text-white">No activity recorded today</h3>
+            <p className="mt-1 text-sm text-slate-400">Time tracking activity will appear here.</p>
+        </div>
+    ) : (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-800">
+                <thead className="bg-slate-950">
+                    <tr>
+                        {['Employee', 'Status', 'In Office', 'Tracked', 'Activity', 'Break', 'Week', 'Month'].map((heading) => (
+                            <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                    {sortedEmployees.map((employee) => {
+                        const status = statusFromAction(
+                            employee.current_status === 'On Break'
+                                ? 'break_start'
+                                : employee.current_status === 'Clocked Out'
+                                    ? 'clock_out'
+                                    : 'clock_in'
+                        );
+                        return (
+                            <tr key={employee.user_id} className="hover:bg-white/5">
+                                <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-100">{employee.user_name}</div>
+                                            <div className="text-xs text-slate-400">{employee.designation}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3">
+                                    <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+                                        {employee.current_status}
+                                    </span>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(employee.tracked_hours || 0)}</td>
+                                <td className="whitespace-nowrap px-4 py-3">
+                                    {(() => {
+                                        const hasData = employee.is_live || (Number(employee.tracked_hours) || 0) > 0;
+                                        if (!hasData) return <span className="text-xs text-slate-400">—</span>;
+                                        return activityPill(employee.activity_percent);
+                                    })()}
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.weekly_work_hours || 0)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.monthly_work_hours || 0)}</td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+
+    // The historical (non-today) ranged table, used by the Table tab.
+    const rangedBody = rangedLoading ? (
+        <div className="px-5 py-12 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
+            <p className="mt-3 text-sm text-slate-400">Loading {tableRangeLabel}…</p>
+        </div>
+    ) : rangedRows.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+            <UserRound className="mx-auto h-10 w-10 text-slate-600" />
+            <h3 className="mt-3 font-semibold text-white">No activity in this range</h3>
+            <p className="mt-1 text-sm text-slate-400">Nobody tracked time or clocked in for {tableRangeLabel}.</p>
+        </div>
+    ) : (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-800">
+                <thead className="bg-slate-950">
+                    <tr>
+                        {['Employee', 'In Office', 'Tracked', 'Activity', 'Days'].map((heading) => (
+                            <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                    {rangedRows.map((employee) => (
+                        <tr key={employee.user_id} className="hover:bg-white/5">
+                            <td className="whitespace-nowrap px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                    <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
+                                    <div>
+                                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                            {employee.user_name}
+                                            {employee.is_live && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Tracking right now" />}
+                                        </div>
+                                        <div className="text-xs text-slate-400">{employee.designation}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{fmtSecs(employee.in_office_seconds)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{fmtSecs(employee.tracked_seconds)}</td>
+                            <td className="whitespace-nowrap px-4 py-3">
+                                {employee.tracked_seconds > 0 ? activityBadge(employee.activity_percent) : <span className="text-xs text-slate-400">—</span>}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.days_worked}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
 
     return (
         <AuthenticatedLayout user={auth.user}>
@@ -531,12 +963,18 @@ export default function Dashboard({ auth }) {
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <h2 className="text-base font-bold text-white">
-                                        {canViewTeam ? 'Team Activity' : 'Your Activity Today'}
+                                        {canViewTeam ? 'Team' : 'Your Activity Today'}
                                     </h2>
                                     <p className="text-sm text-slate-400">
-                                        {!canViewTeam || isTodayTable
+                                        {!canViewTeam
                                             ? 'Work, break, and attendance status — right now.'
-                                            : `Tracked, in-office and activity · ${tableRangeLabel}`}
+                                            : teamTab === 'shifts'
+                                                ? 'Each shift at a glance — who’s in, late, or still clocked in.'
+                                                : teamTab === 'live'
+                                                    ? 'Who’s clocked in and working right now.'
+                                                    : teamTab === 'leaderboard'
+                                                        ? `Most tracked time · ${lbRange === 'week' ? 'this week' : 'today'}`
+                                                        : (isTodayTable ? 'Work, break, and attendance status — right now.' : `Tracked, in-office and activity · ${tableRangeLabel}`)}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -548,7 +986,7 @@ export default function Dashboard({ auth }) {
                                             Open Attendance
                                         </Link>
                                     )}
-                                    {isTodayTable && employeesData.length > 0 && (
+                                    {((!canViewTeam) || (teamTab === 'table' && isTodayTable)) && employeesData.length > 0 && (
                                         <button
                                             type="button"
                                             onClick={downloadCSV}
@@ -564,170 +1002,142 @@ export default function Dashboard({ auth }) {
                             {canViewTeam && (
                                 <div className="flex flex-wrap items-center gap-2">
                                     <div className="flex rounded-lg border border-slate-700 bg-slate-800/60 p-0.5">
-                                        {TABLE_RANGES.map(([key, label]) => (
+                                        {TEAM_TABS.map(([key, label, Icon]) => (
                                             <button
                                                 key={key}
                                                 type="button"
-                                                onClick={() => setTableRange(key)}
-                                                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                                                    tableRange === key ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
+                                                onClick={() => setTeamTab(key)}
+                                                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                                                    teamTab === key ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
                                                 }`}
                                             >
+                                                <Icon className="h-3.5 w-3.5" />
                                                 {label}
                                             </button>
                                         ))}
                                     </div>
-                                    {tableRange === 'custom' && (
-                                        <div className="flex items-center gap-1.5">
-                                            <input
-                                                type="date"
-                                                value={tableCustom.start}
-                                                max={tableCustom.end || undefined}
-                                                onChange={(e) => setTableCustom((c) => ({ ...c, start: e.target.value }))}
-                                                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
-                                            />
-                                            <span className="text-xs text-slate-500">→</span>
-                                            <input
-                                                type="date"
-                                                value={tableCustom.end}
-                                                min={tableCustom.start || undefined}
-                                                onChange={(e) => setTableCustom((c) => ({ ...c, end: e.target.value }))}
-                                                className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
-                                            />
+
+                                    {teamTab === 'leaderboard' && (
+                                        <div className="flex rounded-lg border border-slate-700 bg-slate-800/60 p-0.5">
+                                            {[['today', 'Today'], ['week', 'This week']].map(([key, label]) => (
+                                                <button
+                                                    key={key}
+                                                    type="button"
+                                                    onClick={() => setLbRange(key)}
+                                                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                                                        lbRange === key ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
+                                                    }`}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {teamTab === 'table' && (
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="flex rounded-lg border border-slate-700 bg-slate-800/60 p-0.5">
+                                                {TABLE_RANGES.map(([key, label]) => (
+                                                    <button
+                                                        key={key}
+                                                        type="button"
+                                                        onClick={() => setTableRange(key)}
+                                                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                                                            tableRange === key ? 'bg-orange-500/20 text-orange-300' : 'text-slate-400 hover:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {tableRange === 'custom' && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <input
+                                                        type="date"
+                                                        value={tableCustom.start}
+                                                        max={tableCustom.end || undefined}
+                                                        onChange={(e) => setTableCustom((c) => ({ ...c, start: e.target.value }))}
+                                                        className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+                                                    />
+                                                    <span className="text-xs text-slate-500">→</span>
+                                                    <input
+                                                        type="date"
+                                                        value={tableCustom.end}
+                                                        min={tableCustom.start || undefined}
+                                                        onChange={(e) => setTableCustom((c) => ({ ...c, end: e.target.value }))}
+                                                        className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
 
-                        {(canViewTeam && !isTodayTable) ? (
-                            rangedLoading ? (
-                                <div className="px-5 py-12 text-center">
-                                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
-                                    <p className="mt-3 text-sm text-slate-400">Loading {tableRangeLabel}…</p>
-                                </div>
-                            ) : rangedRows.length === 0 ? (
-                                <div className="px-5 py-12 text-center">
-                                    <UserRound className="mx-auto h-10 w-10 text-slate-600" />
-                                    <h3 className="mt-3 font-semibold text-white">No activity in this range</h3>
-                                    <p className="mt-1 text-sm text-slate-400">Nobody tracked time or clocked in for {tableRangeLabel}.</p>
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-slate-800">
-                                        <thead className="bg-slate-950">
-                                            <tr>
-                                                {['Employee', 'In Office', 'Tracked', 'Activity', 'Days'].map((heading) => (
-                                                    <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800">
-                                            {rangedRows.map((employee) => (
-                                                <tr key={employee.user_id} className="hover:bg-white/5">
-                                                    <td className="whitespace-nowrap px-4 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
-                                                            <div>
-                                                                <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                                                                    {employee.user_name}
-                                                                    {employee.is_live && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="Tracking right now" />}
-                                                                </div>
-                                                                <div className="text-xs text-slate-400">{employee.designation}</div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{fmtSecs(employee.in_office_seconds)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{fmtSecs(employee.tracked_seconds)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3">
-                                                        {employee.tracked_seconds > 0 ? activityBadge(employee.activity_percent) : <span className="text-xs text-slate-400">—</span>}
-                                                    </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{employee.days_worked}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                        {!canViewTeam ? (
+                            todayStatusBody
+                        ) : teamTab === 'shifts' ? (
+                            !dashboardLoaded ? teamLoading : (
+                                <ShiftBoardView
+                                    board={shiftBoard}
+                                    canManage={canClockOutOthers}
+                                    onClockOut={(m) => setClockOut({ user_id: m.user_id, name: m.name, time: m.suggested_clock_out || '', note: '', submitting: false })}
+                                />
                             )
-                        ) : !dashboardLoaded ? (
-                            <div className="px-5 py-12 text-center">
-                                <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-500" />
-                                <p className="mt-3 text-sm text-slate-400">Loading team activity…</p>
-                            </div>
-                        ) : employeesData.length === 0 ? (
-                            <div className="px-5 py-12 text-center">
-                                <UserRound className="mx-auto h-10 w-10 text-slate-600" />
-                                <h3 className="mt-3 font-semibold text-white">No activity recorded today</h3>
-                                <p className="mt-1 text-sm text-slate-400">Time tracking activity will appear here.</p>
-                            </div>
+                        ) : teamTab === 'live' ? (
+                            !dashboardLoaded ? teamLoading : <LiveBoardView employees={employeesData} />
+                        ) : teamTab === 'leaderboard' ? (
+                            <LeaderboardView rows={leaderboardRows} loading={lbRange === 'week' && lbLoading} rangeLabel={lbRange === 'week' ? 'this week' : 'today'} />
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-slate-800">
-                                    <thead className="bg-slate-950">
-                                        <tr>
-                                            {['Employee', 'Status', 'In Office', 'Tracked', 'Activity', 'Break', 'Week', 'Month'].map((heading) => (
-                                                <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800">
-                                        {sortedEmployees.map((employee) => {
-                                            const status = statusFromAction(
-                                                employee.current_status === 'On Break'
-                                                    ? 'break_start'
-                                                    : employee.current_status === 'Clocked Out'
-                                                        ? 'clock_out'
-                                                        : 'clock_in'
-                                            );
-                                            return (
-                                                <tr key={employee.user_id} className="hover:bg-white/5">
-                                                    <td className="whitespace-nowrap px-4 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
-                                                            <div>
-                                                                <div className="text-sm font-semibold text-slate-100">{employee.user_name}</div>
-                                                                <div className="text-xs text-slate-400">{employee.designation}</div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="whitespace-nowrap px-4 py-3">
-                                                        <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}>
-                                                            <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-                                                            {employee.current_status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(employee.tracked_hours || 0)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3">
-                                                        {(() => {
-                                                            const hasData = employee.is_live || (Number(employee.tracked_hours) || 0) > 0;
-                                                            if (!hasData) return <span className="text-xs text-slate-400">—</span>;
-                                                            const pct = Math.max(0, Math.min(100, Number(employee.activity_percent) || 0));
-                                                            const cls = pct >= 60
-                                                                ? 'bg-emerald-500/15 text-emerald-300'
-                                                                : pct >= 30
-                                                                    ? 'bg-amber-500/15 text-amber-300'
-                                                                    : 'bg-rose-500/15 text-rose-300';
-                                                            return (
-                                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`} title="Average activity (keyboard/mouse) across today's tracked time">
-                                                                    {pct}%
-                                                                </span>
-                                                            );
-                                                        })()}
-                                                    </td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.weekly_work_hours || 0)}</td>
-                                                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.monthly_work_hours || 0)}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                            isTodayTable ? todayStatusBody : rangedBody
                         )}
                     </section>
                 </div>
             </div>
+
+            {clockOut && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+                    onClick={() => !clockOut.submitting && setClockOut(null)}
+                >
+                    <div className="w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-base font-bold text-white">Clock out {clockOut.name}</h3>
+                                <p className="mt-0.5 text-xs text-slate-400">Records a clock-out on their behalf — this is logged.</p>
+                            </div>
+                            <button type="button" onClick={() => setClockOut(null)} disabled={clockOut.submitting} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-800 hover:text-white">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Clock-out time</label>
+                        <input
+                            type="time"
+                            value={clockOut.time}
+                            onChange={(e) => setClockOut((c) => ({ ...c, time: e.target.value }))}
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                        />
+                        <p className="mt-1 text-[11px] text-slate-500">Defaults to their shift end. Adjust if they left at a different time.</p>
+                        <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-400">Note (optional)</label>
+                        <input
+                            type="text"
+                            value={clockOut.note}
+                            maxLength={255}
+                            placeholder="e.g. forgot to clock out"
+                            onChange={(e) => setClockOut((c) => ({ ...c, note: e.target.value }))}
+                            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600"
+                        />
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button type="button" onClick={() => setClockOut(null)} disabled={clockOut.submitting} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800">Cancel</button>
+                            <button type="button" onClick={submitClockOut} disabled={clockOut.submitting} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60">
+                                {clockOut.submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                                Clock out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 }

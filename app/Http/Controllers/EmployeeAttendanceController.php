@@ -8,6 +8,7 @@ use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
 use App\Models\TrackingAuditLog;
 use App\Models\User;
+use App\Services\AttendanceCloser;
 use App\Services\AttendanceSlackReportService;
 use App\Support\TimeClockRules;
 use Carbon\Carbon;
@@ -217,6 +218,112 @@ class EmployeeAttendanceController extends Controller
         ]);
 
         return response()->json(['message' => 'Clock times updated.']);
+    }
+
+    /**
+     * Clock a worker out who forgot to (admin / super-admin only, gated by
+     * attendance.edit_times). Writes a real clock_out via AttendanceCloser —
+     * which also stops any tracker still running — defaulting to the worker's
+     * shift end so their hours stay accurate instead of inflating to "now".
+     * The action is audited; the 'Admin clock-out' note suppresses the Slack
+     * clock-out post (an admin did this, the worker didn't clock out live).
+     */
+    public function adminClockOut(Request $request)
+    {
+        $actor = $request->user();
+        abort_unless($this->canEditClockTimes($actor), 403);
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'time' => ['nullable', 'date_format:H:i'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $target = User::findOrFail($validated['user_id']);
+
+        // Open = latest action keeps them on the clock (clock_in / break_start /
+        // break_end). Checked here (not via openClockIn, which ignores break_end)
+        // so the action matches what the Shift Board shows as "clocked in".
+        $last = TimeEntry::forUser($target->id)
+            ->orderByDesc('action_timestamp')->orderByDesc('id')
+            ->first();
+        if (! $last || ! in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
+            throw ValidationException::withMessages([
+                'user_id' => $target->name.' is not currently clocked in.',
+            ]);
+        }
+
+        $openClockIn = $last->action_type === 'clock_in'
+            ? $last
+            : TimeEntry::forUser($target->id)->where('action_type', 'clock_in')
+                ->orderByDesc('action_timestamp')->orderByDesc('id')->first();
+        if (! $openClockIn) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Could not find an open clock-in for '.$target->name.'.',
+            ]);
+        }
+
+        // Times are read in the SUBJECT's own work timezone (an admin elsewhere
+        // closes the worker's local wall-clock); the open clock-in's day anchors
+        // the close so an overnight session closes on the correct date.
+        $tz = $target->workTimezone();
+        $openDate = $openClockIn->action_date instanceof Carbon
+            ? $openClockIn->action_date->toDateString()
+            : (string) $openClockIn->action_date;
+        $openTs = Carbon::parse($openClockIn->action_timestamp)->setTimezone($tz);
+
+        $shift = $target->effectiveShiftFor($openDate);
+        $defaultHours = (float) config('services.attendance.prompt_after_hours', 8);
+        $shiftHours = $shift['hours'] ?? $defaultHours;
+        $defaultClose = $shift['start_time']
+            ? Carbon::parse($openDate.' '.$shift['start_time']->format('H:i:s'), $tz)->addMinutes((int) round($shiftHours * 60))
+            : Carbon::now($tz);
+
+        if (! empty($validated['time'])) {
+            $closeAt = Carbon::parse($openDate.' '.$validated['time'], $tz);
+            // An entered time at/before the clock-in belongs to the next day
+            // (overnight shift); AttendanceCloser also clamps as a safety net.
+            if ($closeAt->lessThanOrEqualTo($openTs)) {
+                $closeAt->addDay();
+            }
+        } else {
+            $closeAt = $defaultClose;
+        }
+
+        // Never write the clock-out before the worker's latest action — e.g. a
+        // break taken after the shift end. Otherwise the clock-out lands earlier
+        // in the timeline than that action, which stays the newest entry and the
+        // session would still read as open. Push the close just past it.
+        $lastTs = Carbon::parse($last->action_timestamp)->setTimezone($tz);
+        if ($closeAt->lessThanOrEqualTo($lastTs)) {
+            $closeAt = $lastTs->copy()->addMinute();
+        }
+
+        $note = trim((string) ($validated['note'] ?? ''));
+        $reason = 'Admin clock-out'.($note !== '' ? ': '.$note : ' (forgot to clock out)');
+
+        $clockOut = app(AttendanceCloser::class)->close($target->id, $closeAt, $reason);
+        if (! $clockOut) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Could not clock '.$target->name.' out — please refresh and try again.',
+            ]);
+        }
+
+        $closedAtLocal = Carbon::parse($clockOut->action_timestamp)->setTimezone($tz);
+
+        TrackingAuditLog::record([
+            'subject_user_id' => $target->id,
+            'actor_user_id' => $actor->id,
+            'action' => 'attendance.admin_clock_out',
+            'event_date' => $openDate,
+            'old_value' => ['clock_out' => null],
+            'new_value' => ['clock_out' => $closedAtLocal->format('H:i')],
+            'reason' => $note !== '' ? $note : 'forgot to clock out',
+        ]);
+
+        return response()->json([
+            'message' => 'Clocked out '.$target->name.' at '.$closedAtLocal->format('g:i A').'.',
+        ]);
     }
 
     public function getMonthlyGrid(Request $request)

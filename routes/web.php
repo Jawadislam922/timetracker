@@ -165,6 +165,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // in/out times (e.g. they forgot to clock) — every edit is audited.
     Route::get('/employee-attendance/day-entries', [EmployeeAttendanceController::class, 'getDayEntries'])->middleware('permission:attendance.edit_times')->name('employee-attendance.day-entries');
     Route::post('/employee-attendance/clock-times', [EmployeeAttendanceController::class, 'updateClockTimes'])->middleware('permission:attendance.edit_times')->name('employee-attendance.clock-times');
+    Route::post('/employee-attendance/clock-out', [EmployeeAttendanceController::class, 'adminClockOut'])->middleware('permission:attendance.edit_times')->name('employee-attendance.clock-out');
 
     // One-day shift changes. The page + write endpoints are gated to people who
     // can edit a shift at all; the controller enforces self (shift.edit_own) vs

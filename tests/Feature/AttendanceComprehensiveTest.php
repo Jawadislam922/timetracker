@@ -91,6 +91,28 @@ class AttendanceComprehensiveTest extends TestCase
         $this->assertSame('2026-06-26 17:20:00', $this->closeTime($out));
     }
 
+    public function test_session_resumed_after_break_then_forgotten_is_auto_closed(): void
+    {
+        // Resumed from a break (break_end is the latest action) then forgot to
+        // clock out — the auto-close cap must still recognise this as an open
+        // session and close it at shift end + buffer (previously break_end was
+        // not treated as open, so it was never closed).
+        $u = User::factory()->create(['shift_start_time' => '09:00', 'shift_hours' => 8]);
+        $this->clockIn($u, '2026-06-26 09:00:00');
+        foreach ([['break_start', '12:00:00'], ['break_end', '12:30:00']] as [$type, $t]) {
+            $ts = Carbon::parse("2026-06-26 {$t}", 'Asia/Karachi');
+            TimeEntry::create([
+                'user_id' => $u->id, 'action_type' => $type,
+                'action_timestamp' => $ts, 'action_date' => $u->attendanceDateFor($ts),
+                'action_time' => $ts->toTimeString(),
+            ]);
+        }
+
+        $out = $this->autoCloseAt($u, '2026-06-26 20:00:00');
+        $this->assertNotNull($out, 'a break_end-terminal open session must be auto-closed');
+        $this->assertSame('2026-06-26 17:20:00', $this->closeTime($out)); // 17:00 + 20m buffer
+    }
+
     public function test_tracked_overtime_is_credited_to_last_activity(): void
     {
         $u = User::factory()->create(['shift_start_time' => '09:00', 'shift_hours' => 8]);
