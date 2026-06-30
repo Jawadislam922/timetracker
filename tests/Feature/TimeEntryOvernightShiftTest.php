@@ -115,6 +115,70 @@ class TimeEntryOvernightShiftTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_day_shift_clock_in_carried_past_midnight_still_shows_as_today(): void
+    {
+        // The reported bug: a day-shift member clocks in late in the evening and
+        // never clocks out. After midnight the date rolls to a new attendance
+        // day, so the day-scoped /time-entries/today returned an empty list and
+        // the dashboard flipped from "Working" (correct first paint) to "Not
+        // Started" — the half-second flicker on reload. The still-open session
+        // must carry over until it is actually closed.
+        $employee = User::factory()->create([
+            'shift_start_time' => '09:00:00',
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-06-09 21:33:00', 'Asia/Karachi'));
+
+        $this->actingAs($employee)
+            ->postJson(route('time-entries.store'), ['action_type' => 'clock_in'])
+            ->assertOk();
+
+        // The clock-in belongs to June 9 (its own shift day).
+        $this->assertSame('2026-06-09', TimeEntry::query()->firstOrFail()->action_date->toDateString());
+
+        // Now it's past midnight — a different attendance day for a 09:00 shift.
+        Carbon::setTestNow(Carbon::parse('2026-06-10 00:30:00', 'Asia/Karachi'));
+
+        // attendanceDateFor(now) is June 10, but the open clock-in is carried in
+        // so the latest action stays clock_in and the dashboard reads Working.
+        $response = $this->actingAs($employee)
+            ->getJson(route('time-entries.today'))
+            ->assertOk()
+            ->assertJsonCount(1, 'entries');
+
+        $this->assertSame('clock_in', $response->json('entries.0.action_type'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_closed_session_from_yesterday_does_not_bleed_into_today(): void
+    {
+        // Guard for the carry-over above: once the session is CLOSED, yesterday's
+        // entries must not leak into today — only an OPEN clock-in carries over.
+        $employee = User::factory()->create([
+            'shift_start_time' => '09:00:00',
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-06-09 21:33:00', 'Asia/Karachi'));
+        $this->actingAs($employee)
+            ->postJson(route('time-entries.store'), ['action_type' => 'clock_in'])
+            ->assertOk();
+
+        Carbon::setTestNow(Carbon::parse('2026-06-09 23:00:00', 'Asia/Karachi'));
+        $this->actingAs($employee)
+            ->postJson(route('time-entries.store'), ['action_type' => 'clock_out'])
+            ->assertOk();
+
+        // New day, no open session: today's list is empty.
+        Carbon::setTestNow(Carbon::parse('2026-06-10 00:30:00', 'Asia/Karachi'));
+        $this->actingAs($employee)
+            ->getJson(route('time-entries.today'))
+            ->assertOk()
+            ->assertJsonCount(0, 'entries');
+
+        Carbon::setTestNow();
+    }
+
     public function test_morning_shift_late_night_work_stays_on_its_own_day(): void
     {
         // An 8AM worker still on at 23:50 is doing same-day overtime, not

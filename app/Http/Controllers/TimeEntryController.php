@@ -148,6 +148,37 @@ class TimeEntryController extends Controller
             ->orderBy('action_timestamp', 'desc')
             ->get();
 
+        // Day-boundary carry-over: if the worker is still inside an open session
+        // that began on an EARLIER attendance day (clocked in last night, no
+        // clock-out yet), pull that session's earlier rows into "today" so the
+        // dashboard's clock state reads "Working" instead of flipping to
+        // "Not Started" after midnight. Mirrors the global-aware state shared in
+        // HandleInertiaRequests::share(); without it this day-scoped fetch wipes
+        // the open clock-in the moment loadDashboard() runs (the half-second
+        // flicker: correct on first paint, then "Not Started").
+        $last = TimeEntry::forUser($user->id)
+            ->orderByDesc('action_timestamp')->orderByDesc('id')
+            ->first();
+
+        if ($last && in_array($last->action_type, ['clock_in', 'break_start', 'break_end'], true)) {
+            $openClockIn = TimeEntry::forUser($user->id)
+                ->where('action_type', 'clock_in')
+                ->orderByDesc('action_timestamp')->orderByDesc('id')
+                ->first();
+
+            if ($openClockIn && $openClockIn->action_date->toDateString() !== (string) $today) {
+                $carryover = TimeEntry::forUser($user->id)
+                    ->where('action_timestamp', '>=', $openClockIn->action_timestamp)
+                    ->whereDate('action_date', '<', $today)
+                    ->orderBy('action_timestamp', 'desc')
+                    ->get();
+
+                $entries = $entries->concat($carryover)
+                    ->sortByDesc('action_timestamp')
+                    ->values();
+            }
+        }
+
         return response()->json([
             'entries' => $entries->map(function ($entry) {
                 return [
