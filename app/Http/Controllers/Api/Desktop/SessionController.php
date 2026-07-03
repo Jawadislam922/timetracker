@@ -345,15 +345,16 @@ class SessionController extends Controller
 
     public function today(Request $request): JsonResponse
     {
-        $today = BusinessTime::today();
-        $dayStart = $today->copy()->startOfDay();
-        $dayEnd = $today->copy()->endOfDay();
+        // "Today" = the user's shift-aware WORK day (same window as the
+        // dashboard cards), so a night shift's ring doesn't reset to zero at
+        // midnight mid-shift. For day workers this is simply the calendar day.
+        [$dayStart, $dayEnd] = $request->user()
+            ->loadMissing('shiftOverrides')
+            ->attendanceDayWindowFor(Carbon::now(BusinessTime::tz()));
 
-        // Sessions OVERLAPPING today (not merely started today), each reporting
-        // only its in-day share — the same split the Timeline/Dashboard use, so
-        // the desktop's "today" ring always matches the website. Previously an
-        // overnight session was lumped wholly onto its start date and the two
-        // disagreed after midnight.
+        // Sessions OVERLAPPING the work day (not merely started in it), each
+        // reporting only its in-window share — the same split the Dashboard
+        // uses, so the desktop's "today" ring always matches the website.
         $sessions = TrackingSession::forUser($request->user()->id)
             ->with(['client:id,name', 'upworkProfile:id,name'])
             ->where('started_at', '<=', $dayEnd)
@@ -373,8 +374,8 @@ class SessionController extends Controller
                 'task_note' => $session->task_note,
                 'started_at' => $session->started_at?->toIso8601String(),
                 'stopped_at' => $session->stopped_at?->toIso8601String(),
-                // In-day share, not the raw total: an overnight session only
-                // contributes its post-midnight part to "today".
+                // In-window share, not the raw total: only the part of the
+                // session inside this work day counts toward "today".
                 'total_seconds' => $this->sessions->inDaySeconds($session, $dayStart, $dayEnd),
                 'status' => $session->status,
             ]);

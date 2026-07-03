@@ -665,11 +665,13 @@ export default function Dashboard({ auth }) {
     // entries) — two different clocks, labeled honestly.
     const myTracked = employeesData.find((e) => e.user_id === auth.user.id)?.tracked_hours;
 
+    // Every card counts the SAME shift-aware work day (a night shift's day
+    // doesn't reset at midnight), so the four numbers always tell one story.
     const metrics = [
-        { label: 'In Office', sub: 'Clocked-in time · today', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10', title: 'Time clocked in today (clock-in to clock-out, minus breaks). This is attendance/presence — not the desktop tracker.' },
-        { label: 'Tracked Work', sub: 'Tracker active · today', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10', title: 'Active work recorded by the desktop tracker today (plus any manual work-diary hours). Can be lower than In Office if the tracker is off or idle.' },
-        { label: 'Break Time', sub: 'On break · today', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10', title: 'Total time on break today.' },
-        { label: 'Actions', sub: 'Clock punches · today', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10', title: 'Number of clock in / out / break-start / break-end punches today.' },
+        { label: 'In Office', sub: 'Clocked in · this work day', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10', title: 'How long you have been clocked in this work day (clock-in to clock-out, minus breaks). Your work day follows your shift — it does not reset at midnight.' },
+        { label: 'Tracked Work', sub: 'Tracker active · this work day', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10', title: 'Work the desktop tracker recorded this work day, plus manual work-diary hours. Lower than In Office when the tracker was off or you were idle (meetings, calls, reading).' },
+        { label: 'Break Time', sub: 'On break · this work day', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10', title: 'Total break time this work day. Breaks pause the tracker and are not counted as work.' },
+        { label: 'Actions', sub: 'Clock punches · this work day', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10', title: 'Clock in / out / break punches this work day.' },
     ];
 
     // Team table order: working people first, on-break in the middle, clocked
@@ -711,8 +713,17 @@ export default function Dashboard({ auth }) {
             <table className="min-w-full divide-y divide-slate-800">
                 <thead className="bg-slate-950">
                     <tr>
-                        {['Employee', 'Status', 'In Office', 'Tracked', 'Activity', 'Break', 'Week', 'Month'].map((heading) => (
-                            <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-300">{heading}</th>
+                        {[
+                            ['Employee', null],
+                            ['Status', null],
+                            ['In Office', 'Clocked-in time this work day (shift-aware — does not reset at midnight)'],
+                            ['Tracked', 'Desktop-tracker work this work day + manual hours'],
+                            ['Activity', 'Share of tracked time with keyboard/mouse input'],
+                            ['Break', 'Break time this work day'],
+                            ['Week', 'In-office hours since the start of the week (Monday). Early in a month this can exceed Month — the week may include days from last month.'],
+                            ['Month', 'In-office hours since the 1st of this month'],
+                        ].map(([heading, tip]) => (
+                            <th key={heading} title={tip || undefined} className={`px-4 py-3 text-left text-xs font-bold uppercase text-slate-300 ${tip ? 'cursor-help underline decoration-dotted decoration-slate-600 underline-offset-4' : ''}`}>{heading}</th>
                         ))}
                     </tr>
                 </thead>

@@ -258,6 +258,69 @@ class User extends Authenticatable
     }
 
     /**
+     * The wall-clock window of the WORK day $now belongs to — the inverse of
+     * attendanceDateFor(): every instant inside [start, end) buckets to the
+     * same attendance date. Lets "today" surfaces (dashboard cards, desktop
+     * today ring) count a night shift's post-midnight work on the same day as
+     * its clock-in instead of resetting to zero at midnight mid-shift.
+     *
+     * Exact for a steady shift; on the rare day a shift override CHANGES the
+     * start time across the boundary, the window approximates the dominant
+     * (spillover) rule.
+     *
+     * @return array{0: Carbon, 1: Carbon} [start, end) in the work timezone
+     */
+    public function attendanceDayWindowFor(Carbon $now): array
+    {
+        $date = $this->attendanceDateFor($now);
+        $nextDate = Carbon::parse($date, $this->workTimezone())->addDay()->toDateString();
+
+        return [$this->workDayStartFor($date), $this->workDayStartFor($nextDate)];
+    }
+
+    /**
+     * The instant attendance day $date begins, mirroring attendanceDateFor()'s
+     * branches: a >12:00 shift's day starts when the previous day's 12-hour
+     * spillover ends (e.g. a 16:00 shift's day runs 04:00 → 04:00); a shift
+     * starting within the early grace of midnight opens the evening before;
+     * everyone else gets plain midnight.
+     */
+    private function workDayStartFor(string $date): Carbon
+    {
+        $tz = $this->workTimezone();
+        $dayStart = Carbon::parse($date, $tz)->startOfDay();
+
+        $todayShift = $this->effectiveShiftFor($date)['start_time'];
+        $previousShift = $this->effectiveShiftFor($dayStart->copy()->subDay()->toDateString())['start_time'] ?? $todayShift;
+
+        // Previous day's late shift spills past midnight for up to 12 hours.
+        $spillEnd = null;
+        if ($previousShift) {
+            $spillEnd = $dayStart->copy()->subDay()
+                ->setTimeFromTimeString($previousShift->format('H:i:s'))
+                ->addHours(12);
+        }
+
+        // A shift starting within the early-grace window after midnight opens
+        // its day up to EARLY_CLOCK_IN_GRACE_MINUTES before the shift start
+        // (i.e. late the previous evening) — but only when the previous day's
+        // spillover doesn't reach past midnight.
+        if ($todayShift && (! $spillEnd || $spillEnd->lessThanOrEqualTo($dayStart))) {
+            $graceOpen = $dayStart->copy()
+                ->setTimeFromTimeString($todayShift->format('H:i:s'))
+                ->subMinutes(self::EARLY_CLOCK_IN_GRACE_MINUTES);
+            if ($graceOpen->lessThan($dayStart)) {
+                return $graceOpen;
+            }
+        }
+
+        // The spillover comparison in attendanceDateFor() is INCLUSIVE at
+        // exactly +12h (that instant still belongs to the previous day), so
+        // this day opens one second after.
+        return $spillEnd && $spillEnd->greaterThan($dayStart) ? $spillEnd->addSecond() : $dayStart;
+    }
+
+    /**
      * One-day shift overrides for this user (see {@see UserShiftOverride}).
      */
     public function shiftOverrides()

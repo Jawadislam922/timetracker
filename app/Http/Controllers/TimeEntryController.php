@@ -218,7 +218,7 @@ class TimeEntryController extends Controller
             $employees = User::active()->tracksTime()->with('shiftOverrides')->get();
             $ids = $employees->pluck('id')->all();
             $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
-            $trackedByUserDate = $this->loadTrackedHours($ids, $now);
+            $trackedByUserDate = $this->loadTrackedHours($employees, $now);
             $liveByUser = $this->loadLiveSessions($ids);
             $activityByUser = $this->loadDayActivity($ids, $now);
 
@@ -254,7 +254,7 @@ class TimeEntryController extends Controller
         } else {
             // Regular users see only their own data
             $entriesByUser = $this->loadSummaryEntries([$user->id], $now, $weekStart, $monthStart);
-            $trackedByUserDate = $this->loadTrackedHours([$user->id], $now);
+            $trackedByUserDate = $this->loadTrackedHours(collect([$user->loadMissing('shiftOverrides')]), $now);
             $liveByUser = $this->loadLiveSessions([$user->id]);
             $activityByUser = $this->loadDayActivity([$user->id], $now);
 
@@ -659,33 +659,44 @@ class TimeEntryController extends Controller
     }
 
     /**
-     * Tracked hours for TODAY (the current calendar day, business tz) per user,
-     * computed the SAME way as the Timeline and Team pages so the three never
-     * disagree: every tracking session overlapping today is split by the shared
-     * inDaySeconds helper (this includes live sessions and the today-portion of
-     * an overnight session), plus any manual work-diary hours logged today.
+     * Tracked hours for each employee's CURRENT WORK DAY — the same shift-aware
+     * day attendance uses (attendanceDayWindowFor), not the calendar day. For a
+     * day worker the two are identical; for a night shift this keeps "Tracked"
+     * counting the same day as "In Office" instead of resetting to zero at
+     * midnight mid-shift, which read as nonsense on the dashboard. Sessions are
+     * split by the shared inDaySeconds helper (live sessions included), plus
+     * any manual work-diary hours logged for that attendance date.
      *
-     * The previous version read work_hours bucketed by calendar date but looked
-     * them up by the user's attendance date — for a night-shift worker those two
-     * dates differ, so the lookup missed every row and the column read 0 even
-     * though the Timeline showed hours.
+     * Dated report pages (Timeline, Team ranges, desktop week chart) stay
+     * calendar-day — they answer "what happened on date X", this answers "how
+     * is MY work day going".
      *
-     * @param  array<int>  $userIds
+     * @param  Collection<int, User>  $users  shiftOverrides should be eager-loaded
      * @return Collection  keyed by user_id => float hours
      */
-    private function loadTrackedHours(array $userIds, Carbon $now): Collection
+    private function loadTrackedHours(Collection $users, Carbon $now): Collection
     {
-        $dayStart = $now->copy()->startOfDay();
-        $dayEnd = $now->copy()->endOfDay();
         $svc = app(TrackingSessionService::class);
 
-        // Tracker time: sessions overlapping today, each split to its in-day
-        // share. Skip deletion crumbs (<60s) but always keep a live session.
+        // Each employee's own work-day window + attendance date.
+        $windows = $users->mapWithKeys(function (User $u) use ($now) {
+            [$start, $end] = $u->attendanceDayWindowFor($now);
+
+            return [$u->id => ['start' => $start, 'end' => $end, 'date' => $u->attendanceDateFor($now)]];
+        });
+
+        $userIds = $users->pluck('id')->all();
+        $fetchStart = $windows->map(fn ($w) => $w['start'])->min();
+        $fetchEnd = $windows->map(fn ($w) => $w['end'])->max();
+
+        // Tracker time: sessions overlapping any window, each credited with its
+        // share inside the OWNER's window. Skip deletion crumbs (<60s) but
+        // always keep a live session.
         $trackerSeconds = TrackingSession::query()
             ->whereIn('user_id', $userIds)
-            ->where('started_at', '<=', $dayEnd)
-            ->where(function ($q) use ($dayStart) {
-                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $dayStart);
+            ->where('started_at', '<=', $fetchEnd)
+            ->where(function ($q) use ($fetchStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $fetchStart);
             })
             ->where(function ($q) {
                 $q->where('total_seconds', '>=', 60)
@@ -693,19 +704,27 @@ class TimeEntryController extends Controller
             })
             ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds', 'status'])
             ->groupBy('user_id')
-            ->map(fn ($sessions) => (int) $sessions->sum(fn ($s) => $svc->inDaySeconds($s, $dayStart, $dayEnd)));
+            ->map(function ($sessions, $userId) use ($svc, $windows) {
+                $w = $windows[$userId] ?? null;
 
-        // Manual work-diary hours logged for today (anything not synced from the
-        // tracker), so hand-entered time still shows beside tracked work.
+                return $w ? (int) $sessions->sum(fn ($s) => $svc->inDaySeconds($s, $w['start'], $w['end'])) : 0;
+            });
+
+        // Manual work-diary hours logged for the user's attendance date
+        // (anything not synced from the tracker).
         $manualHours = WorkHour::query()
             ->whereIn('user_id', $userIds)
-            ->whereDate('date', $dayStart->toDateString())
+            ->whereIn('date', $windows->map(fn ($w) => $w['date'])->unique()->values())
             ->where(function ($q) {
                 $q->whereNull('source')->orWhere('source', '!=', 'tracker');
             })
-            ->get(['user_id', 'hours'])
+            ->get(['user_id', 'hours', 'date'])
             ->groupBy('user_id')
-            ->map(fn ($rows) => (float) $rows->sum('hours'));
+            ->map(function ($rows, $userId) use ($windows) {
+                $date = $windows[$userId]['date'] ?? null;
+
+                return (float) $rows->filter(fn ($r) => Carbon::parse($r->date)->toDateString() === $date)->sum('hours');
+            });
 
         return collect($userIds)->mapWithKeys(fn ($id) => [
             $id => round(((int) ($trackerSeconds[$id] ?? 0)) / 3600 + (float) ($manualHours[$id] ?? 0), 2),
