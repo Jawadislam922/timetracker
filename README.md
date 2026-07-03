@@ -1,7 +1,14 @@
-# Sparking Asia Time Tracker
+# Sparking Asia Time Tracker (SA Track)
 
-Internal Laravel and React application for employee work diaries, attendance,
-client assignments, reporting, and weekly Slack summaries.
+Internal Laravel and React application for employee attendance, desktop time
+tracking (screenshots + activity), client assignments, reporting, and weekly
+Slack summaries.
+
+> **New to the project, or need the plain-English "what does it do / how does it
+> work / where is the database" explainer?** Read
+> **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** first. Short answer on the
+> database: it's a **MySQL database named `u406855808_timetracker` on the Hostinger
+> server** — not on anyone's PC.
 
 ## Codex Handoff
 
@@ -14,15 +21,20 @@ All supporting project documentation is organized in `documents/`.
 
 ## Features
 
+- **Desktop time tracker** (Electron app in `desktop/`) — periodic screenshots,
+  keyboard/mouse activity %, per-client/task sessions, background auto-updates
+- Attendance (clock in/out) shared between the web app and desktop app, with
+  automatic close of forgotten clock-outs at shift end
+- Per-person **Timeline** (screenshots + activity over the day) and a live team
+  **dashboard** with shift boards, leaderboards, and per-person analytics
 - Personal work diary with manual work-hour entries
-- Team work-hours report with searchable multi-select filters
-- CSV export for authorized users
-- Attendance monitoring and dashboard summaries
+- Team work-hours report with searchable multi-select filters, CSV export
+- Per-viewer **time zones** (each person sees times in their own zone)
+- In-app **Help** knowledge base + feedback inbox
 - Client and Upwork profile management
 - Super Admin, Admin, and Member roles with granular permissions
 - Administrator-managed accounts with public registration disabled
-- Manual Slack reports with selectable users and table columns
-- Automatic weekly Slack report every Sunday at 10:00 AM
+- Slack: attendance notifications, "still working?" nudges, weekly report
 
 Portfolio functionality has intentionally been removed.
 
@@ -112,6 +124,17 @@ php artisan optimize:clear
 ```
 
 ## Production Deployment
+
+> **How it actually deploys today (read this first):** pushing to the `jawad`
+> branch makes Hostinger **pull the code only** — it does **not** run
+> `composer install`, `npm run build`, or migrations automatically (the
+> `.cpanel.yml` tasks below do **not** run on this host). So: build the frontend
+> **locally** and commit `public/build`, and run any `composer install` /
+> `php artisan migrate --force` / `php artisan optimize:clear` **manually over
+> SSH** after the push. Full details + the desktop-release steps are in
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#deploying-important-gotchas).
+
+The steps below describe a *from-scratch* server bring-up:
 
 1. Copy `.env.production.example` to `.env` on the server.
 2. Set a production `APP_KEY`, database credentials, URL, mail settings, and

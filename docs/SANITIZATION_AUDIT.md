@@ -90,3 +90,49 @@ git push origin jawad         # ships composer.lock
 ssh <prod> 'cd ~/domains/timetracker.sparkingasia.com/public_html && \
   composer install --no-dev --optimize-autoloader && php artisan optimize:clear'
 ```
+
+---
+
+## Pass 2 — 2026-07-04 (close-out of the Pass 1 findings)
+
+**Auditor:** Claude (Opus 4.8) · **Goal:** finish every deferred / low item from Pass 1 and
+run a live leakage sweep, so the app can enter a full employee-testing phase with nothing
+security-related left open.
+
+### Live leakage sweep (production)
+Probed the running site directly — all good:
+
+| Probe | Result |
+|-------|--------|
+| `GET /.env` | **403** (not exposed) |
+| `GET /.git/config` | **403** |
+| `GET /composer.json` | **403** |
+| `GET /storage/app/private/screenshots/` | **403** (private disk, not listable) |
+| Session cookie flags | **`secure; httponly; samesite=lax`** already set |
+| `APP_ENV` / `APP_DEBUG` (prod) | `production` / `false` |
+| CSP header | `upgrade-insecure-requests` present |
+
+### Disposition of every Pass 1 finding
+
+| ID | Pass 1 status | Pass 2 outcome |
+|----|---------------|----------------|
+| **F1** (guzzle/psr7 CVEs) | Fixed locally, prod pending | ✅ **DEPLOYED to prod.** `composer install --no-dev` run over SSH; **`composer audit` on prod now returns "No security vulnerability advisories found."** |
+| **F2** (desktop `npm audit`: 11 vulns) | Deferred | ✅ **Assessed & consciously deferred.** `npm audit fix` (non-breaking) resolves **none** of them — every remaining fix needs `npm audit fix --force`, i.e. a **breaking major bump of a core capture library**: `jimp` 0.22→1.6 (screenshot processing), `active-win` 8→7.7.2 (window-title capture, a downgrade), `uuid` 10→14. Real-world exposure is low: `form-data` uses fixed field names, the app uses `uuid` **v4 without a buffer** (the advisory is v3/v5/v6-with-buffer only), and `tar`/`node-pre-gyp` are **build-time only**, not shipped runtime paths. Forcing these right before a testing freeze would risk breaking capture on an app that can't be GUI-verified here. **Left on stable 0.4.2; the major bumps belong in their own dedicated, tested desktop release.** |
+| **L1** (`SESSION_SECURE_COOKIE` unset) | Recommend setting | ◑ **Behaviour already correct** — the live session cookie is already `secure` (Laravel auto-marks cookies secure over HTTPS). Making it explicit (`SESSION_SECURE_COOKIE=true`) is documented in `.env.example`; applying it to the **prod `.env`** is a one-line production config change left for an explicit go-ahead (auto-mode correctly blocks unattended prod `.env` writes). Not fixing a real exposure — hardening only. |
+| **L2** (desktop `sandbox: false`) | Optional | ◑ **Deferred with rationale.** The core renderer protections are already in place (`contextIsolation: true`, `nodeIntegration: false`, curated `contextBridge` allowlist). Flipping `sandbox: true` cannot be GUI-verified in this environment and a bad flip would block **all** tracking; it belongs in the same dedicated desktop release as F2, where the packaged app can be launch-tested. |
+| **L3** (screenshot mime validation) | Optional | ✅ **Already satisfied.** `UploadScreenshotRequest` already enforces `image`, `mimes:jpeg,jpg,png,webp`, and `max:8192`. The Pass 1 note referred to the stored *filename* extension, which is moot because the file content is validated and the disk is private/never executed. |
+
+### Docs shipped this pass
+- **`README.md`** — refreshed (desktop app + current features; corrected the deploy section to
+  match how the host actually deploys).
+- **`docs/ARCHITECTURE.md`** — new plain-English "what it does / how it works / **where the
+  database and data live**" explainer (answers the "where is the database" question directly).
+- **Help knowledge base** — added "Using SA Track on a shared computer" and "What SA Track
+  records — and who can see it," plus an auto-update note; re-seeded (idempotent).
+
+### Net state
+The **web/server side is fully hardened and deployed** (no known CVEs on prod, no leaked files,
+secure cookies, debug off). The only open items are **desktop-side hardening** (F2/L2) that
+require a separately-testable desktop release, and one **optional** explicit `.env` line (L1) —
+none of which block or affect employee testing.
+

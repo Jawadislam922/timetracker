@@ -73,8 +73,14 @@ class HelpArticleSeeder extends Seeder
             [
                 'category' => 'Desktop app',
                 'title' => 'Getting the desktop app',
-                'keywords' => 'download desktop app install mac windows setup',
-                'body' => "Download the desktop app from the **Desktop Downloads** link in your profile menu (top-right). Install it, sign in with your SA Track email, and you're ready to clock in and track.",
+                'keywords' => 'download desktop app install mac windows setup update auto-update version',
+                'body' => "Download the desktop app from the **Desktop Downloads** link in your profile menu (top-right). Install it, sign in with your SA Track email, and you're ready to clock in and track.\n\nYou only install it once — the app **updates itself** in the background when a new version is released, so you don't need to re-download it. If you're ever asked to restart it to finish an update, just close and reopen it.",
+            ],
+            [
+                'category' => 'Desktop app',
+                'title' => 'Using SA Track on a shared computer',
+                'keywords' => 'shared computer shared pc multiple people same machine bidding pc sign in switch user separate whose time',
+                'body' => "Several people using the same PC? That's fine — SA Track keeps each person separate:\n\n1. **Always sign in as yourself.** If someone else is signed in, sign them out first (profile menu → **Sign out**), then sign in with your own email.\n2. **Clock in as you, and stop/clock out when you're done** so the next person starts clean.\n3. Each signed-in person gets their **own private space** on that machine — your queued time and screenshots are never mixed with a co-worker's.\n\nThe one thing to get right on a shared PC is **who is signed in** — the hours always follow the signed-in account, not the computer.",
             ],
             [
                 'category' => 'Troubleshooting',
@@ -105,6 +111,12 @@ class HelpArticleSeeder extends Seeder
                 'title' => 'The times look a few hours off',
                 'keywords' => 'times off hours off wrong timezone 5 hours off shifted',
                 'body' => "Check **Profile → Time zone** is set to where you are. Times always display in your chosen zone, never your computer's clock — so a wrong PC clock can't throw them off.",
+            ],
+            [
+                'category' => 'How it works',
+                'title' => 'What SA Track records — and who can see it',
+                'keywords' => 'privacy what is recorded screenshots data who can see private tracked data stored where security webcam',
+                'body' => "SA Track is a **work** tracker, so it's clear about what it records:\n\n- **While you're tracking** (clocked in and Start pressed), it takes periodic **screenshots** of your screen and counts keyboard/mouse activity for the client and task you picked.\n- It records the **active app / window title** so your work can be grouped by what you were doing.\n- It does **not** use your webcam, read your files, or log what you type (only *how much* you type — a count, not the keys).\n\n**When you're not tracking — on a break, clocked out, or the tracker stopped — nothing is captured.**\n\nEverything is sent to the company's own private SA Track server over a secure connection. Your screenshots and activity are visible to **you** and to **authorized managers** only — not to co-workers.",
             ],
             [
                 'category' => 'For managers',
