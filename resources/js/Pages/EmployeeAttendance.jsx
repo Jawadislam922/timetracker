@@ -834,7 +834,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                             <div>
                                 <h3 className="text-lg font-bold text-slate-100">Edit clock times</h3>
                                 <p className="mt-1 text-sm text-slate-400">
-                                    {clockEmployee?.name ? `${clockEmployee.name} · ` : ''}{selectedDate}
+                                    {clockEmployee?.user_name ? `${clockEmployee.user_name} · ` : ''}{selectedDate}
                                 </p>
                                 {clockTzLabel && (
                                     <p className="mt-1 text-xs font-medium text-orange-400">
@@ -1405,6 +1405,7 @@ function MonthlyAttendanceGrid({ days, employees, statusOptions, canManualMark, 
     const [menuPosition, setMenuPosition] = useState(null);
     const summaryColumns = [
         { key: 'holidays', label: 'Holidays' },
+        { key: 'public_holiday', label: 'Public H.' },
         { key: 'present', label: 'Present' },
         { key: 'absent', label: 'Absent' },
         { key: 'leave', label: 'Leave' },

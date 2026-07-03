@@ -107,7 +107,13 @@ Probed the running site directly — all good:
 | `GET /.env` | **403** (not exposed) |
 | `GET /.git/config` | **403** |
 | `GET /composer.json` | **403** |
-| `GET /storage/app/private/screenshots/` | **403** (private disk, not listable) |
+| `GET /storage/app/private/screenshots/` | **403** (local fallback path, not listable) |
+
+> **Note (corrected 2026-07-04):** in production screenshots are stored in a **private AWS S3
+> bucket** (`sparkingasia-timetracker-screenshots`, eu-north-1) and served via short-lived
+> **signed URLs** — the local `storage/` path is only the dev fallback, so its 403 confirms the
+> fallback isn't exposed but does not exercise the real store. S3 objects are `private`
+> visibility; access requires a signed URL that expires.
 | Session cookie flags | **`secure; httponly; samesite=lax`** already set |
 | `APP_ENV` / `APP_DEBUG` (prod) | `production` / `false` |
 | CSP header | `upgrade-insecure-requests` present |

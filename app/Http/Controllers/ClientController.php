@@ -264,12 +264,21 @@ class ClientController extends Controller
         try {
             if ($request->boolean('all_matching')) {
                 // Rebuild the SAME query index() uses from the provided filters,
-                // IGNORING the status filter, then pluck ids.
+                // applying BOTH the search term AND the status scope, so the
+                // affected set matches the count and rows the user saw.
                 $search = $request->get('search', '');
+                $status = $request->get('status', 'all');
 
                 $query = Client::query();
                 if (! empty($search)) {
                     $query->where('name', 'like', '%'.$search.'%');
+                }
+
+                // Apply the identical status scope index() used.
+                if ($status === 'active') {
+                    $query->active();
+                } elseif ($status === 'archived') {
+                    $query->archived();
                 }
 
                 $ids = $query->pluck('id')->all();

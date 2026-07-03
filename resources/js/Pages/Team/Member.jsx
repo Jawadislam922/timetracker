@@ -120,7 +120,7 @@ export default function TeamMember({ auth, member, start, end, range, charts, to
                         isEmpty={!(charts.top_apps || []).length}
                         buildData={(type) => (type === 'bar'
                             ? toTrendData(toShareData(charts.top_apps).labels, [{ label: 'Hours', data: toShareData(charts.top_apps).datasets[0].data }], 'bar')
-                            : toShareData(charts.top_apps))}
+                            : toShareData(charts.top_apps, { cap: 24 }))}
                         buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
                         height={260}
                     />
@@ -132,7 +132,7 @@ export default function TeamMember({ auth, member, start, end, range, charts, to
                         isEmpty={!(charts.top_clients || []).length}
                         buildData={(type) => (type === 'bar'
                             ? toTrendData(toShareData(charts.top_clients).labels, [{ label: 'Hours', data: toShareData(charts.top_clients).datasets[0].data }], 'bar')
-                            : toShareData(charts.top_clients))}
+                            : toShareData(charts.top_clients, { cap: 24 }))}
                         buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
                         height={260}
                     />

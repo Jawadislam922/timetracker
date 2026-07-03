@@ -61,8 +61,6 @@ class DeveloperController extends Controller
                     ['key' => 'SLACK_REPORT_WEBHOOK_URL', 'label' => 'Incoming webhook URL', 'type' => 'secret'],
                     ['key' => 'SLACK_REPORT_TIMEZONE', 'label' => 'Timezone', 'type' => 'text', 'placeholder' => 'Asia/Karachi'],
                     ['key' => 'SLACK_WEEKLY_REPORT_ENABLED', 'label' => 'Weekly work-hours report', 'type' => 'bool'],
-                    ['key' => 'SLACK_DAILY_DIGEST_ENABLED', 'label' => 'Daily activity digest', 'type' => 'bool'],
-                    ['key' => 'SLACK_DAILY_DIGEST_TIME', 'label' => 'Daily digest time (HH:MM)', 'type' => 'text', 'placeholder' => '09:00'],
                 ],
             ],
             'slack_bot' => [
@@ -136,10 +134,6 @@ class DeveloperController extends Controller
         if (isset($updates['SLACK_REPORT_WEBHOOK_URL']) && $updates['SLACK_REPORT_WEBHOOK_URL'] !== ''
             && ! str_starts_with($updates['SLACK_REPORT_WEBHOOK_URL'], 'https://')) {
             return back()->with('error', 'Slack webhook must be an https:// URL.');
-        }
-        if (isset($updates['SLACK_DAILY_DIGEST_TIME']) && $updates['SLACK_DAILY_DIGEST_TIME'] !== ''
-            && ! preg_match('/^\d{1,2}:\d{2}$/', $updates['SLACK_DAILY_DIGEST_TIME'])) {
-            return back()->with('error', 'Daily digest time must be HH:MM.');
         }
         if (isset($updates['SLACK_BOT_TOKEN']) && $updates['SLACK_BOT_TOKEN'] !== ''
             && ! str_starts_with($updates['SLACK_BOT_TOKEN'], 'xoxb-')) {
@@ -441,11 +435,6 @@ class DeveloperController extends Controller
                 'name' => 'Weekly Slack work-hours report',
                 'enabled' => (bool) config('services.slack_reports.weekly_enabled'),
                 'when' => 'Sundays 10:00 '.config('services.slack_reports.timezone', 'Asia/Karachi'),
-            ],
-            [
-                'name' => 'Daily Slack activity digest',
-                'enabled' => (bool) config('services.slack_reports.daily_digest_enabled'),
-                'when' => 'Daily '.config('services.slack_reports.daily_digest_time', '09:00').' '.config('services.slack_reports.timezone', 'Asia/Karachi'),
             ],
             [
                 'name' => 'Screenshot retention prune',

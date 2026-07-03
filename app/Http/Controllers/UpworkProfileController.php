@@ -118,16 +118,6 @@ class UpworkProfileController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(UpworkProfile $upworkProfile)
-    {
-        return Inertia::render('UpworkProfiles/Show', [
-            'profile' => $upworkProfile->load('workHours'),
-        ]);
-    }
-
-    /**
      * Show the form for editing the specified resource.
      */
     public function edit(UpworkProfile $upworkProfile)

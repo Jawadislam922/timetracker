@@ -1,6 +1,7 @@
 import React from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import Pagination from '@/Components/Pagination';
 
 function fmtDuration(seconds) {
     if (!seconds) return '0m';
@@ -116,6 +117,7 @@ export default function SessionsList({ auth, sessions, users = [], filters = {},
                                 ))}
                             </tbody>
                         </table>
+                        {sessions?.links && <Pagination data={sessions} className="mt-4 px-4 pb-4" dark />}
                     </div>
                 </div>
             </div>

@@ -465,7 +465,7 @@ class TeamController extends Controller
             ],
             'start' => $rangeStart->toDateString(),
             'end' => $rangeEnd->toDateString(),
-            'range' => $request->input('range', $rangeStart->toDateString() === $rangeEnd->toDateString() ? 'today' : 'custom'),
+            'range' => $request->input('range', ($request->filled('start') && $request->filled('end')) ? 'custom' : '7d'),
             'charts' => [
                 'labels' => $labels,
                 'tracked_hours' => $trackedHours,

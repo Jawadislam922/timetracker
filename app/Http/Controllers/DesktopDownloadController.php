@@ -8,9 +8,13 @@ use Inertia\Inertia;
 
 class DesktopDownloadController extends Controller
 {
-    private const WINDOWS_INSTALLER = 'SA Track Setup 0.4.1.exe';
+    // Fallback only. The live version + installer are read from the auto-update
+    // feed's latest.yml (see activeWindowsRelease) so the download page can never
+    // drift behind the updater again; these constants are used only if the
+    // manifest can't be read.
+    private const WINDOWS_INSTALLER = 'SA Track Setup 0.4.2.exe';
 
-    private const WINDOWS_VERSION = '0.4.1';
+    private const WINDOWS_VERSION = '0.4.2';
 
     private const MAC_VERSION = '0.3.9';
 
@@ -36,6 +40,7 @@ class DesktopDownloadController extends Controller
 
     public function index()
     {
+        $release = $this->activeWindowsRelease();
         $windows = $this->installerMeta($this->windowsInstaller());
         $mac = $this->installerMeta($this->macInstaller());
 
@@ -43,8 +48,8 @@ class DesktopDownloadController extends Controller
             'downloads' => [
                 'windows' => [
                     'available' => $windows !== null,
-                    'version' => self::WINDOWS_VERSION,
-                    'filename' => self::WINDOWS_INSTALLER,
+                    'version' => $release['version'],
+                    'filename' => $release['installer'],
                     'size' => $windows['size'] ?? null,
                     'sha256' => $windows['sha256'] ?? null,
                     'url' => $windows ? route('desktop-downloads.windows') : null,
@@ -91,7 +96,7 @@ class DesktopDownloadController extends Controller
 
         abort_unless($path, 404);
 
-        return response()->download($path, self::WINDOWS_INSTALLER, [
+        return response()->download($path, basename($path), [
             'Content-Type' => 'application/vnd.microsoft.portable-executable',
             'X-Content-Type-Options' => 'nosniff',
         ]);
@@ -161,7 +166,42 @@ class DesktopDownloadController extends Controller
 
     private function windowsInstaller(): ?string
     {
-        return $this->findInstaller([self::WINDOWS_INSTALLER]);
+        $release = $this->activeWindowsRelease();
+
+        // Prefer the installer the update feed points at; fall back to the
+        // compiled-in name so a downloadable build is always offered.
+        return $this->findInstaller([$release['installer'], self::WINDOWS_INSTALLER]);
+    }
+
+    /**
+     * The Windows release the auto-update feed is currently serving, read from
+     * latest.yml. Keeping the download page sourced from the SAME manifest the
+     * updater uses means the two can never disagree (the 0.4.1-vs-0.4.2 drift
+     * that shipped stale installs). Falls back to the constants if the manifest
+     * is missing/unparseable or its installer isn't actually on disk.
+     *
+     * @return array{version: string, installer: string}
+     */
+    private function activeWindowsRelease(): array
+    {
+        foreach ($this->searchDirs() as $dir) {
+            $manifest = rtrim($dir, '/').'/latest.yml';
+            if (! File::isFile($manifest)) {
+                continue;
+            }
+
+            $yml = File::get($manifest);
+            $version = preg_match('/^version:\s*(\S+)/m', $yml, $m) ? trim($m[1]) : null;
+            $installer = preg_match('/^path:\s*(.+?)\s*$/m', $yml, $p) ? trim($p[1]) : null;
+
+            // Only trust the manifest if its installer really exists — never
+            // advertise a version whose .exe we can't actually serve.
+            if ($version && $installer && File::isFile(rtrim($dir, '/').'/'.$installer)) {
+                return ['version' => $version, 'installer' => $installer];
+            }
+        }
+
+        return ['version' => self::WINDOWS_VERSION, 'installer' => self::WINDOWS_INSTALLER];
     }
 
     private function macInstaller(): ?string

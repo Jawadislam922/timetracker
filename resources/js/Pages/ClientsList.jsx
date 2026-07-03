@@ -191,7 +191,13 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
 
     // Handle individual client selection
     const handleClientSelect = (clientId) => {
-        const newSelected = new Set(selectedClients);
+        // When "select all matching" is active, selectedClients is empty even
+        // though every checkbox reads as checked. Materialize the real page
+        // selection first so toggling one row removes only that row instead of
+        // collapsing the selection down to it.
+        const newSelected = selectAllMatching
+            ? new Set(clients?.data?.map(client => client.id) || [])
+            : new Set(selectedClients);
         if (newSelected.has(clientId)) {
             newSelected.delete(clientId);
         } else {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react';
 import SwitchableChartCard from '@/Components/Charts/SwitchableChartCard';
 import { getChartOptions, toTrendData, toShareData } from '@/lib/chartConfig';
@@ -7,7 +7,7 @@ import { getChartOptions, toTrendData, toShareData } from '@/lib/chartConfig';
 const hours = (v) => `${Math.round(v * 10) / 10}h`;
 const pct = (v) => `${Math.round(v)}%`;
 
-export default function TeamChartsPanel({ charts, rows }) {
+export default function TeamChartsPanel({ charts, rows, canViewAnalytics = false, rangeParams = {} }) {
     const display = usePage().props.display || { timezone: 'Asia/Karachi' };
     const [open, setOpen] = useState(true);
 
@@ -25,11 +25,21 @@ export default function TeamChartsPanel({ charts, rows }) {
         [charts?.labels, display.timezone],
     );
 
-    // Composition is derived from the SAME row totals the table renders.
-    const composition = useMemo(
-        () => (rows || []).map((r) => ({ label: r.name, value: (r.total_seconds || 0) / 3600 })),
+    // Ranked members (with ids) from the SAME row totals the table renders.
+    // Sorted value-desc so the chart's bar index maps 1:1 to this list — which
+    // lets a click on a bar open exactly that member's analytics.
+    const memberRanked = useMemo(
+        () => (rows || [])
+            .map((r) => ({ id: r.id, label: r.name, value: (r.total_seconds || 0) / 3600 }))
+            .filter((m) => m.value > 0)
+            .sort((a, b) => (b.value - a.value) || String(a.label).localeCompare(String(b.label))),
         [rows],
     );
+
+    const openMember = (i) => {
+        const m = memberRanked[i];
+        if (m) router.visit(route('team.member', { user: m.id, ...rangeParams }));
+    };
 
     // Ranked-bar builders for the "many categories" charts (members / clients /
     // apps). A donut caps at 8 slices + a useless "Others" — no good for 58
@@ -40,7 +50,9 @@ export default function TeamChartsPanel({ charts, rows }) {
             const s = toShareData(items, { cap: barCap });
             return toTrendData(s.labels, [{ label: 'Hours', data: s.datasets[0].data }], 'bar');
         }
-        return toShareData(items);
+        // Donut/pie: show a healthy number of slices instead of the default 8,
+        // so the share view doesn't collapse most entities into "Others".
+        return toShareData(items, { cap: 12 });
     };
     const rankedOpts = (type) => getChartOptions({
         type,
@@ -92,14 +104,19 @@ export default function TeamChartsPanel({ charts, rows }) {
                     <div className="lg:col-span-2">
                         <SwitchableChartCard
                             title="Hours by member"
-                            subtitle="Every member, ranked"
+                            subtitle={canViewAnalytics ? 'Every member, ranked — click a bar to open their analytics' : 'Every member, ranked'}
                             chartKey="team_composition_v2"
                             allowedTypes={['bar']}
                             defaultType="bar"
-                            isEmpty={composition.every((c) => c.value <= 0)}
-                            buildData={rankedBuild(composition, composition.length || 8)}
+                            isEmpty={memberRanked.length === 0}
+                            buildData={() => toTrendData(
+                                memberRanked.map((m) => m.label),
+                                [{ label: 'Hours', data: memberRanked.map((m) => m.value) }],
+                                'bar',
+                            )}
                             buildOptions={rankedOpts}
-                            height={barHeight(composition.filter((c) => c.value > 0).length)}
+                            height={barHeight(memberRanked.length)}
+                            onSelect={canViewAnalytics ? openMember : undefined}
                         />
                     </div>
                     <SwitchableChartCard

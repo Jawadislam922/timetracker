@@ -409,7 +409,7 @@ class TimelineController extends Controller
 
         // No samples (e.g. capture blocked) or a single active run → one block.
         if (count($segments) <= 1) {
-            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, $session->stopped_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey, $tz)];
+            return [$this->sessionBlock($session, $rows, $samples, $dayTotal, $session->started_at, $session->stopped_at, 0, false, true, true, $canViewScreenshots, $interval, $dateKey, $tz, 0)];
         }
 
         $totalSamples = max(1, array_sum(array_map(fn ($s) => $s['samples']->count(), $segments)));
@@ -453,6 +453,7 @@ class TimelineController extends Controller
                 $interval,
                 $dateKey,
                 $tz,
+                $i,
             );
             $prevEnd = $seg['end'];
         }
@@ -496,7 +497,7 @@ class TimelineController extends Controller
     }
 
     /** Build a single Timeline block payload (whole session, or one segment). */
-    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, ?Carbon $blockEnd, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey, string $tz = 'Asia/Karachi'): array
+    private function sessionBlock(TrackingSession $session, Collection $rows, Collection $samples, int $daySeconds, ?Carbon $blockStart, ?Carbon $blockEnd, int $idleBefore, bool $isResumed, bool $isFirst, bool $isLast, bool $canViewScreenshots, int $interval, string $dateKey, string $tz = 'Asia/Karachi', int $blockIndex = 0): array
     {
         // Honest keystrokes + real clicks per screenshot, summed from the
         // per-minute samples in each shot's window (see screenshotInput).
@@ -506,6 +507,11 @@ class TimelineController extends Controller
 
         return [
             'id' => $session->id,
+            // Stable UNIQUE React key per display block. A session split at idle
+            // gaps emits several blocks that all share the real session id, so
+            // keying the frontend list on `id` collided; `block_key` disambiguates
+            // them while `id` stays the real DB session id for delete/select.
+            'block_key' => $session->id . '-' . $blockIndex,
             'client_name' => $session->client?->name,
             'task_note' => $session->task_note,
             'work_type' => $session->work_type,

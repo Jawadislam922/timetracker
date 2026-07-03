@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Apple, CheckCircle2, Copy, Download, FolderOpen, Laptop, MonitorDown, Network, ShieldAlert, ShieldCheck } from 'lucide-react';
 
-const MAC_QUARANTINE_CMD = 'xattr -dr com.apple.quarantine "/Applications/Timetracker Desktop.app"';
+const MAC_QUARANTINE_CMD = 'xattr -dr com.apple.quarantine "/Applications/SA Track.app"';
 
 // Per-user install location (electron-builder NSIS, perMachine:false). The folder
 // is named after the app's productName — "SA Track" on current builds, but machines
@@ -169,7 +169,7 @@ function MacInstallHelp() {
                 <div className="rounded-lg bg-slate-900 p-4">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Option A — Terminal (most reliable)</div>
                     <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-300">
-                        <li>Drag <span className="font-medium">Timetracker Desktop</span> into <span className="font-medium">Applications</span>.</li>
+                        <li>Drag <span className="font-medium">SA Track</span> into <span className="font-medium">Applications</span>.</li>
                         <li>Open <span className="font-medium">Terminal</span> and run the command below.</li>
                         <li>Double-click the app in Applications — it opens normally.</li>
                     </ol>
@@ -193,7 +193,7 @@ function MacInstallHelp() {
                     <ol className="ml-4 list-decimal space-y-1 text-sm text-slate-300">
                         <li>Click <span className="font-medium">Done</span> on the warning (not “Move to Bin”).</li>
                         <li>Open  → <span className="font-medium">System Settings</span> → <span className="font-medium">Privacy &amp; Security</span>.</li>
-                        <li>Scroll down — click <span className="font-medium">Open Anyway</span> next to “Timetracker Desktop”.</li>
+                        <li>Scroll down — click <span className="font-medium">Open Anyway</span> next to “SA Track”.</li>
                         <li>Launch the app again and click <span className="font-medium">Open</span>.</li>
                     </ol>
                     <p className="mt-3 text-xs text-slate-400">
@@ -295,7 +295,7 @@ export default function DesktopDownloads({ auth, downloads }) {
                                 <MonitorDown className="h-4 w-4" />
                                 Employee tracker
                             </div>
-                            <h1 className="mt-2 text-2xl font-bold text-white">Download Timetracker Desktop</h1>
+                            <h1 className="mt-2 text-2xl font-bold text-white">Download SA Track Desktop</h1>
                             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
                                 Install the desktop tracker on company machines for screenshot capture, activity sampling,
                                 and automatic report entries.
@@ -335,11 +335,11 @@ export default function DesktopDownloads({ auth, downloads }) {
                             <CheckCircle2 className="h-4 w-4" />
                             Sign in with web credentials
                         </div>
-                        <p className="leading-6">Employees use the same Timetracker account after installation.</p>
+                        <p className="leading-6">Employees use the same SA Track account after installation.</p>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
                         <div className="mb-2 font-semibold text-slate-100">Server URL</div>
-                        <p className="leading-6">Use the company Timetracker URL when the desktop app asks for the server.</p>
+                        <p className="leading-6">Use the company SA Track URL (timetracker.sparkingasia.com) when the desktop app asks for the server.</p>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
                         <div className="mb-2 font-semibold text-slate-100">Company rollout</div>

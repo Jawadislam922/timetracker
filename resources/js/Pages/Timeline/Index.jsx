@@ -349,7 +349,7 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                             type="button"
                             onClick={() => onRequestDeleteSession?.({
                                 id: session.id,
-                                label: `${fmtTime(session.started_at)} - ${fmtTime(session.stopped_at)} · ${sessionLabel(session)}`,
+                                label: `${fmtTime(session.started_at)} - ${session.stopped_at ? fmtTime(session.stopped_at) : 'now'} · ${sessionLabel(session)}`,
                                 seconds: session.total_seconds,
                             })}
                             className="rounded border border-rose-500/40 px-1.5 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/10"
@@ -843,7 +843,7 @@ export default function TimelineIndex({
                         )}
                         {(data.sessions || []).map((session) => (
                             <SessionCard
-                                key={session.id}
+                                key={session.block_key ?? session.id}
                                 session={session}
                                 canViewScreenshots={permissions.view_screenshots}
                                 canManageScreenshots={permissions.manage_screenshots}
@@ -882,7 +882,7 @@ export default function TimelineIndex({
                             </span>
                         )}
                         <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500">
-                            <Clock className="h-3 w-3" /> Times in your local timezone
+                            <Clock className="h-3 w-3" /> Times shown in {DISPLAY.timezone}
                         </span>
                     </div>
                 </div>

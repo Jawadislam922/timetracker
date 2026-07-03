@@ -145,7 +145,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/upwork-profiles', [UpworkProfileController::class, 'store'])->middleware('permission:profiles.manage')->name('upwork-profiles.store');
     Route::post('/upwork-profiles/bulk-status', [UpworkProfileController::class, 'bulkStatus'])->middleware('permission:profiles.manage')->name('upwork-profiles.bulk-status');
     Route::patch('/upwork-profiles/{upwork_profile}/status', [UpworkProfileController::class, 'setStatus'])->middleware('permission:profiles.manage')->name('upwork-profiles.set-status');
-    Route::get('/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'show'])->middleware('permission:profiles.view')->name('upwork-profiles.show');
     Route::get('/upwork-profiles/{upwork_profile}/edit', [UpworkProfileController::class, 'edit'])->middleware('permission:profiles.manage')->name('upwork-profiles.edit');
     Route::match(['put', 'patch'], '/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'update'])->middleware('permission:profiles.manage')->name('upwork-profiles.update');
     Route::delete('/upwork-profiles/{upwork_profile}', [UpworkProfileController::class, 'destroy'])->middleware('permission:profiles.manage')->name('upwork-profiles.destroy');

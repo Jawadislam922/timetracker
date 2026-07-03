@@ -117,7 +117,26 @@ export function getChartOptions({ type = 'bar', showLegend = false, valueFormat,
             : { scales: horizontal ? { x: valueAxis, y: catAxis } : { x: catAxis, y: valueAxis } }),
     };
 
-    return { ...base, ...overrides, plugins: { ...base.plugins, ...(overrides.plugins || {}) } };
+    // Deep-merge scales PER-AXIS so overrides like { scales: { y: { max: 100 } } }
+    // layer onto the themed axes instead of replacing them wholesale (which would
+    // drop ticks.callback, beginAtZero, and the ink/grid colours). Arc charts have
+    // no scales, so this stays a no-op for doughnut/pie.
+    const mergedScales = (base.scales || overrides.scales)
+        ? Object.fromEntries(
+            [...new Set([...Object.keys(base.scales || {}), ...Object.keys(overrides.scales || {})])].map((axis) => {
+                const baseAxis = (base.scales || {})[axis] || {};
+                const overrideAxis = (overrides.scales || {})[axis] || {};
+                return [axis, { ...baseAxis, ...overrideAxis, ticks: { ...baseAxis.ticks, ...overrideAxis.ticks } }];
+            })
+        )
+        : undefined;
+
+    return {
+        ...base,
+        ...overrides,
+        plugins: { ...base.plugins, ...(overrides.plugins || {}) },
+        ...(mergedScales ? { scales: mergedScales } : {}),
+    };
 }
 
 /**

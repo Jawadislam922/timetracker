@@ -33,6 +33,7 @@ export default function SwitchableChartCard({
     isEmpty = false,
     height = 280,
     actions = null,
+    onSelect = null,
 }) {
     const storageKey = `satrack.chart.${chartKey}.type`;
     const fallback = defaultType && allowedTypes.includes(defaultType) ? defaultType : allowedTypes[0];
@@ -104,6 +105,7 @@ export default function SwitchableChartCard({
                     data={buildData(type)}
                     options={buildOptions ? buildOptions(type) : {}}
                     height={height}
+                    onSelect={onSelect}
                 />
             )}
         </div>

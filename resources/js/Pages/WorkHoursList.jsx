@@ -76,6 +76,8 @@ export default function WorkHoursList({
     auth,
     workHours,
     flash,
+    search = '',
+    filteredTotalHours = 0,
     filter = 'all',
     startDate = null,
     endDate = null,
@@ -87,7 +89,7 @@ export default function WorkHoursList({
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
     const [selectedEntries, setSelectedEntries] = useState(new Set());
     const [isExporting, setIsExporting] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(search);
     const [showFilters, setShowFilters] = useState(false);
     const [dateFilter, setDateFilter] = useState(filter);
     const [customStartDate, setCustomStartDate] = useState(startDate ? new Date(startDate) : null);
@@ -102,6 +104,26 @@ export default function WorkHoursList({
             setToastType(flash.success ? 'success' : 'error');
         }
     }, [flash]);
+
+    // Debounced server-side search. Only fires when the trimmed term differs
+    // from what the server already rendered, so it won't loop on load or when
+    // an Inertia visit brings back the matching `search` prop.
+    useEffect(() => {
+        const trimmed = searchTerm.trim();
+        if (trimmed === (search || '')) return;
+
+        const timeout = setTimeout(() => {
+            router.get(route('work-hours.index'), buildFilterParams({ searchTerm: trimmed }), {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            });
+            clearSelection();
+        }, 350);
+
+        return () => clearTimeout(timeout);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm]);
 
     const currentListUrl = () => (
         typeof window === 'undefined'
@@ -141,7 +163,9 @@ export default function WorkHoursList({
     };
 
     const selectAllPage = () => {
-        const pageIds = workHours?.data?.map(entry => entry.id) || [];
+        // Only the currently-rendered rows (= this server page, already filtered
+        // by the active search) so bulk-delete can never touch hidden entries.
+        const pageIds = (workHours?.data || []).map(entry => entry.id);
         setSelectedEntries(new Set(pageIds));
     };
 
@@ -169,6 +193,7 @@ export default function WorkHoursList({
         const nextWorkTypes = overrides.selectedWorkTypes !== undefined ? overrides.selectedWorkTypes : selectedWorkTypes;
         const nextTrackers = overrides.selectedTrackers !== undefined ? overrides.selectedTrackers : selectedTrackers;
         const nextClients = overrides.selectedClients !== undefined ? overrides.selectedClients : selectedClients;
+        const nextSearch = overrides.searchTerm !== undefined ? overrides.searchTerm : searchTerm;
         const params = {
             filter: nextDateFilter,
         };
@@ -176,6 +201,7 @@ export default function WorkHoursList({
         if (nextWorkTypes.length) params.workTypes = nextWorkTypes;
         if (nextTrackers.length) params.trackers = nextTrackers;
         if (nextClients.length) params.clients = nextClients;
+        if (nextSearch) params.search = nextSearch;
 
         if (nextDateFilter === 'custom' && nextStartDate && nextEndDate) {
             params.startDate = formatDateLocal(nextStartDate);
@@ -326,22 +352,13 @@ export default function WorkHoursList({
         }
     };
 
-    const filteredData = useMemo(() => workHours?.data?.filter(entry => {
-        if (searchTerm) {
-            const search = searchTerm.toLowerCase();
-            return (
-                entry.client?.name?.toLowerCase().includes(search) ||
-                entry.description?.toLowerCase().includes(search) ||
-                entry.tracker?.toLowerCase().includes(search)
-            );
-        }
-        return true;
-    }) || [], [workHours?.data, searchTerm]);
+    // Search is applied server-side (WorkHourController@index), so the rendered
+    // rows are exactly this paginated page — no client-side filtering. This
+    // keeps select-all / bulk-delete scoped to visible rows only.
+    const filteredData = useMemo(() => workHours?.data || [], [workHours?.data]);
 
-    const totalHours = useMemo(
-        () => filteredData.reduce((sum, entry) => sum + Number(entry.hours || 0), 0),
-        [filteredData],
-    );
+    // Grand total across every matching page, computed server-side.
+    const totalHours = Number(filteredTotalHours || 0);
 
     // Surface a subtotal for any client logged more than once on the same day
     // (the confusing "same client, three rows" case) — without touching the
@@ -650,7 +667,7 @@ export default function WorkHoursList({
                                                         className="w-4 h-4 text-emerald-600 bg-slate-900 border-slate-700 rounded [color-scheme:dark] focus:ring-emerald-500"
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-emerald-400">{entry.id}</td>
+                                                <td className="px-4 py-3 text-sm font-semibold text-slate-400">{entry.id}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-100 font-medium">{entry.date}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-300">{entry.client?.name || 'No Client'}</td>
                                                 <td className="px-4 py-3 text-sm">
@@ -708,7 +725,7 @@ export default function WorkHoursList({
                                 {filteredData.length > 0 && (
                                     <tfoot className="bg-slate-950">
                                         <tr>
-                                            <td colSpan="6" className="px-4 py-3 text-right font-bold text-slate-100">Total:</td>
+                                            <td colSpan="6" className="px-4 py-3 text-right font-bold text-slate-100">Total (all pages):</td>
                                             <td className="px-4 py-3 font-bold text-emerald-400 text-lg">{timeFormat(totalHours.toFixed(2))}</td>
                                             <td colSpan="2"></td>
                                         </tr>

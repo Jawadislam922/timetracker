@@ -164,6 +164,25 @@ class WorkHourController extends Controller
             'clients' => $selectedClients,
         ]);
 
+        // Server-side search across all pages — the search box previously
+        // only filtered the rows already on screen, silently hiding matches
+        // that lived on other pages.
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                    ->orWhere('tracker', 'like', "%{$search}%")
+                    ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('client', fn ($c) => $c->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        // Grand total of hours across ALL matching rows (every page), so the
+        // table footer can show a true total instead of only the current page.
+        // Taken from a clone BEFORE paginate() adds limit/offset/order to the
+        // builder, so the SUM covers the whole filtered set, not one page.
+        $filteredTotalHours = (float) (clone $query)->sum('work_hours.hours');
+
         // Implement pagination with dynamic per page
         $workHours = $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
 
@@ -190,6 +209,8 @@ class WorkHourController extends Controller
 
         return Inertia::render('WorkHoursList', [
             'workHours' => $workHours,
+            'search' => $search,
+            'filteredTotalHours' => $filteredTotalHours,
             'filter' => $filter,
             'startDate' => $startDate,
             'endDate' => $endDate,

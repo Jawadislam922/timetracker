@@ -144,8 +144,9 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
             return false;
         }
 
-        // Check if the entered value exactly matches a tracker
-        const matchingTracker = trackers.find(tracker => tracker === searchValue);
+        // Check if the entered value exactly matches a filtered tracker
+        const filteredTrackers = getFilteredTrackers();
+        const matchingTracker = filteredTrackers.find(tracker => tracker === searchValue);
         if (!matchingTracker) {
             setTrackerValidationError('Please select a valid profile from the dropdown');
             return false;
@@ -231,6 +232,11 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
             newData.client_id = '';
             newData.clientSearch = '';
             setClientValidationError('');
+        } else {
+            // Always clear client selection when work type changes to force reselection from filtered list
+            newData.client_id = '';
+            newData.clientSearch = '';
+            setClientValidationError('');
         }
 
         form.setData(newData);
@@ -292,7 +298,12 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
         form.setData('clientSearch', client.name);
         setClientValidationError(''); // Clear any validation errors immediately
         setShowClientOptions(false);
-        
+
+        // Clear tracker selection when client changes to force reselection from filtered list
+        form.setData('tracker', '');
+        form.setData('trackerSearch', '');
+        setTrackerValidationError('');
+
         // Ensure validation passes for this selection
         setTimeout(() => {
             validateClient(client.name);

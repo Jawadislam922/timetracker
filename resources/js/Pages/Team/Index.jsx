@@ -199,7 +199,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
                         </div>
                     </div>
 
-                    <TeamChartsPanel charts={charts} rows={rows} />
+                    <TeamChartsPanel charts={charts} rows={rows} canViewAnalytics={canViewAnalytics} rangeParams={rangeParams} />
 
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-800 text-sm">

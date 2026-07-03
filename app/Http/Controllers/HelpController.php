@@ -25,7 +25,7 @@ class HelpController extends Controller
         $articles = HelpArticle::published()
             ->visibleTo($isManager)
             ->orderBy('sort_order')
-            ->get(['id', 'title', 'slug', 'category', 'body', 'keywords', 'admin_only']);
+            ->get(['id', 'title', 'slug', 'category', 'body', 'keywords', 'admin_only', 'sort_order']);
 
         return Inertia::render('Help', [
             'articles' => $articles,

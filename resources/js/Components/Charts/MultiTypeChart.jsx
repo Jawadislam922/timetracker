@@ -8,12 +8,27 @@ import '@/lib/chartConfig';
  * type, so a stale preference or a bad caller can never draw a nonsensical chart
  * (e.g. a doughnut for a 20-point time trend).
  */
-export default function MultiTypeChart({ type, allowedTypes = ['bar'], data, options = {}, height = 280 }) {
+export default function MultiTypeChart({ type, allowedTypes = ['bar'], data, options = {}, height = 280, onSelect }) {
     const safeType = allowedTypes.includes(type) ? type : allowedTypes[0];
+
+    // When the caller wants clicks, translate a click on a bar/slice into the
+    // data index it hit, and show a pointer cursor while hovering a segment.
+    const opts = onSelect
+        ? {
+            ...options,
+            onClick: (_event, elements) => {
+                if (elements && elements.length) onSelect(elements[0].index);
+            },
+            onHover: (event, elements) => {
+                const target = event?.native?.target;
+                if (target) target.style.cursor = elements && elements.length ? 'pointer' : 'default';
+            },
+        }
+        : options;
 
     return (
         <div style={{ position: 'relative', height }}>
-            <Chart type={safeType} data={data} options={options} />
+            <Chart type={safeType} data={data} options={opts} />
         </div>
     );
 }

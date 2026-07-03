@@ -52,7 +52,7 @@ important lives only on an employee's computer.
 | Thing | Where it is | Notes |
 |-------|-------------|-------|
 | **The database** | **MySQL, on the Hostinger server**, database name **`u406855808_timetracker`**, reached at `localhost:3306` *from the server itself*. | Holds users, attendance (clock in/out), tracking sessions, screenshot metadata, work hours, settings, Help articles, etc. It is **not** exposed to the public internet — only the app on the same server connects to it. |
-| **Screenshots (the image files)** | On the **server's disk** at `storage/app/private/screenshots/` (a **private** folder). | Served only through the logged-in app — the folder returns *403 Forbidden* if opened directly. Can optionally be moved to private S3 via `SCREENSHOTS_DRIVER=s3`. |
+| **Screenshots (the image files)** | **In production: a private AWS S3 bucket** — `sparkingasia-timetracker-screenshots` (region eu-north-1), served through short-lived signed URLs. In local dev they default to the server disk at `storage/app/private/screenshots/`. | Controlled by `SCREENSHOTS_DRIVER` (`s3` on prod, keeps the shared host's disk/inodes from filling up). Never public — every image is fetched via a signed URL or the authenticated app; direct listing is blocked (403). |
 | **The website code** | Hostinger, `~/domains/timetracker.sparkingasia.com/public_html`. | Laravel 12 + Inertia/React app. |
 | **The source repository** | GitHub `jawadislam92/timetracker`, branch **`jawad`**. | Pushing to `jawad` auto-deploys the code to Hostinger. |
 | **Desktop app data on each PC** | `%APPDATA%\SA Track\` on Windows — and **per user** under `%APPDATA%\SA Track\users\<user id>\`. | A local **queue** (unsent time/screenshots waiting for internet) + a temporary screenshot cache. It empties as it uploads; the real copy lives on the server. On a shared PC each signed-in person gets their own folder. |
@@ -60,9 +60,9 @@ important lives only on an employee's computer.
 
 ### "So where *exactly* is my data?"
 Almost all of it is in the **MySQL database on the Hostinger server**, with the screenshot
-**images** sitting next to it on the same server's disk. An employee's own PC only ever holds a
-short-lived queue of not-yet-uploaded data. If a PC is wiped, no history is lost — it's on the
-server.
+**images** in a **private S3 bucket** (or the server's disk in local dev). An employee's own PC
+only ever holds a short-lived queue of not-yet-uploaded data. If a PC is wiped, no history is
+lost — it's on the server / in S3.
 
 ---
 

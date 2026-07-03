@@ -47,7 +47,7 @@ export default function Login({ status, canResetPassword }) {
                             Welcome Back
                         </h1>
                         <p className="text-slate-400 text-sm">
-                            Sign in to your TimeTracker account
+                            Sign in to your SA Track account
                         </p>
                     </div>
 
@@ -84,7 +84,7 @@ export default function Login({ status, canResetPassword }) {
                                         e.target.style.boxShadow = '0 0 0 4px rgba(40, 42, 42, 0.1)';
                                     }}
                                     onBlur={(e) => {
-                                        e.target.style.borderColor = '#d1d5db';
+                                        e.target.style.borderColor = '#334155';
                                         e.target.style.boxShadow = 'none';
                                     }}
                                     placeholder="Enter your email"
@@ -127,7 +127,7 @@ export default function Login({ status, canResetPassword }) {
                                         e.target.style.boxShadow = '0 0 0 4px rgba(40, 42, 42, 0.1)';
                                     }}
                                     onBlur={(e) => {
-                                        e.target.style.borderColor = '#d1d5db';
+                                        e.target.style.borderColor = '#334155';
                                         e.target.style.boxShadow = 'none';
                                     }}
                                 />
@@ -186,9 +186,9 @@ export default function Login({ status, canResetPassword }) {
                                 <Link
                                     href={route('password.request')}
                                     className="text-sm font-medium transition-colors hover:underline"
-                                    style={{color: '#282a2a'}}
-                                    onMouseEnter={(e) => e.target.style.color = '#1f2020'}
-                                    onMouseLeave={(e) => e.target.style.color = '#282a2a'}
+                                    style={{color: '#f59e0b'}}
+                                    onMouseEnter={(e) => e.target.style.color = '#fbbf24'}
+                                    onMouseLeave={(e) => e.target.style.color = '#f59e0b'}
                                 >
                                     Forgot password?
                                 </Link>
