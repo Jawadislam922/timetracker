@@ -364,7 +364,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
       setStatus(next);
       setWarning(`Now tracking ${client.name}.`);
       try {
-        localStorage.setItem('tt.lastStart', JSON.stringify({ client_id: client.id, work_type: wt, task_note: note }));
+        localStorage.setItem(`tt.lastStart:${user?.id ?? 'anon'}`, JSON.stringify({ client_id: client.id, work_type: wt, task_note: note }));
       } catch { /* non-essential */ }
       await refreshToday();
       refreshWeek();
@@ -577,7 +577,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
     if (autoStartedRef.current || !prefs.autoStartTracking || status.running || clients.length === 0 || !canTrack) return;
 
     let saved = null;
-    try { saved = JSON.parse(localStorage.getItem('tt.lastStart') || 'null'); } catch { /* ignore */ }
+    try { saved = JSON.parse(localStorage.getItem(`tt.lastStart:${user?.id ?? 'anon'}`) || 'null'); } catch { /* ignore */ }
     if (!saved?.client_id) return;
 
     const client = clients.find((item) => Number(item.id) === Number(saved.client_id));
@@ -674,7 +674,7 @@ export default function Tracker({ user, apiBaseUrl, onLogout }) {
       });
       setStatus(next);
       try {
-        localStorage.setItem('tt.lastStart', JSON.stringify({
+        localStorage.setItem(`tt.lastStart:${user?.id ?? 'anon'}`, JSON.stringify({
           client_id: selectedClient.id,
           work_type: effectiveWorkType,
           task_note: picker.task_note.trim(),

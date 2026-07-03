@@ -5,6 +5,7 @@ const { ipcMain, BrowserWindow, app, safeStorage } = require('electron');
 const api = require('./api');
 const store = require('./store');
 const queue = require('./queue');
+const diag = require('./diag');
 const tracker = require('./trackerService');
 const tray = require('./tray');
 const updater = require('./updater');
@@ -54,7 +55,7 @@ function register() {
     else store.delete('savedLogin');
     // Point the queue at THIS employee's own store, then flush any backlog of
     // theirs left from a previous shift. Never touches another employee's lane.
-    try { queue.setUser(user.id); } catch { /* ignore */ }
+    try { queue.setUser(user.id); diag.setUser(user.id); } catch { /* ignore */ }
     tracker.drainOnce().catch(() => {});
     return user;
   });

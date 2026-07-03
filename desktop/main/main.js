@@ -1,9 +1,10 @@
 'use strict';
 
 const path = require('node:path');
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, powerMonitor } = require('electron');
 const { isDev } = require('./config');
 const queue = require('./queue');
+const diag = require('./diag');
 const ipc = require('./ipc');
 const store = require('./store');
 const tray = require('./tray');
@@ -40,8 +41,12 @@ if (!gotLock) {
     // If a previous sign-in is remembered, open THAT employee's own queue lane
     // right away so their backlog can drain on launch.
     const remembered = store.get('user');
-    if (remembered && remembered.id) queue.setUser(remembered.id);
-    else queue.init();
+    if (remembered && remembered.id) {
+      queue.setUser(remembered.id);
+      diag.setUser(remembered.id);
+    } else {
+      queue.init();
+    }
     ipc.register();
     createWindow();
     updater.init();
@@ -60,6 +65,26 @@ if (!gotLock) {
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
   });
+
+  // Stop tracking cleanly when the app is closed or the PC is shut down while a
+  // session is still running, so the server session is finalized (a real stop
+  // with the correct total) instead of left dangling until auto-close. We hold
+  // the quit just long enough to send the final stop; it's best-effort, so a
+  // slow/offline network can never wedge the shutdown.
+  let stoppingForQuit = false;
+  const stopThenQuit = (event) => {
+    const tracker = require('./trackerService');
+    if (stoppingForQuit || !tracker.status().running) return;
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    stoppingForQuit = true;
+    Promise.resolve(tracker.stop({}).catch(() => {})).finally(() => app.quit());
+  };
+  app.on('before-quit', stopThenQuit);
+  try {
+    // Delivered on macOS/Linux system shutdown; on Windows a shutdown closes the
+    // window, which routes through window-all-closed → quit → before-quit above.
+    powerMonitor.on('shutdown', stopThenQuit);
+  } catch { /* powerMonitor unavailable in some environments */ }
 }
 
 function registerProtocol() {

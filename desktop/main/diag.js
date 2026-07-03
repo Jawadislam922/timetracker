@@ -7,10 +7,21 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { paths } = require('./config');
+const { paths, userPaths } = require('./config');
 
-const LOG_PATH = path.join(paths.userData, 'capture.log');
+// On a shared PC we scope the log to users/<id>/capture.log so one employee's
+// diagnostics don't mix with the next's. Falls back to the shared root path
+// until we know who is signed in (set from main on launch + on login).
+let LOG_PATH = path.join(paths.userData, 'capture.log');
 const MAX_BYTES = 1_000_000;
+
+function setUser(userId) {
+  try {
+    const dir = userPaths(userId).base;
+    fs.mkdirSync(dir, { recursive: true });
+    LOG_PATH = path.join(dir, 'capture.log');
+  } catch { /* keep the shared path if the per-user dir can't be created */ }
+}
 
 function log(...parts) {
   try {
@@ -29,4 +40,4 @@ function log(...parts) {
   }
 }
 
-module.exports = { log, LOG_PATH };
+module.exports = { log, setUser, get LOG_PATH() { return LOG_PATH; } };

@@ -41,6 +41,11 @@ class Tracker extends EventEmitter {
     };
     this._activityIntervalSec = this.settings.activity_sample_interval_seconds;
     this._idleWarned = false;
+    // Re-entrancy guard for start(): set synchronously before its awaits so two
+    // near-simultaneous start() calls can't both create a session + timer set.
+    this._starting = false;
+    // Wall-clock anchor for the active-time accumulator (see _tickActive).
+    this._lastTickMs = 0;
   }
 
   async refreshSettings() {
@@ -65,7 +70,7 @@ class Tracker extends EventEmitter {
         total_seconds: this._currentSeconds(),
         // The renderer uses these to tick smoothly without polling the main
         // process every second.
-        frozen_seconds: this.session.frozen_seconds,
+        frozen_seconds: Math.floor(this.session.frozen_seconds),
         // Why the session is paused: 'idle' (auto, resumes on activity),
         // 'break' or 'manual' (stay paused until the user presses Resume).
         pause_reason: this.session.pause_reason ?? null,
@@ -83,10 +88,10 @@ class Tracker extends EventEmitter {
 
   _currentSeconds() {
     if (!this.session) return 0;
-    // frozen_seconds is the accumulated ACTIVE time: _tickActive adds one
-    // second only while the user is active, so idle is never included. It is
-    // therefore the whole truth whether the session is running or paused — no
-    // wall-clock delta to add (that would re-introduce idle).
+    // frozen_seconds is the accumulated ACTIVE time: _tickActive adds the REAL
+    // elapsed since the previous tick (capped per tick) only while the user is
+    // active, so idle/sleep is never included and the total can never exceed
+    // real wall-clock. The whole truth whether the session is running or paused.
     return Math.max(0, Math.floor(this.session.frozen_seconds));
   }
 
@@ -125,6 +130,7 @@ class Tracker extends EventEmitter {
     if (!this.session || !this.session.paused_at_ms) return;
     this.session.paused_at_ms = null;
     this.session.last_change_at_ms = Date.now();
+    this._lastTickMs = Date.now();
     this.session.pause_reason = null;
     this._scheduleNextScreenshot();
     if (reason) this.emit('warning', reason);
@@ -141,11 +147,27 @@ class Tracker extends EventEmitter {
    * keeps the renderer's live clock in step without rebuilding the full status.
    */
   _tickActive() {
-    if (!this.session || this.session.paused_at_ms) return;
+    const now = Date.now();
+    if (!this.session || this.session.paused_at_ms) {
+      // Keep the clock current while paused so the paused gap is never counted
+      // as worked time once we resume.
+      this._lastTickMs = now;
+      return;
+    }
 
-    this.session.frozen_seconds += 1;
-    this.session.total_seconds = this.session.frozen_seconds;
-    this.emit('tick', this.session.frozen_seconds);
+    // Accumulate the REAL elapsed since the last tick (normally ~1s) rather than
+    // a fixed +1, so a late/hitched tick stays accurate. CAP a single tick so a
+    // sleep/hang gap — or a stray duplicate timer sharing this clock — can never
+    // inflate the total: a duplicate fire just measures ~0s since the last one.
+    const MAX_TICK_SECONDS = 5;
+    let delta = (now - (this._lastTickMs || now)) / 1000;
+    this._lastTickMs = now;
+    if (delta < 0) delta = 0;
+    if (delta > MAX_TICK_SECONDS) delta = MAX_TICK_SECONDS;
+
+    this.session.frozen_seconds += delta;
+    this.session.total_seconds = Math.floor(this.session.frozen_seconds);
+    this.emit('tick', Math.floor(this.session.frozen_seconds));
 
     // Auto-pause is the sole time-cutter: when the user has been idle past the
     // configured threshold, freeze the timer and stop screenshots until they're
@@ -179,7 +201,13 @@ class Tracker extends EventEmitter {
   }
 
   async start(opts) {
-    if (this.session) throw new Error('A session is already running');
+    // `this.session` isn't set until AFTER the awaits below, so a plain
+    // `if (this.session)` check lets two near-simultaneous start() calls both
+    // pass and each create a session + timer set (the second orphans the
+    // first's timers → doubled time). The synchronous `_starting` flag closes
+    // that window until the session exists.
+    if (this.session || this._starting) throw new Error('A session is already running');
+    this._starting = true;
 
     await this.refreshSettings();
 
@@ -205,6 +233,7 @@ class Tracker extends EventEmitter {
       // If offline at start, we cannot persist a remote session id.
       // The desktop app requires the start handshake to succeed for now;
       // a future enhancement could buffer the start payload locally.
+      this._starting = false;
       throw new Error('Could not start session: ' + (err.response?.data?.message || err.message));
     }
 
@@ -227,6 +256,11 @@ class Tracker extends EventEmitter {
       upwork_profile_id: opts.upwork_profile_id ?? null,
       work_type: opts.work_type ?? null,
     };
+
+    // Session now exists — the normal `if (this.session)` guard protects from
+    // here, so release the start lock. Anchor the active-time clock to now.
+    this._starting = false;
+    this._lastTickMs = Date.now();
 
     activityService.start();
     this._startTimers();
@@ -272,6 +306,9 @@ class Tracker extends EventEmitter {
   }
 
   _startTimers() {
+    // Idempotent: clear any existing timers first, so a set can never be left
+    // running (belt-and-suspenders alongside the start() re-entrancy guard).
+    this._stopTimers();
     this._scheduleNextScreenshot();
 
     this.timers.activitySample = setInterval(() => this._sampleActivity().catch(() => {}), this._activityIntervalSec * 1000);
