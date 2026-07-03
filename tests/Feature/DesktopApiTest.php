@@ -263,13 +263,19 @@ class DesktopApiTest extends TestCase
 
     public function test_week_summary_returns_trailing_seven_days_with_totals(): void
     {
+        // Freeze mid-day so the fixture sessions sit fully inside their
+        // calendar days (the endpoint now splits sessions per-day like the
+        // Timeline, so realistic stopped_at values matter).
+        \Carbon\Carbon::setTestNow(now()->startOfDay()->addHours(12));
+
         $user = User::factory()->create();
         Sanctum::actingAs($user, ['desktop-tracker']);
 
         TrackingSession::create([
             'user_id' => $user->id,
             'client_uuid' => 'uuid-week-today',
-            'started_at' => now(),
+            'started_at' => now()->subHour(),
+            'stopped_at' => now(),
             'total_seconds' => 3600,
             'status' => 'stopped',
             'source' => 'desktop',
@@ -277,7 +283,8 @@ class DesktopApiTest extends TestCase
         TrackingSession::create([
             'user_id' => $user->id,
             'client_uuid' => 'uuid-week-past',
-            'started_at' => now()->subDays(2),
+            'started_at' => now()->subDays(2)->subHour(),
+            'stopped_at' => now()->subDays(2)->subMinutes(30),
             'total_seconds' => 1800,
             'status' => 'stopped',
             'source' => 'desktop',
@@ -286,7 +293,8 @@ class DesktopApiTest extends TestCase
         TrackingSession::create([
             'user_id' => User::factory()->create()->id,
             'client_uuid' => 'uuid-week-other',
-            'started_at' => now(),
+            'started_at' => now()->subHours(2),
+            'stopped_at' => now(),
             'total_seconds' => 7200,
             'status' => 'stopped',
             'source' => 'desktop',

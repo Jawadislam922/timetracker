@@ -286,19 +286,26 @@ class SessionController extends Controller
         $end = $today->copy()->endOfDay();
         $start = $today->copy()->subDays(6)->startOfDay();
 
-        $perDay = TrackingSession::forUser($request->user()->id)
-            ->whereBetween('started_at', BusinessTime::utcRange($start, $end))
-            ->get(['started_at', 'total_seconds'])
-            ->groupBy(fn (TrackingSession $s) => BusinessTime::dateKey($s->started_at))
-            ->map(fn ($group) => (int) $group->sum('total_seconds'));
+        // Fetch sessions OVERLAPPING the window (not merely started in it) and
+        // split each across the days it touches with the SAME inDaySeconds
+        // helper the Timeline/Dashboard use. The previous version lumped a
+        // session's entire total onto its start date, so any session crossing
+        // midnight made the desktop chart disagree with the Timeline.
+        $sessions = TrackingSession::forUser($request->user()->id)
+            ->where('started_at', '<=', $end)
+            ->where(function ($q) use ($start) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $start);
+            })
+            ->get(['started_at', 'stopped_at', 'total_seconds']);
 
         $days = [];
         for ($cursor = $start->copy(); $cursor->lte($end); $cursor->addDay()) {
-            $iso = $cursor->toDateString();
+            $dayStart = $cursor->copy()->startOfDay();
+            $dayEnd = $cursor->copy()->endOfDay();
             $days[] = [
-                'date' => $iso,
+                'date' => $cursor->toDateString(),
                 'weekday' => $cursor->format('D'),
-                'total_seconds' => (int) ($perDay[$iso] ?? 0),
+                'total_seconds' => (int) $sessions->sum(fn (TrackingSession $s) => $this->sessions->inDaySeconds($s, $dayStart, $dayEnd)),
                 'is_today' => $cursor->isSameDay($today),
             ];
         }
@@ -339,10 +346,20 @@ class SessionController extends Controller
     public function today(Request $request): JsonResponse
     {
         $today = BusinessTime::today();
+        $dayStart = $today->copy()->startOfDay();
+        $dayEnd = $today->copy()->endOfDay();
 
+        // Sessions OVERLAPPING today (not merely started today), each reporting
+        // only its in-day share — the same split the Timeline/Dashboard use, so
+        // the desktop's "today" ring always matches the website. Previously an
+        // overnight session was lumped wholly onto its start date and the two
+        // disagreed after midnight.
         $sessions = TrackingSession::forUser($request->user()->id)
             ->with(['client:id,name', 'upworkProfile:id,name'])
-            ->whereBetween('started_at', BusinessTime::utcRange($today->copy()->startOfDay(), $today->copy()->endOfDay()))
+            ->where('started_at', '<=', $dayEnd)
+            ->where(function ($q) use ($dayStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $dayStart);
+            })
             ->orderBy('started_at', 'desc')
             ->get(['id', 'client_uuid', 'client_id', 'upwork_profile_id', 'work_type', 'task_note', 'started_at', 'stopped_at', 'total_seconds', 'status'])
             ->map(fn (TrackingSession $session) => [
@@ -356,7 +373,9 @@ class SessionController extends Controller
                 'task_note' => $session->task_note,
                 'started_at' => $session->started_at?->toIso8601String(),
                 'stopped_at' => $session->stopped_at?->toIso8601String(),
-                'total_seconds' => $session->total_seconds,
+                // In-day share, not the raw total: an overnight session only
+                // contributes its post-midnight part to "today".
+                'total_seconds' => $this->sessions->inDaySeconds($session, $dayStart, $dayEnd),
                 'status' => $session->status,
             ]);
 
