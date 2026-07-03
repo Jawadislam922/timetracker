@@ -218,7 +218,7 @@ class TimeEntryController extends Controller
             $employees = User::active()->tracksTime()->with('shiftOverrides')->get();
             $ids = $employees->pluck('id')->all();
             $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
-            $trackedByUserDate = $this->loadTrackedHours($employees, $now);
+            $trackedByUserDate = $this->loadTrackedStats($ids, $now, $weekStart, $monthStart);
             $liveByUser = $this->loadLiveSessions($ids);
             $activityByUser = $this->loadDayActivity($ids, $now);
 
@@ -228,9 +228,13 @@ class TimeEntryController extends Controller
             $allRows = $employees->map(fn ($employee) => $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser));
 
             $employeesData = $allRows->filter(function ($employee) {
-                // Show anyone with attendance entries today OR a live tracker
-                // session (so someone tracking without clocking in still shows).
-                return $employee['total_entries'] > 0 || $employee['is_live'];
+                // Show anyone with tracked time today/yesterday, a live tracker
+                // session, or attendance entries today (the tracked-only table
+                // still needs night workers whose evening belongs to yesterday).
+                return $employee['total_entries'] > 0
+                    || $employee['is_live']
+                    || $employee['tracked_hours'] > 0
+                    || $employee['tracked_yesterday_hours'] > 0;
             });
 
             [$kpis, $attention] = $this->teamOverview($employees->keyBy('id'), $allRows, $entriesByUser, $now);
@@ -254,7 +258,7 @@ class TimeEntryController extends Controller
         } else {
             // Regular users see only their own data
             $entriesByUser = $this->loadSummaryEntries([$user->id], $now, $weekStart, $monthStart);
-            $trackedByUserDate = $this->loadTrackedHours(collect([$user->loadMissing('shiftOverrides')]), $now);
+            $trackedByUserDate = $this->loadTrackedStats([$user->id], $now, $weekStart, $monthStart);
             $liveByUser = $this->loadLiveSessions([$user->id]);
             $activityByUser = $this->loadDayActivity([$user->id], $now);
 
@@ -659,42 +663,43 @@ class TimeEntryController extends Controller
     }
 
     /**
-     * Tracked hours for each employee's CURRENT WORK DAY — the same shift-aware
-     * day attendance uses (attendanceDayWindowFor), not the calendar day. For a
-     * day worker the two are identical; for a night shift this keeps "Tracked"
-     * counting the same day as "In Office" instead of resetting to zero at
-     * midnight mid-shift, which read as nonsense on the dashboard. Sessions are
-     * split by the shared inDaySeconds helper (live sessions included), plus
-     * any manual work-diary hours logged for that attendance date.
+     * Tracked hours per user for the dashboard: today, yesterday, this week
+     * (since Monday) and this month (since the 1st) — ALL plain CALENDAR days
+     * in the business timezone, split with the shared inDaySeconds helper, so
+     * the dashboard always agrees with the Timeline and the desktop app.
+     * (Design decision 2026-07-04: the dashboard measures tracked work only;
+     * attendance/in-office lives in the Attendance section. Tracked numbers
+     * are never bucketed by shift day — a night shift's post-midnight work
+     * simply belongs to the next date, exactly like the Timeline shows it.)
      *
-     * Dated report pages (Timeline, Team ranges, desktop week chart) stay
-     * calendar-day — they answer "what happened on date X", this answers "how
-     * is MY work day going".
+     * Includes manual work-diary hours (non-tracker rows) per range.
      *
-     * @param  Collection<int, User>  $users  shiftOverrides should be eager-loaded
-     * @return Collection  keyed by user_id => float hours
+     * @param  array<int>  $userIds
+     * @return Collection  keyed by user_id => ['today','yesterday','week','month'] float hours
      */
-    private function loadTrackedHours(Collection $users, Carbon $now): Collection
+    private function loadTrackedStats(array $userIds, Carbon $now, Carbon $weekStart, Carbon $monthStart): Collection
     {
         $svc = app(TrackingSessionService::class);
 
-        // Each employee's own work-day window + attendance date.
-        $windows = $users->mapWithKeys(function (User $u) use ($now) {
-            [$start, $end] = $u->attendanceDayWindowFor($now);
+        $todayStart = $now->copy()->startOfDay();
+        $todayEnd = $now->copy()->endOfDay();
+        $yStart = $todayStart->copy()->subDay();
+        $yEnd = $yStart->copy()->endOfDay();
 
-            return [$u->id => ['start' => $start, 'end' => $end, 'date' => $u->attendanceDateFor($now)]];
-        });
+        $windows = [
+            'today' => [$todayStart, $todayEnd],
+            'yesterday' => [$yStart, $yEnd],
+            'week' => [$weekStart->copy()->startOfDay(), $todayEnd],
+            'month' => [$monthStart->copy()->startOfDay(), $todayEnd],
+        ];
+        $fetchStart = collect($windows)->map(fn ($w) => $w[0])->min();
 
-        $userIds = $users->pluck('id')->all();
-        $fetchStart = $windows->map(fn ($w) => $w['start'])->min();
-        $fetchEnd = $windows->map(fn ($w) => $w['end'])->max();
-
-        // Tracker time: sessions overlapping any window, each credited with its
-        // share inside the OWNER's window. Skip deletion crumbs (<60s) but
-        // always keep a live session.
-        $trackerSeconds = TrackingSession::query()
+        // One query for every session overlapping any window; each window then
+        // takes its overlap share. Skip deletion crumbs (<60s) but always keep
+        // a live session.
+        $sessionsByUser = TrackingSession::query()
             ->whereIn('user_id', $userIds)
-            ->where('started_at', '<=', $fetchEnd)
+            ->where('started_at', '<=', $todayEnd)
             ->where(function ($q) use ($fetchStart) {
                 $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $fetchStart);
             })
@@ -703,32 +708,37 @@ class TimeEntryController extends Controller
                     ->orWhere('status', TrackingSession::STATUS_ACTIVE);
             })
             ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds', 'status'])
-            ->groupBy('user_id')
-            ->map(function ($sessions, $userId) use ($svc, $windows) {
-                $w = $windows[$userId] ?? null;
+            ->groupBy('user_id');
 
-                return $w ? (int) $sessions->sum(fn ($s) => $svc->inDaySeconds($s, $w['start'], $w['end'])) : 0;
-            });
-
-        // Manual work-diary hours logged for the user's attendance date
-        // (anything not synced from the tracker).
-        $manualHours = WorkHour::query()
+        // Manual work-diary hours (non-tracker rows) bucketed by their date.
+        $manualByUser = WorkHour::query()
             ->whereIn('user_id', $userIds)
-            ->whereIn('date', $windows->map(fn ($w) => $w['date'])->unique()->values())
+            ->whereDate('date', '>=', $fetchStart->toDateString())
             ->where(function ($q) {
                 $q->whereNull('source')->orWhere('source', '!=', 'tracker');
             })
             ->get(['user_id', 'hours', 'date'])
-            ->groupBy('user_id')
-            ->map(function ($rows, $userId) use ($windows) {
-                $date = $windows[$userId]['date'] ?? null;
+            ->groupBy('user_id');
 
-                return (float) $rows->filter(fn ($r) => Carbon::parse($r->date)->toDateString() === $date)->sum('hours');
-            });
+        return collect($userIds)->mapWithKeys(function ($id) use ($sessionsByUser, $manualByUser, $windows, $svc) {
+            $sessions = $sessionsByUser->get($id, collect());
+            $manual = $manualByUser->get($id, collect());
 
-        return collect($userIds)->mapWithKeys(fn ($id) => [
-            $id => round(((int) ($trackerSeconds[$id] ?? 0)) / 3600 + (float) ($manualHours[$id] ?? 0), 2),
-        ]);
+            $stats = [];
+            foreach ($windows as $key => [$start, $end]) {
+                $tracker = (int) $sessions->sum(fn ($s) => $svc->inDaySeconds($s, $start, $end));
+                $manualHours = (float) $manual
+                    ->filter(function ($r) use ($start, $end) {
+                        $d = Carbon::parse($r->date)->toDateString();
+
+                        return $d >= $start->toDateString() && $d <= $end->toDateString();
+                    })
+                    ->sum('hours');
+                $stats[$key] = round($tracker / 3600 + $manualHours, 2);
+            }
+
+            return [$id => $stats];
+        });
     }
 
     /**
@@ -770,11 +780,14 @@ class TimeEntryController extends Controller
 
         $stats = $this->calculateEmployeeStats($employee, $todayEntries, $weeklyEntries, $monthlyEntries);
 
-        // Today's tracked work (tracker sessions split to their in-day share +
-        // manual hours), computed exactly like the Timeline/Team pages so the
-        // "Tracked" column always agrees with them — including live sessions and
-        // the today-portion of an overnight session. See loadTrackedHours.
-        $stats['tracked_hours'] = round((float) ($trackedByUserDate?->get($employee->id) ?? 0), 2);
+        // Tracked work per CALENDAR day/range (see loadTrackedStats): always
+        // agrees with the Timeline and the desktop app. tracked_hours = today;
+        // yesterday/week/month feed the dashboard's tracked-only team table.
+        $tracked = $trackedByUserDate?->get($employee->id) ?? [];
+        $stats['tracked_hours'] = round((float) ($tracked['today'] ?? 0), 2);
+        $stats['tracked_yesterday_hours'] = round((float) ($tracked['yesterday'] ?? 0), 2);
+        $stats['tracked_week_hours'] = round((float) ($tracked['week'] ?? 0), 2);
+        $stats['tracked_month_hours'] = round((float) ($tracked['month'] ?? 0), 2);
 
         // Live flag drives the "Working" badge / sort; the running time is
         // already included in tracked_hours above via inDaySeconds. live_since

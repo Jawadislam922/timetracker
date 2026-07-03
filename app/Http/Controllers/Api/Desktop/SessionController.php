@@ -345,16 +345,16 @@ class SessionController extends Controller
 
     public function today(Request $request): JsonResponse
     {
-        // "Today" = the user's shift-aware WORK day (same window as the
-        // dashboard cards), so a night shift's ring doesn't reset to zero at
-        // midnight mid-shift. For day workers this is simply the calendar day.
-        [$dayStart, $dayEnd] = $request->user()
-            ->loadMissing('shiftOverrides')
-            ->attendanceDayWindowFor(Carbon::now(BusinessTime::tz()));
+        // "Today" = the plain CALENDAR day (business tz) — one definition
+        // shared by the Timeline, the dashboard's tracked stats, and the week
+        // chart below, so the app can never disagree with the website.
+        $today = BusinessTime::today();
+        $dayStart = $today->copy()->startOfDay();
+        $dayEnd = $today->copy()->endOfDay();
 
-        // Sessions OVERLAPPING the work day (not merely started in it), each
-        // reporting only its in-window share — the same split the Dashboard
-        // uses, so the desktop's "today" ring always matches the website.
+        // Sessions OVERLAPPING today (not merely started today), each
+        // reporting only its in-day share — an overnight session contributes
+        // its post-midnight part here and the rest to yesterday.
         $sessions = TrackingSession::forUser($request->user()->id)
             ->with(['client:id,name', 'upworkProfile:id,name'])
             ->where('started_at', '<=', $dayEnd)

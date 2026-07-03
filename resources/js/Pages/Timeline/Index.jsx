@@ -7,6 +7,10 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const SLOTS_PER_HOUR = 10;
 const TOTAL_SLOTS = 24 * SLOTS_PER_HOUR;
 
+// Remembers whether the viewer last chose "Collapse all" for the session
+// screenshot sections, so the compact scanning view survives reloads.
+const COLLAPSE_ALL_KEY = 'satrack.timeline.collapseAll';
+
 // Company display settings, refreshed on each page render from the shared
 // Inertia `display` prop so every timestamp renders in the configured business
 // timezone + format regardless of the viewer's machine.
@@ -297,12 +301,23 @@ function fmtDayTime(iso) {
     }
 }
 
-function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete, onRequestDeleteSession, onOpenShot }) {
+function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDeleteScreenshots, view, onShotChanged, selectedShots, onToggleSelect, onSelectSession, onRequestDelete, onRequestDeleteSession, onOpenShot, collapsed, onToggleCollapsed }) {
     const daySeconds = session.day_seconds ?? session.total_seconds;
     const isSplit = session.started_before_day || session.continues_after_day;
     return (
         <section className="space-y-3">
             <header className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                {view !== 'apps' && (
+                    <button
+                        type="button"
+                        onClick={onToggleCollapsed}
+                        aria-expanded={!collapsed}
+                        aria-label={collapsed ? 'Show screenshots' : 'Hide screenshots'}
+                        className="-ml-1 rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+                    >
+                        {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                )}
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 <span className="text-orange-400">{fmtTime(session.started_at)} - {session.stopped_at ? fmtTime(session.stopped_at) : 'now'}</span>
                 <span className="text-slate-200">• {sessionLabel(session)}</span>
@@ -372,7 +387,7 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                         <RollupList items={session.urls} icon={Globe} emptyLabel="No browser activity captured." />
                     </div>
                 </div>
-            ) : (
+            ) : collapsed ? null : (
                 <>
                     {!canViewScreenshots && session.screenshot_count_hidden > 0 && (
                         <p className="rounded-md bg-white/5 px-3 py-2 text-xs text-slate-400">
@@ -505,6 +520,30 @@ export default function TimelineIndex({
     const [aiSummary, setAiSummary] = useState(null);
     const [aiLoading, setAiLoading] = useState(false);
 
+    // Collapsible screenshot sections: `collapsedAll` is the day-wide default
+    // (persisted, so a manager who prefers the compact scan view keeps it) and
+    // `collapseOverrides` holds per-session exceptions keyed by the session's
+    // block key. Toggling the global button clears the exceptions.
+    const [collapsedAll, setCollapsedAll] = useState(() => {
+        try {
+            return localStorage.getItem(COLLAPSE_ALL_KEY) === '1';
+        } catch {
+            return false;
+        }
+    });
+    const [collapseOverrides, setCollapseOverrides] = useState({});
+
+    const toggleCollapseAll = () => {
+        const next = !collapsedAll;
+        setCollapsedAll(next);
+        setCollapseOverrides({});
+        try {
+            localStorage.setItem(COLLAPSE_ALL_KEY, next ? '1' : '0');
+        } catch {
+            // ignore (private mode etc.)
+        }
+    };
+
     // Screenshot deletion: select tiles, then one modal collects the reason.
     // Deleting removes the tracked minutes those screenshots represent.
     const [selectedShots, setSelectedShots] = useState(new Set());
@@ -524,6 +563,7 @@ export default function TimelineIndex({
         setActiveUserId(targetUser.id);
         setActiveDate(date);
         setSelectedShots(new Set());
+        setCollapseOverrides({});
         setAiSummary(null);
     }, [targetUser.id, date, initialData]);
 
@@ -819,6 +859,18 @@ export default function TimelineIndex({
                         >
                             Apps &amp; URLs
                         </button>
+                        {view !== 'apps' && (data.sessions || []).length > 0 && (
+                            <button
+                                type="button"
+                                onClick={toggleCollapseAll}
+                                aria-pressed={collapsedAll}
+                                className="ml-auto inline-flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                                title={collapsedAll ? 'Show every session\'s screenshots' : 'Hide every session\'s screenshots to scan work hours quickly'}
+                            >
+                                {collapsedAll ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                {collapsedAll ? 'Expand all' : 'Collapse all'}
+                            </button>
+                        )}
                     </div>
 
                     {view === 'apps' && (
@@ -841,23 +893,29 @@ export default function TimelineIndex({
                                 No tracking sessions for {data.day_label}.
                             </div>
                         )}
-                        {(data.sessions || []).map((session) => (
-                            <SessionCard
-                                key={session.block_key ?? session.id}
-                                session={session}
-                                canViewScreenshots={permissions.view_screenshots}
-                                canManageScreenshots={permissions.manage_screenshots}
-                                canDeleteScreenshots={permissions.delete_screenshots}
-                                view={view}
-                                onShotChanged={() => reload(activeDate, activeUserId)}
-                                selectedShots={selectedShots}
-                                onToggleSelect={toggleShot}
-                                onSelectSession={selectSession}
-                                onRequestDelete={(ids) => setDeleteIds(ids)}
-                                onRequestDeleteSession={(info) => setDeleteSession(info)}
-                                onOpenShot={(id) => setLightboxId(id)}
-                            />
-                        ))}
+                        {(data.sessions || []).map((session) => {
+                            const sessionKey = session.block_key ?? session.id;
+                            const collapsed = collapseOverrides[sessionKey] ?? collapsedAll;
+                            return (
+                                <SessionCard
+                                    key={sessionKey}
+                                    session={session}
+                                    canViewScreenshots={permissions.view_screenshots}
+                                    canManageScreenshots={permissions.manage_screenshots}
+                                    canDeleteScreenshots={permissions.delete_screenshots}
+                                    view={view}
+                                    onShotChanged={() => reload(activeDate, activeUserId)}
+                                    selectedShots={selectedShots}
+                                    onToggleSelect={toggleShot}
+                                    onSelectSession={selectSession}
+                                    onRequestDelete={(ids) => setDeleteIds(ids)}
+                                    onRequestDeleteSession={(info) => setDeleteSession(info)}
+                                    onOpenShot={(id) => setLightboxId(id)}
+                                    collapsed={collapsed}
+                                    onToggleCollapsed={() => setCollapseOverrides((prev) => ({ ...prev, [sessionKey]: !collapsed }))}
+                                />
+                            );
+                        })}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4 border-t border-slate-800 bg-slate-950 px-5 py-3 text-sm">

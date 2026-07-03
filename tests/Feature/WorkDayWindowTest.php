@@ -71,10 +71,12 @@ class WorkDayWindowTest extends TestCase
         ];
     }
 
-    public function test_night_worker_dashboard_tracked_does_not_reset_at_midnight(): void
+    public function test_night_worker_dashboard_splits_calendar_days_with_yesterday_column(): void
     {
+        // Redesign 2026-07-04: the dashboard is tracked-only and a tracked day
+        // is a plain CALENDAR day (matches Timeline + desktop). The night
+        // shift's evening work lands in the Yesterday column after midnight.
         $tz = config('app.timezone');
-        // A 16:00-shift worker at 01:30 — still mid-shift, past midnight.
         Carbon::setTestNow(Carbon::parse('2026-07-04 01:30', $tz));
 
         $member = User::factory()->create([
@@ -83,8 +85,7 @@ class WorkDayWindowTest extends TestCase
             'shift_start_time' => '16:00:00',
         ]);
 
-        // Tracked 22:00 -> 01:00 (3h, fully worked). Under calendar bucketing
-        // the dashboard used to show only the 1h post-midnight slice.
+        // Tracked 22:00 -> 01:00 (3h): 2h belong to Jul 3, 1h to Jul 4.
         TrackingSession::create([
             'user_id' => $member->id,
             'client_uuid' => 'uuid-evening',
@@ -95,20 +96,24 @@ class WorkDayWindowTest extends TestCase
             'source' => 'desktop',
         ]);
 
-        // Dashboard card: the full 3h belongs to this work day.
-        $tracked = $this->actingAs($member)
+        $row = $this->actingAs($member)
             ->getJson('/time-entries/today-summary')
             ->assertOk()
-            ->json('employees.0.tracked_hours');
-        $this->assertEqualsWithDelta(3.0, $tracked, 0.01);
+            ->json('employees.0');
 
-        // Desktop "today" ring: same 3h, same window.
+        $this->assertEqualsWithDelta(1.0, $row['tracked_hours'], 0.01, 'today = post-midnight hour');
+        $this->assertEqualsWithDelta(2.0, $row['tracked_yesterday_hours'], 0.01, 'yesterday = pre-midnight 2h');
+        // Week (since Mon Jun 29) and month (since Jul 1) both contain all 3h.
+        $this->assertEqualsWithDelta(3.0, $row['tracked_week_hours'], 0.01);
+        $this->assertEqualsWithDelta(3.0, $row['tracked_month_hours'], 0.01);
+
+        // Desktop "today" ring: same calendar rule — only the 1h after midnight.
         Sanctum::actingAs($member, ['desktop-tracker']);
         $sessions = collect($this->getJson('/api/desktop/sessions/today')->assertOk()->json('sessions'));
-        $this->assertEqualsWithDelta(3 * 3600, $sessions->sum('total_seconds'), 60);
+        $this->assertEqualsWithDelta(1 * 3600, $sessions->sum('total_seconds'), 60);
     }
 
-    public function test_day_worker_dashboard_unchanged_by_work_day_bucketing(): void
+    public function test_day_worker_dashboard_totals_are_plain_calendar_days(): void
     {
         $tz = config('app.timezone');
         Carbon::setTestNow(Carbon::parse('2026-07-03 15:00', $tz));
@@ -128,11 +133,25 @@ class WorkDayWindowTest extends TestCase
             'status' => TrackingSession::STATUS_STOPPED,
             'source' => 'desktop',
         ]);
+        // Yesterday's separate session shows up only in yesterday/week/month.
+        TrackingSession::create([
+            'user_id' => $member->id,
+            'client_uuid' => 'uuid-day-before',
+            'started_at' => Carbon::parse('2026-07-02 10:00', $tz),
+            'stopped_at' => Carbon::parse('2026-07-02 12:00', $tz),
+            'total_seconds' => 2 * 3600,
+            'status' => TrackingSession::STATUS_STOPPED,
+            'source' => 'desktop',
+        ]);
 
-        $tracked = $this->actingAs($member)
+        $row = $this->actingAs($member)
             ->getJson('/time-entries/today-summary')
             ->assertOk()
-            ->json('employees.0.tracked_hours');
-        $this->assertEqualsWithDelta(4.0, $tracked, 0.01);
+            ->json('employees.0');
+
+        $this->assertEqualsWithDelta(4.0, $row['tracked_hours'], 0.01);
+        $this->assertEqualsWithDelta(2.0, $row['tracked_yesterday_hours'], 0.01);
+        $this->assertEqualsWithDelta(6.0, $row['tracked_week_hours'], 0.01, 'week = Jul 2 + Jul 3');
+        $this->assertEqualsWithDelta(6.0, $row['tracked_month_hours'], 0.01, 'month = Jul 2 + Jul 3');
     }
 }

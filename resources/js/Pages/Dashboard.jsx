@@ -669,21 +669,18 @@ export default function Dashboard({ auth }) {
     // doesn't reset at midnight), so the four numbers always tell one story.
     const metrics = [
         { label: 'In Office', sub: 'Clocked in · this work day', value: formatHours(todayStats.totalHours), icon: Timer, color: 'text-emerald-400', bg: 'bg-emerald-500/10', title: 'How long you have been clocked in this work day (clock-in to clock-out, minus breaks). Your work day follows your shift — it does not reset at midnight.' },
-        { label: 'Tracked Work', sub: 'Tracker active · this work day', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10', title: 'Work the desktop tracker recorded this work day, plus manual work-diary hours. Lower than In Office when the tracker was off or you were idle (meetings, calls, reading).' },
+        { label: 'Tracked Work', sub: 'Tracker active · today', value: myTracked != null ? formatHours(myTracked) : '0m', icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10', title: 'Work the desktop tracker recorded today (since midnight), plus manual work-diary hours — always matches your Timeline. Work after midnight counts on the next date, exactly like the Timeline.' },
         { label: 'Break Time', sub: 'On break · this work day', value: formatHours(todayStats.totalBreakTime), icon: Coffee, color: 'text-amber-400', bg: 'bg-amber-500/10', title: 'Total break time this work day. Breaks pause the tracker and are not counted as work.' },
         { label: 'Actions', sub: 'Clock punches · this work day', value: entries.length, icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/10', title: 'Clock in / out / break punches this work day.' },
     ];
 
-    // Team table order: working people first, on-break in the middle, clocked
-    // out at the bottom; within a status, earliest shift first, then name.
-    const STATUS_ORDER = { Working: 0, 'On Break': 1, 'Clocked Out': 2 };
+    // Tracked-only table order: people tracking right now first, then by most
+    // tracked today, then name. (Clock status ordering lives on the Shifts tab.)
     const sortedEmployees = [...employeesData].sort((a, b) => {
-        const ra = STATUS_ORDER[a.current_status] ?? 1.5;
-        const rb = STATUS_ORDER[b.current_status] ?? 1.5;
-        if (ra !== rb) return ra - rb;
-        const sa = a.shift_start_time || '99:99';
-        const sb = b.shift_start_time || '99:99';
-        if (sa !== sb) return sa < sb ? -1 : 1;
+        if (!!a.is_live !== !!b.is_live) return a.is_live ? -1 : 1;
+        const ta = Number(a.tracked_hours) || 0;
+        const tb = Number(b.tracked_hours) || 0;
+        if (ta !== tb) return tb - ta;
         return (a.user_name || '').localeCompare(b.user_name || '');
     });
 
@@ -715,59 +712,56 @@ export default function Dashboard({ auth }) {
                     <tr>
                         {[
                             ['Employee', null],
-                            ['Status', null],
-                            ['In Office', 'Clocked-in time this work day (shift-aware — does not reset at midnight)'],
-                            ['Tracked', 'Desktop-tracker work this work day + manual hours'],
+                            ['Status', 'Whether the desktop tracker is recording right now'],
+                            ['Tracked today', 'Desktop-tracker work + manual diary hours, this calendar day — matches the Timeline exactly'],
                             ['Activity', 'Share of tracked time with keyboard/mouse input'],
-                            ['Break', 'Break time this work day'],
-                            ['Week', 'In-office hours since the start of the week (Monday). Early in a month this can exceed Month — the week may include days from last month.'],
-                            ['Month', 'In-office hours since the 1st of this month'],
+                            ['Yesterday', 'Tracked yesterday (calendar day) — a night shift’s evening lands here after midnight'],
+                            ['This week', 'Tracked since Monday. Early in a month this can exceed This month — the week may include last-month days.'],
+                            ['This month', 'Tracked since the 1st'],
                         ].map(([heading, tip]) => (
                             <th key={heading} title={tip || undefined} className={`px-4 py-3 text-left text-xs font-bold uppercase text-slate-300 ${tip ? 'cursor-help underline decoration-dotted decoration-slate-600 underline-offset-4' : ''}`}>{heading}</th>
                         ))}
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                    {sortedEmployees.map((employee) => {
-                        const status = statusFromAction(
-                            employee.current_status === 'On Break'
-                                ? 'break_start'
-                                : employee.current_status === 'Clocked Out'
-                                    ? 'clock_out'
-                                    : 'clock_in'
-                        );
-                        return (
-                            <tr key={employee.user_id} className="hover:bg-white/5">
-                                <td className="whitespace-nowrap px-4 py-3">
-                                    <div className="flex items-center gap-3">
-                                        <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
-                                        <div>
-                                            <div className="text-sm font-semibold text-slate-100">{employee.user_name}</div>
-                                            <div className="text-xs text-slate-400">{employee.designation}</div>
-                                        </div>
+                    {sortedEmployees.map((employee) => (
+                        <tr key={employee.user_id} className="hover:bg-white/5">
+                            <td className="whitespace-nowrap px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                    <EmployeeAvatar src={employee.avatar} name={employee.user_name} />
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-100">{employee.user_name}</div>
+                                        <div className="text-xs text-slate-400">{employee.designation}</div>
                                     </div>
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                    <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}>
-                                        <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-                                        {employee.current_status}
+                                </div>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3">
+                                {employee.is_live ? (
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+                                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                                        Tracking
                                     </span>
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(employee.tracked_hours || 0)}</td>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                    {(() => {
-                                        const hasData = employee.is_live || (Number(employee.tracked_hours) || 0) > 0;
-                                        if (!hasData) return <span className="text-xs text-slate-400">—</span>;
-                                        return activityPill(employee.activity_percent);
-                                    })()}
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.weekly_work_hours || 0)}</td>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.monthly_work_hours || 0)}</td>
-                            </tr>
-                        );
-                    })}
+                                ) : (Number(employee.tracked_hours) || 0) > 0 ? (
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-700/40 px-2.5 py-1 text-xs font-semibold text-slate-300">
+                                        Tracked earlier
+                                    </span>
+                                ) : (
+                                    <span className="text-xs text-slate-500">—</span>
+                                )}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(employee.tracked_hours || 0)}</td>
+                            <td className="whitespace-nowrap px-4 py-3">
+                                {(() => {
+                                    const hasData = employee.is_live || (Number(employee.tracked_hours) || 0) > 0;
+                                    if (!hasData) return <span className="text-xs text-slate-400">—</span>;
+                                    return activityPill(employee.activity_percent);
+                                })()}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.tracked_yesterday_hours || 0)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.tracked_week_hours || 0)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.tracked_month_hours || 0)}</td>
+                        </tr>
+                    ))}
                 </tbody>
             </table>
         </div>
