@@ -557,28 +557,49 @@ class TimelineController extends Controller
      */
     private function screenshotInput(Collection $rows, Collection $samples, ?Carbon $blockStart): array
     {
+        // Screenshot windows are contiguous: shot i owns the samples captured
+        // after the previous shot (or the block start) up to and including its
+        // own time. Rather than scan every sample for every shot (O(shots*samples)
+        // — which made dense days take ~13s), sort both once and sweep a single
+        // shot pointer forward, giving O(shots + samples).
         $shots = $rows->filter(fn (TrackingScreenshot $s) => $s->captured_at)
             ->sortBy(fn (TrackingScreenshot $s) => $s->captured_at->getTimestamp())
             ->values();
 
         $out = [];
-        $prev = $blockStart;
         foreach ($shots as $shot) {
-            $until = $shot->captured_at;
-            $keys = 0;
-            $clicks = 0;
-            foreach ($samples as $smp) {
-                $t = $smp->captured_at;
-                if (! $t) {
-                    continue;
-                }
-                if (($prev === null || $t->greaterThan($prev)) && $t->lessThanOrEqualTo($until)) {
-                    $keys += (int) $smp->keyboard_count;
-                    $clicks += (int) ($smp->mouse_clicks ?? 0);
-                }
+            $out[$shot->id] = ['keystrokes' => 0, 'clicks' => 0];
+        }
+        if ($shots->isEmpty()) {
+            return $out;
+        }
+
+        $sorted = $samples->filter(fn ($s) => $s->captured_at)
+            ->sortBy(fn ($s) => $s->captured_at->getTimestamp())
+            ->values();
+
+        $startTs = $blockStart?->getTimestamp();
+        $shotCount = $shots->count();
+        $i = 0;
+
+        foreach ($sorted as $smp) {
+            $t = $smp->captured_at->getTimestamp();
+            // A sample at or before the first window's lower bound (block start)
+            // belongs to no screenshot — matches the old `t > prev` guard.
+            if ($startTs !== null && $t <= $startTs) {
+                continue;
             }
-            $out[$shot->id] = ['keystrokes' => $keys, 'clicks' => $clicks];
-            $prev = $until;
+            // Advance to the first shot whose time is >= this sample (i.e. the
+            // shot whose window this sample falls in: prevShot < t <= thisShot).
+            while ($i < $shotCount && $shots[$i]->captured_at->getTimestamp() < $t) {
+                $i++;
+            }
+            if ($i >= $shotCount) {
+                break; // later samples fall past the last screenshot — unowned
+            }
+            $id = $shots[$i]->id;
+            $out[$id]['keystrokes'] += (int) $smp->keyboard_count;
+            $out[$id]['clicks'] += (int) ($smp->mouse_clicks ?? 0);
         }
 
         return $out;

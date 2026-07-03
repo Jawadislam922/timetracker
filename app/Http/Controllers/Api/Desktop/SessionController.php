@@ -15,6 +15,7 @@ use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class SessionController extends Controller
 {
@@ -176,10 +177,11 @@ class SessionController extends Controller
 
         $data = $request->validated();
 
+        $hbAt = BusinessTime::fromClient($data['heartbeat_at'] ?? null) ?? now();
         $session->update([
-            'total_seconds' => $data['total_seconds'],
+            'total_seconds' => $this->clampTotalSeconds($session, (int) $data['total_seconds'], $hbAt),
             'activity_percent' => $data['activity_percent'] ?? $session->activity_percent,
-            'last_heartbeat_at' => BusinessTime::fromClient($data['heartbeat_at'] ?? null) ?? now(),
+            'last_heartbeat_at' => $hbAt,
         ]);
 
         $user = $request->user();
@@ -219,9 +221,10 @@ class SessionController extends Controller
 
         $data = $request->validated();
 
+        $stoppedAt = BusinessTime::fromClient($data['stopped_at']) ?? now();
         $session->update([
-            'stopped_at' => BusinessTime::fromClient($data['stopped_at']) ?? now(),
-            'total_seconds' => $data['total_seconds'],
+            'stopped_at' => $stoppedAt,
+            'total_seconds' => $this->clampTotalSeconds($session, (int) $data['total_seconds'], $stoppedAt),
             'activity_percent' => $data['activity_percent'] ?? $session->activity_percent,
             'task_note' => $data['task_note'] ?? $session->task_note,
             'status' => TrackingSession::STATUS_STOPPED,
@@ -235,6 +238,40 @@ class SessionController extends Controller
             'status' => $session->status,
             'stopped_at' => $session->stopped_at?->toIso8601String(),
         ]);
+    }
+
+    /**
+     * Server backstop: tracked (active, idle-adjusted) seconds can never exceed
+     * the session's real elapsed wall-clock. If the desktop reports more — the
+     * symptom of the double-timer / double-start bug — cap it to elapsed so an
+     * impossible value is never stored, and log it so we're alerted. Legitimate
+     * sessions always sit below elapsed, so this only ever corrects the
+     * impossible case (no effect on healthy trackers).
+     */
+    private function clampTotalSeconds(TrackingSession $session, int $incoming, Carbon $endAt): int
+    {
+        $incoming = max(0, $incoming);
+        if (! $session->started_at) {
+            return $incoming;
+        }
+
+        $elapsed = max(0, $endAt->getTimestamp() - $session->started_at->getTimestamp());
+        $grace = 2; // rounding / first-tick slack
+
+        if ($incoming > $elapsed + $grace) {
+            Log::warning('Tracking total_seconds exceeded elapsed — clamped', [
+                'session_id' => $session->id,
+                'user_id' => $session->user_id,
+                'reported_seconds' => $incoming,
+                'elapsed_seconds' => $elapsed,
+                'device_name' => $session->device_name,
+                'app_version' => $session->app_version,
+            ]);
+
+            return $elapsed;
+        }
+
+        return $incoming;
     }
 
     /**
