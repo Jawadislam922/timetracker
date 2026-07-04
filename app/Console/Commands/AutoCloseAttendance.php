@@ -7,6 +7,7 @@ use App\Models\TimeEntry;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\AttendanceCloser;
+use App\Services\SlackBotService;
 use App\Support\BusinessTime;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -43,7 +44,7 @@ class AutoCloseAttendance extends Command
 
     protected $description = 'Auto clock-out dangling attendance clock-ins (forgotten clock-outs), recording a reason.';
 
-    public function handle(AttendanceCloser $closer): int
+    public function handle(AttendanceCloser $closer, SlackBotService $slack): int
     {
         $bufferMinutes = $this->option('buffer-minutes') !== null
             ? (int) $this->option('buffer-minutes')
@@ -165,6 +166,11 @@ class AutoCloseAttendance extends Command
                 AttendanceClockCheck::where('clock_in_id', $clockIn->id)
                     ->whereNull('resolved_at')
                     ->update(['resolved_at' => $now, 'resolution' => 'closed_elsewhere']);
+                // Announce to Slack, same as the "still working?" non-responder
+                // close does — otherwise a shift-end auto clock-out is silent and
+                // reads as a missing clock-out to managers. (The clock notifier
+                // deliberately skips Auto-clock-out entries so we post here.)
+                $this->announceLockout($slack, $user, $closeAt, $reason);
             }
             $closed++;
         }
@@ -172,6 +178,27 @@ class AutoCloseAttendance extends Command
         $this->info(sprintf('%s %d open clock-in(s); skipped %d still-active.', $dry ? 'Would close' : 'Closed', $closed, $skipped));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Tell the team channel that someone was auto clocked-out at shift end, and
+     * why — mirrors StillWorkingCheck::announceLockout so both auto-close paths
+     * announce identically. Time shown in the business timezone the channel reads.
+     */
+    private function announceLockout(SlackBotService $slack, User $user, Carbon $at, string $reason): void
+    {
+        $channel = config('services.attendance.lockout_channel')
+            ?: config('services.attendance.clockin_channel');
+        if (! $channel) {
+            return;
+        }
+
+        $slack->postToChannel($channel, sprintf(
+            ":lock: *%s* was automatically clocked out at %s.\n> %s",
+            $user->name,
+            $at->copy()->setTimezone(BusinessTime::tz())->format('g:i A'),
+            $reason,
+        ));
     }
 
     /**

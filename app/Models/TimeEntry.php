@@ -56,6 +56,21 @@ class TimeEntry extends Model
         return $query->where('user_id', $userId);
     }
 
+    /**
+     * The user's CURRENT clock state: the action_type of their globally most
+     * recent entry, regardless of attendance day. The clock sequence must be
+     * enforced against this (not against today's entries only) so a clock-in
+     * left open last night still blocks a new clock-in after midnight — you
+     * can't clock in while already clocked in. Returns null if they've never
+     * clocked anything (then a clock-in is the only allowed action).
+     */
+    public static function currentClockState(int $userId): ?string
+    {
+        return static::where('user_id', $userId)
+            ->orderByDesc('action_timestamp')->orderByDesc('id')
+            ->value('action_type');
+    }
+
     public function scopeForDate($query, $date)
     {
         return $query->whereDate('action_date', $date);

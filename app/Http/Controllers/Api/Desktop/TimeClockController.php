@@ -23,10 +23,10 @@ class TimeClockController extends Controller
         $now = Carbon::now('Asia/Karachi');
         $attendanceDate = $user->attendanceDateFor($now);
 
-        $lastAction = TimeEntry::forUser($user->id)
-            ->forDate($attendanceDate)
-            ->orderByDesc('action_timestamp')->orderByDesc('id')
-            ->value('action_type');
+        // Global current state (not day-scoped) so the desktop app shows
+        // "Clock Out" — not "Clock In" — for someone still clocked in from
+        // last night, and never offers a duplicate clock-in after midnight.
+        $lastAction = TimeEntry::currentClockState($user->id);
 
         return response()->json([
             'last_action' => $lastAction,
@@ -50,10 +50,9 @@ class TimeClockController extends Controller
         $attendanceDate = $user->attendanceDateFor($now);
         $actionType = $validated['action_type'];
 
-        $lastAction = TimeEntry::forUser($user->id)
-            ->forDate($attendanceDate)
-            ->orderByDesc('action_timestamp')->orderByDesc('id')
-            ->value('action_type');
+        // Global current state (see status()): blocks a duplicate clock-in when
+        // a prior day's clock-in is still open (crossing midnight).
+        $lastAction = TimeEntry::currentClockState($user->id);
 
         if (! TimeClockRules::isAllowed($lastAction, $actionType)) {
             return response()->json([

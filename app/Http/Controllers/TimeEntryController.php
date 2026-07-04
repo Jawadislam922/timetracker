@@ -63,11 +63,11 @@ class TimeEntryController extends Controller
         $now = Carbon::now('Asia/Karachi');
         $actionType = $validated['action_type'];
         $attendanceDate = $user->attendanceDateFor($now);
-        $lastAction = TimeEntry::forUser($user->id)
-            ->forDate($attendanceDate)
-            ->orderBy('action_timestamp', 'desc')
-            ->orderBy('id', 'desc')
-            ->value('action_type');
+        // Enforce the sequence against the GLOBAL current clock state, not just
+        // today's — otherwise a clock-in left open past midnight looks "closed"
+        // to today's empty list and a duplicate clock-in slips through (the
+        // reported bug: clocked in 7:26 PM, then a second clock-in at 12:40 AM).
+        $lastAction = TimeEntry::currentClockState($user->id);
 
         if (! $this->isActionAllowed($lastAction, $actionType)) {
             return response()->json([
