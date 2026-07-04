@@ -86,7 +86,11 @@ export function getChartOptions({ type = 'bar', showLegend = false, valueFormat,
         responsive: true,
         maintainAspectRatio: false,
         indexAxis,
-        interaction: { intersect: false, mode: isArc ? 'nearest' : 'index' },
+        // For horizontal (ranked) bars the hover/click axis MUST be 'y' —
+        // Chart.js defaults index-mode to the x axis, which resolves the
+        // cursor by horizontal distance and matches the WRONG row (tooltip
+        // showed a different member than the one under the mouse).
+        interaction: { intersect: false, mode: isArc ? 'nearest' : 'index', axis: horizontal ? 'y' : 'x' },
         plugins: {
             legend: {
                 display: showLegend,
