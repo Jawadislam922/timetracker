@@ -92,7 +92,7 @@ export default function TeamMember({ auth, member, start, end, range, charts, to
                 <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <SwitchableChartCard
                         title="Hours per day"
-                        subtitle="In-office vs tracked — the gap is present-but-not-tracking"
+                        subtitle="In-office vs tracked, per calendar day — the gap is present-but-not-tracking"
                         chartKey="person_hours_per_day"
                         allowedTypes={['bar', 'line']}
                         defaultType="bar"

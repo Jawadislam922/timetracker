@@ -404,15 +404,14 @@ class TeamController extends Controller
             ->whereBetween('captured_at', [$dayStart, $dayEnd])
             ->get(['active_app']);
 
-        // In-office hours come from the user's own time-clock entries, grouped by
-        // their attendance day (already the worker's day from the timezone work).
-        $entriesByDate = TimeEntry::where('user_id', $user->id)
-            ->whereBetween('action_timestamp', [$dayStart, $dayEnd])
+        // In-office hours from the user's own time-clock entries, computed per
+        // CALENDAR day (split at midnight) so they sit on the same day axis as
+        // tracked time below. Widen the fetch one day earlier so an overnight
+        // clock-in that straddles the range start is still paired.
+        $clockEntries = TimeEntry::where('user_id', $user->id)
+            ->whereBetween('action_timestamp', [$dayStart->copy()->subDay(), $dayEnd])
             ->orderBy('action_timestamp')->orderBy('id')
-            ->get()
-            ->groupBy(fn ($e) => $e->action_date instanceof \Carbon\Carbon
-                ? $e->action_date->toDateString()
-                : substr((string) $e->action_date, 0, 10));
+            ->get();
 
         $labels = [];
         $trackedHours = [];
@@ -436,7 +435,7 @@ class TeamController extends Controller
 
             $labels[] = $key;
             $trackedHours[] = round($trackedSec / 3600, 2);
-            $inOfficeHours[] = round(AttendanceHours::dayInOfficeHours($entriesByDate[$key] ?? collect()), 2);
+            $inOfficeHours[] = round(AttendanceHours::inOfficeSecondsInWindow($clockEntries, $ds, $de) / 3600, 2);
             $activity[] = $trackedSec > 0 ? (int) round($weightedAct / $trackedSec) : 0;
         }
 

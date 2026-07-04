@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\TrackingSession;
 use App\Models\User;
 use App\Services\ActivityDigestService;
+use App\Support\AttendanceHours;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -100,5 +101,40 @@ class DigestAndActivityConsistencyTest extends TestCase
         // Activity weighted by IN-DAY share: (90*1800 + 30*3600)/5400 = 50%.
         // (The old whole-session weighting gave 60% — irreconcilable with 1.5h.)
         $this->assertSame(50, $row['activity_percent']);
+    }
+
+    public function test_member_in_office_splits_an_overnight_span_by_calendar_day(): void
+    {
+        // The member analytics page charts in-office beside calendar-day tracked;
+        // in-office must ALSO split at midnight (not lump on the shift day) or a
+        // night worker reads "tracked > in-office" nonsense.
+        $tz = 'Asia/Karachi';
+        $mk = fn ($type, $time) => (object) ['action_type' => $type, 'action_timestamp' => Carbon::parse($time, $tz)];
+
+        // Present 22:00 Jul 3 -> 02:00 Jul 4 (4h), with a 30-min break 23:00-23:30.
+        $entries = [
+            $mk('clock_in', '2026-07-03 22:00'),
+            $mk('break_start', '2026-07-03 23:00'),
+            $mk('break_end', '2026-07-03 23:30'),
+            $mk('clock_out', '2026-07-04 02:00'),
+        ];
+
+        $jul3 = AttendanceHours::inOfficeSecondsInWindow(
+            $entries,
+            Carbon::parse('2026-07-03 00:00', $tz),
+            Carbon::parse('2026-07-03 23:59:59', $tz),
+        );
+        $jul4 = AttendanceHours::inOfficeSecondsInWindow(
+            $entries,
+            Carbon::parse('2026-07-04 00:00', $tz),
+            Carbon::parse('2026-07-04 23:59:59', $tz),
+        );
+
+        // Jul 3: 22:00-24:00 present (2h) minus 23:00-23:30 break (0.5h) = 1.5h.
+        $this->assertEqualsWithDelta(1.5 * 3600, $jul3, 2);
+        // Jul 4: 00:00-02:00 present, no break = 2h.
+        $this->assertEqualsWithDelta(2 * 3600, $jul4, 2);
+        // Total = 3.5h present-minus-break, independent of where midnight falls.
+        $this->assertEqualsWithDelta(3.5 * 3600, $jul3 + $jul4, 2);
     }
 }
