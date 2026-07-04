@@ -228,11 +228,12 @@ class TimeEntryController extends Controller
             $allRows = $employees->map(fn ($employee) => $this->summaryStatsFor($employee, $entriesByUser->get($employee->id, collect()), $now, $weekStart, $monthStart, $trackedByUserDate, $liveByUser, $activityByUser));
 
             $employeesData = $allRows->filter(function ($employee) {
-                // Show anyone with tracked time today/yesterday, a live tracker
-                // session, or attendance entries today (the tracked-only table
-                // still needs night workers whose evening belongs to yesterday).
-                return $employee['total_entries'] > 0
-                    || $employee['is_live']
+                // Tracked-only table: show anyone tracking now or with tracked
+                // time today/yesterday (a night shift's evening lands on
+                // yesterday). Someone who clocked in but never ran the tracker
+                // has no row here — they're surfaced in Needs Attention instead,
+                // so they don't appear as an all-zero "ghost" row.
+                return $employee['is_live']
                     || $employee['tracked_hours'] > 0
                     || $employee['tracked_yesterday_hours'] > 0;
             });
@@ -624,27 +625,39 @@ class TimeEntryController extends Controller
      */
     private function loadDayActivity(array $userIds, Carbon $now): Collection
     {
+        $svc = app(TrackingSessionService::class);
+        $dayStart = $now->copy()->startOfDay();
+        $dayEnd = $now->copy()->endOfDay();
+
         return \App\Models\TrackingSession::query()
             ->whereIn('user_id', $userIds)
             ->where('total_seconds', '>', 0)
-            ->where('started_at', '<=', $now)
-            // Sessions that ran at some point today, including a night shift's
-            // session that started yesterday evening and finished after midnight
-            // (or is still running).
-            ->where(function ($q) use ($now) {
+            ->where('started_at', '<=', $dayEnd)
+            // Sessions overlapping today, including a night shift's session that
+            // started yesterday evening and finished after midnight (or is still
+            // running).
+            ->where(function ($q) use ($dayStart) {
                 $q->whereNull('stopped_at')
-                    ->orWhere('stopped_at', '>=', $now->copy()->startOfDay());
+                    ->orWhere('stopped_at', '>=', $dayStart);
             })
-            ->get(['user_id', 'total_seconds', 'activity_percent'])
+            ->get(['id', 'user_id', 'started_at', 'stopped_at', 'total_seconds', 'activity_percent'])
             ->groupBy('user_id')
-            ->map(function ($sessions) {
-                $tot = (int) $sessions->sum('total_seconds');
-                if ($tot <= 0) {
-                    return 0;
+            ->map(function ($sessions) use ($svc, $dayStart, $dayEnd) {
+                // Weight each session's activity by its IN-DAY tracked share
+                // (not its whole total), so the Activity % matches the
+                // calendar-day "Tracked today" hours shown beside it — and the
+                // member analytics / Team page, which weight the same way. An
+                // overnight session's yesterday-evening keystrokes no longer
+                // inflate today's activity.
+                $tot = 0;
+                $weighted = 0;
+                foreach ($sessions as $s) {
+                    $share = $svc->inDaySeconds($s, $dayStart, $dayEnd);
+                    $tot += $share;
+                    $weighted += (int) $s->activity_percent * $share;
                 }
-                $weighted = $sessions->sum(fn ($s) => (int) $s->activity_percent * (int) $s->total_seconds);
 
-                return (int) round($weighted / $tot);
+                return $tot > 0 ? (int) round($weighted / $tot) : 0;
             });
     }
 

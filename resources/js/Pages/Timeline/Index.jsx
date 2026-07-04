@@ -553,19 +553,25 @@ export default function TimelineIndex({
     const [deleteReason, setDeleteReason] = useState('');
     const [deleting, setDeleting] = useState(false);
 
-    // Whenever Inertia resolves a different person/day (picker, date controls,
-    // or a direct URL), mirror the FRESH server props into local state. We key
-    // off the component's own props — not the navigation callback's page object,
-    // which can lag — so the session list and screenshots can never keep showing
-    // the previously viewed person's data.
+    // On navigation to a DIFFERENT person/day (picker, date controls, or a
+    // direct URL), reset the view's transient UI state. Keyed on person+day
+    // only — NOT initialData — so a same-day refresh (flagging or deleting a
+    // screenshot, which calls reload()) doesn't wipe an expanded session or the
+    // current selection out from under a manager mid-review.
     useEffect(() => {
-        setData(initialData);
         setActiveUserId(targetUser.id);
         setActiveDate(date);
         setSelectedShots(new Set());
         setCollapseOverrides({});
         setAiSummary(null);
-    }, [targetUser.id, date, initialData]);
+    }, [targetUser.id, date]);
+
+    // Mirror the freshest server props into local state on every resolve —
+    // including a same-day reload — so the session list/screenshots stay current
+    // after a flag/delete without touching collapse or selection state above.
+    useEffect(() => {
+        setData(initialData);
+    }, [initialData]);
 
     const toggleShot = (id) => {
         setSelectedShots((prev) => {

@@ -30,9 +30,17 @@ class ActivityDigestService
         $rangeStart = $start->copy()->setTimezone($storageTz);
         $rangeEnd = $end->copy()->setTimezone($storageTz);
 
+        // Load sessions OVERLAPPING the range (not merely started in it) and
+        // credit each its in-range share via inDaySeconds — the same
+        // calendar-day allocation the dashboard/Timeline/desktop use, so this
+        // digest can't report a different "tracked" number for the same day.
+        $svc = app(TrackingSessionService::class);
         $sessions = TrackingSession::with('client:id,name')
-            ->whereBetween('started_at', [$rangeStart, $rangeEnd])
-            ->get(['id', 'user_id', 'client_id', 'started_at', 'total_seconds', 'activity_percent']);
+            ->where('started_at', '<=', $rangeEnd)
+            ->where(function ($q) use ($rangeStart) {
+                $q->whereNull('stopped_at')->orWhere('stopped_at', '>=', $rangeStart);
+            })
+            ->get(['id', 'user_id', 'client_id', 'started_at', 'stopped_at', 'total_seconds', 'activity_percent']);
 
         $samples = TrackingActivitySample::whereBetween('captured_at', [$rangeStart, $rangeEnd])
             ->get(['id', 'user_id', 'tracking_session_id', 'captured_at', 'keyboard_count', 'mouse_count', 'idle_seconds', 'active_app']);
@@ -46,17 +54,17 @@ class ActivityDigestService
             ->get(['id', 'name'])
             ->keyBy('id');
 
-        $rows = $users->map(function (User $user) use ($sessions, $samples) {
+        $rows = $users->map(function (User $user) use ($sessions, $samples, $svc, $rangeStart, $rangeEnd) {
             $userSessions = $sessions->where('user_id', $user->id);
             $userSamples = $samples->where('user_id', $user->id);
 
-            $total = (int) $userSessions->sum('total_seconds');
+            $total = (int) $userSessions->sum(fn ($s) => $svc->inDaySeconds($s, $rangeStart, $rangeEnd));
             $active = $userSamples->filter(fn ($s) => ($s->keyboard_count + $s->mouse_count) > 0 && $s->idle_seconds < 60)->count();
             $activityPct = $userSamples->count() > 0 ? (int) round($active / $userSamples->count() * 100) : 0;
 
             $topClient = $userSessions
                 ->groupBy(fn ($s) => $s->client?->name ?: 'Unassigned')
-                ->map(fn ($g, $name) => ['name' => $name, 'total_seconds' => (int) $g->sum('total_seconds')])
+                ->map(fn ($g, $name) => ['name' => $name, 'total_seconds' => (int) $g->sum(fn ($s) => $svc->inDaySeconds($s, $rangeStart, $rangeEnd))])
                 ->sortByDesc('total_seconds')
                 ->first();
 

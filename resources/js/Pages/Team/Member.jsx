@@ -121,7 +121,7 @@ export default function TeamMember({ auth, member, start, end, range, charts, to
                         buildData={(type) => (type === 'bar'
                             ? toTrendData(toShareData(charts.top_apps).labels, [{ label: 'Hours', data: toShareData(charts.top_apps).datasets[0].data }], 'bar')
                             : toShareData(charts.top_apps, { cap: 24 }))}
-                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
+                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours, indexAxis: type === 'bar' ? 'y' : 'x' })}
                         height={260}
                     />
                     <SwitchableChartCard
@@ -133,7 +133,7 @@ export default function TeamMember({ auth, member, start, end, range, charts, to
                         buildData={(type) => (type === 'bar'
                             ? toTrendData(toShareData(charts.top_clients).labels, [{ label: 'Hours', data: toShareData(charts.top_clients).datasets[0].data }], 'bar')
                             : toShareData(charts.top_clients, { cap: 24 }))}
-                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours })}
+                        buildOptions={(type) => getChartOptions({ type, showLegend: type !== 'bar', valueFormat: hours, indexAxis: type === 'bar' ? 'y' : 'x' })}
                         height={260}
                     />
                 </div>
