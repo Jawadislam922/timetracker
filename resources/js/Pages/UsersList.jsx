@@ -8,6 +8,7 @@ import Avatar from '@/Components/Avatar';
 import ActiveFilterChips from '@/Components/Filters/ActiveFilterChips';
 import SearchableMultiSelect from '@/Components/Filters/SearchableMultiSelect';
 import { TraditionalPagination } from '@/Components/Pagination';
+import { WORK_TIMEZONES } from '@/constants/workTimezones';
 
 const roleStyles = {
     super_admin: 'bg-violet-500/15 text-violet-300',
@@ -35,12 +36,20 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
     const [selectAllMatching, setSelectAllMatching] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [bulkSaving, setBulkSaving] = useState(false);
-    const [bulk, setBulk] = useState({
+    const bulkDefaults = {
         setShift: false, shiftTime: '', shiftGrace: 15,
+        setShiftId: false, shiftId: '',
+        setShiftHours: false, shiftHours: '',
+        setClockout: false, clockout: '',
         setDesignation: false, designation: '',
+        setWorkTz: false, workTz: 'Asia/Karachi',
+        setRole: false, role: '',
+        setTracksTime: false, tracksTime: 'yes',
+        setDevices: false, allowDevices: 'no',
         permsAdd: [], permsRemove: [],
         slackMode: '',
-    });
+    };
+    const [bulk, setBulk] = useState(bulkDefaults);
 
     const permissionOptions = useMemo(() => (
         Object.entries(permissionGroups).flatMap(([group, perms]) =>
@@ -67,16 +76,30 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                 user_ids: [...selectedIds],
                 set_shift: bulk.setShift,
                 shift_start_time: bulk.setShift ? (bulk.shiftTime || null) : null,
-                shift_grace_minutes: bulk.setShift ? Number(bulk.shiftGrace) : null,
+                shift_grace_minutes: bulk.setShift ? (bulk.shiftGrace === '' ? null : Number(bulk.shiftGrace)) : null,
+                set_shift_id: bulk.setShiftId,
+                shift_id: bulk.setShiftId ? (bulk.shiftId === '' ? null : Number(bulk.shiftId)) : null,
+                set_shift_hours: bulk.setShiftHours,
+                shift_hours: bulk.setShiftHours ? (bulk.shiftHours === '' ? null : Number(bulk.shiftHours)) : null,
+                set_clockout_reminder: bulk.setClockout,
+                clockout_reminder_minutes: bulk.setClockout ? (bulk.clockout === '' ? null : Number(bulk.clockout)) : null,
                 set_designation: bulk.setDesignation,
                 designation: bulk.setDesignation ? bulk.designation : null,
+                set_work_timezone: bulk.setWorkTz,
+                work_timezone: bulk.setWorkTz ? bulk.workTz : null,
+                set_role: bulk.setRole,
+                role: bulk.setRole ? (bulk.role || null) : null,
+                set_tracks_time: bulk.setTracksTime,
+                tracks_time: bulk.setTracksTime ? bulk.tracksTime === 'yes' : null,
+                set_allow_multiple_devices: bulk.setDevices,
+                allow_multiple_devices: bulk.setDevices ? bulk.allowDevices === 'yes' : null,
                 permissions_add: bulk.permsAdd,
                 permissions_remove: bulk.permsRemove,
                 slack_reports: bulk.slackMode || null,
             });
             setShowBulkModal(false);
             setSelectedIds(new Set());
-            setBulk({ setShift: false, shiftTime: '', shiftGrace: 15, setDesignation: false, designation: '', permsAdd: [], permsRemove: [], slackMode: '' });
+            setBulk(bulkDefaults);
             router.reload({ preserveScroll: true });
             window.alert(res.data.message);
         } catch (err) {
@@ -614,7 +637,48 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                         <label className="flex items-center gap-2">Grace (min)
                                             <input type="number" min="0" max="240" value={bulk.shiftGrace} onChange={(e) => setBulk({ ...bulk, shiftGrace: e.target.value })} className="w-20 rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]" />
                                         </label>
-                                        <span className="text-xs text-slate-400">Leave start empty to clear the shift.</span>
+                                        <span className="text-xs text-slate-400">Leave start empty to clear the start time.</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="rounded-lg border border-slate-800 p-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                    <input type="checkbox" checked={bulk.setShiftId} onChange={(e) => setBulk({ ...bulk, setShiftId: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                    Set shift (name)
+                                </label>
+                                {bulk.setShiftId && (
+                                    <select value={bulk.shiftId} onChange={(e) => setBulk({ ...bulk, shiftId: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
+                                        <option value="">No shift</option>
+                                        {(filterOptions.shifts || []).map((s) => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            <div className="rounded-lg border border-slate-800 p-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                    <input type="checkbox" checked={bulk.setShiftHours} onChange={(e) => setBulk({ ...bulk, setShiftHours: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                    Set shift length (hours)
+                                </label>
+                                {bulk.setShiftHours && (
+                                    <div className="mt-2 flex items-center gap-3 text-sm text-slate-300">
+                                        <input type="number" min="0" max="24" step="0.5" placeholder="e.g. 10" value={bulk.shiftHours} onChange={(e) => setBulk({ ...bulk, shiftHours: e.target.value })} className="w-28 rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]" />
+                                        <span className="text-xs text-slate-400">Leave blank to clear (team default).</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="rounded-lg border border-slate-800 p-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                    <input type="checkbox" checked={bulk.setClockout} onChange={(e) => setBulk({ ...bulk, setClockout: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                    Set clock-out reminder (minutes after shift)
+                                </label>
+                                {bulk.setClockout && (
+                                    <div className="mt-2 flex items-center gap-3 text-sm text-slate-300">
+                                        <input type="number" min="0" max="240" step="5" placeholder="e.g. 20" value={bulk.clockout} onChange={(e) => setBulk({ ...bulk, clockout: e.target.value })} className="w-28 rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]" />
+                                        <span className="text-xs text-slate-400">Leave blank for right at shift end.</span>
                                     </div>
                                 )}
                             </div>
@@ -633,6 +697,52 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                     </select>
                                 )}
                             </div>
+
+                            <div className="rounded-lg border border-slate-800 p-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                    <input type="checkbox" checked={bulk.setWorkTz} onChange={(e) => setBulk({ ...bulk, setWorkTz: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                    Set work timezone
+                                </label>
+                                {bulk.setWorkTz && (
+                                    <select value={bulk.workTz} onChange={(e) => setBulk({ ...bulk, workTz: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
+                                        {WORK_TIMEZONES.map((zone) => (
+                                            <option key={zone} value={zone}>{zone.replace(/_/g, ' ')}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            {auth.user.is_super_admin && (
+                                <div className="rounded-lg border border-slate-800 p-3">
+                                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                        <input type="checkbox" checked={bulk.setRole} onChange={(e) => setBulk({ ...bulk, setRole: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                        Set role <span className="font-normal text-xs text-slate-400">(Super Admin only)</span>
+                                    </label>
+                                    {bulk.setRole && (
+                                        <select value={bulk.role} onChange={(e) => setBulk({ ...bulk, role: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
+                                            <option value="">Choose a role…</option>
+                                            {roleOptions.map((r) => (
+                                                <option key={r.value} value={r.value}>{r.label}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            )}
+
+                            {auth.user.is_super_admin && (
+                                <div className="rounded-lg border border-slate-800 p-3">
+                                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                        <input type="checkbox" checked={bulk.setTracksTime} onChange={(e) => setBulk({ ...bulk, setTracksTime: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                        Set “tracks time” <span className="font-normal text-xs text-slate-400">(Super Admin only)</span>
+                                    </label>
+                                    {bulk.setTracksTime && (
+                                        <select value={bulk.tracksTime} onChange={(e) => setBulk({ ...bulk, tracksTime: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
+                                            <option value="yes">Tracks time (include in performance)</option>
+                                            <option value="no">Does not track time (exclude — HR, finance, …)</option>
+                                        </select>
+                                    )}
+                                </div>
+                            )}
 
                             {auth.user.is_super_admin && (
                                 <div className="rounded-lg border border-slate-800 p-3 space-y-2">
@@ -656,14 +766,31 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                 </div>
                             )}
 
-                            <div className="rounded-lg border border-slate-800 p-3">
-                                <label className="block text-sm font-semibold text-slate-100">Slack reports</label>
-                                <select value={bulk.slackMode} onChange={(e) => setBulk({ ...bulk, slackMode: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
-                                    <option value="">Leave unchanged</option>
-                                    <option value="include">Include in reports</option>
-                                    <option value="exclude">Exclude from reports</option>
-                                </select>
-                            </div>
+                            {auth.user.is_super_admin && (
+                                <div className="rounded-lg border border-slate-800 p-3">
+                                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                                        <input type="checkbox" checked={bulk.setDevices} onChange={(e) => setBulk({ ...bulk, setDevices: e.target.checked })} className="rounded border-slate-700 bg-slate-900 text-orange-600" />
+                                        Set device access <span className="font-normal text-xs text-slate-400">(Super Admin only)</span>
+                                    </label>
+                                    {bulk.setDevices && (
+                                        <select value={bulk.allowDevices} onChange={(e) => setBulk({ ...bulk, allowDevices: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
+                                            <option value="no">One device at a time (default)</option>
+                                            <option value="yes">Allow multiple devices at once</option>
+                                        </select>
+                                    )}
+                                </div>
+                            )}
+
+                            {auth.user.is_super_admin && (
+                                <div className="rounded-lg border border-slate-800 p-3">
+                                    <label className="block text-sm font-semibold text-slate-100">Slack reports <span className="font-normal text-xs text-slate-400">(Super Admin only)</span></label>
+                                    <select value={bulk.slackMode} onChange={(e) => setBulk({ ...bulk, slackMode: e.target.value })} className="mt-2 w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark]">
+                                        <option value="">Leave unchanged</option>
+                                        <option value="include">Include in reports</option>
+                                        <option value="exclude">Exclude from reports</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-5 flex justify-end gap-2">

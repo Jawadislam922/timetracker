@@ -560,15 +560,29 @@ class UserController extends Controller
         $data = $request->validate([
             'user_ids' => ['required', 'array', 'min:1', 'max:200'],
             'user_ids.*' => ['integer', 'exists:users,id'],
+            // Attendance / profile — any actor with users.manage may set these
+            // (mirrors the unconditional attendance block in update()).
             'set_shift' => ['boolean'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'set_shift_hours' => ['boolean'],
             'shift_hours' => ['nullable', 'numeric', 'min:0', 'max:24'],
+            'set_clockout_reminder' => ['boolean'],
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'set_designation' => ['boolean'],
             'designation' => ['nullable', 'string', 'max:255'],
             'set_shift_id' => ['boolean'],
             'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
+            'set_work_timezone' => ['boolean'],
+            'work_timezone' => ['nullable', 'timezone'],
+            // Access-sensitive — Super Admin only (mirrors the isSuperAdmin gate
+            // in store()/update()); enforced below before anything is applied.
+            'set_role' => ['boolean'],
+            'role' => ['nullable', Rule::in(array_keys(User::ROLES))],
+            'set_tracks_time' => ['boolean'],
+            'tracks_time' => ['nullable', 'boolean'],
+            'set_allow_multiple_devices' => ['boolean'],
+            'allow_multiple_devices' => ['nullable', 'boolean'],
             'permissions_add' => ['array'],
             'permissions_add.*' => [Rule::in($this->permissionKeys())],
             'permissions_remove' => ['array'],
@@ -577,8 +591,12 @@ class UserController extends Controller
         ]);
 
         $wantsPermissionChanges = ! empty($data['permissions_add']) || ! empty($data['permissions_remove']);
-        if ($wantsPermissionChanges && ! $actor->isSuperAdmin()) {
-            abort(403, 'Only Super Admins can change permissions.');
+        $wantsSensitiveChanges = ! empty($data['set_role'])
+            || ! empty($data['set_tracks_time'])
+            || ! empty($data['set_allow_multiple_devices'])
+            || ! empty($data['slack_reports']); // Slack inclusion is Super-Admin-only in store()/update()
+        if (($wantsPermissionChanges || $wantsSensitiveChanges) && ! $actor->isSuperAdmin()) {
+            abort(403, 'Only Super Admins can change roles, permissions, tracking, device, or Slack-report access.');
         }
 
         $users = User::whereIn('id', $data['user_ids'])->get();
@@ -594,12 +612,14 @@ class UserController extends Controller
                 if (array_key_exists('shift_grace_minutes', $data) && $data['shift_grace_minutes'] !== null) {
                     $user->shift_grace_minutes = $data['shift_grace_minutes'];
                 }
-                if (array_key_exists('shift_hours', $data)) {
-                    $user->shift_hours = $data['shift_hours'];
-                }
-                if (array_key_exists('clockout_reminder_minutes', $data)) {
-                    $user->clockout_reminder_minutes = $data['clockout_reminder_minutes'];
-                }
+            }
+
+            if (! empty($data['set_shift_hours'])) {
+                $user->shift_hours = $data['shift_hours'] ?? null; // blank clears → team default
+            }
+
+            if (! empty($data['set_clockout_reminder'])) {
+                $user->clockout_reminder_minutes = $data['clockout_reminder_minutes'] ?? null;
             }
 
             if (! empty($data['set_designation'])) {
@@ -608,6 +628,33 @@ class UserController extends Controller
 
             if (! empty($data['set_shift_id'])) {
                 $user->shift_id = $data['shift_id'] ?: null;
+            }
+
+            if (! empty($data['set_work_timezone']) && ! empty($data['work_timezone'])) {
+                $user->work_timezone = $data['work_timezone'];
+            }
+
+            // Role change (Super Admin only). Requires an explicit role — a
+            // toggled-but-unpicked role must never silently demote to member.
+            // Never demote yourself out of Super Admin in a bulk action;
+            // promoting to Super Admin clears explicit permissions like
+            // store()/update() do.
+            if (! empty($data['set_role']) && ! empty($data['role']) && $actor->isSuperAdmin()) {
+                $newRole = $data['role'];
+                if (! ($actor->is($user) && $newRole !== 'super_admin')) {
+                    $user->role = $newRole;
+                    if ($newRole === 'super_admin') {
+                        $user->permissions = [];
+                    }
+                }
+            }
+
+            if (! empty($data['set_tracks_time']) && $actor->isSuperAdmin()) {
+                $user->tracks_time = (bool) ($data['tracks_time'] ?? false);
+            }
+
+            if (! empty($data['set_allow_multiple_devices']) && $actor->isSuperAdmin()) {
+                $user->allow_multiple_devices = (bool) ($data['allow_multiple_devices'] ?? false);
             }
 
             if ($wantsPermissionChanges && ! $user->isSuperAdmin()) {
@@ -619,7 +666,7 @@ class UserController extends Controller
                     ->all();
             }
 
-            if (! empty($data['slack_reports'])) {
+            if (! empty($data['slack_reports']) && $actor->isSuperAdmin()) {
                 $user->include_in_slack_reports = $data['slack_reports'] === 'include';
             }
 

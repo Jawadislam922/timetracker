@@ -2,21 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Camera, Check, ShieldCheck, UserRound, Users } from 'lucide-react';
 import Avatar from '@/Components/Avatar';
+import { WORK_TIMEZONES } from '@/constants/workTimezones';
 
 const roleIcons = {
     super_admin: ShieldCheck,
     admin: Users,
     member: UserRound,
 };
-
-// Home/work zones a worker's day + shift are measured in (separate from how a
-// viewer reads times). Default Asia/Karachi keeps existing staff unchanged.
-const WORK_TIMEZONES = [
-    'Asia/Karachi', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Manila',
-    'Asia/Riyadh', 'Europe/London', 'Europe/Berlin', 'America/New_York',
-    'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-    'Australia/Sydney', 'UTC',
-];
 
 export default function UserForm({
     user = null,

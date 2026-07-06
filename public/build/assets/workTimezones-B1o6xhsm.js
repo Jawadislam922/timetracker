@@ -1,0 +1,1 @@
+const a=["Asia/Karachi","Asia/Dubai","Asia/Kolkata","Asia/Dhaka","Asia/Manila","Asia/Riyadh","Europe/London","Europe/Berlin","America/New_York","America/Chicago","America/Denver","America/Los_Angeles","Australia/Sydney","UTC"];export{a as W};
