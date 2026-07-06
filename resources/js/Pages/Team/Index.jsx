@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Avatar from '@/Components/Avatar';
 import { Eye, Search, Send, BarChart3 } from 'lucide-react';
 import TeamChartsPanel from './TeamChartsPanel';
+import SearchableMultiSelect from '@/Components/Filters/SearchableMultiSelect';
 
 function fmtHm(seconds) {
     const s = Math.max(0, Math.floor(seconds || 0));
@@ -44,10 +45,11 @@ const PRESETS = [
     ['month', 'This month'],
 ];
 
-export default function TeamIndex({ auth, start, end, range, rows, totals, charts, permissions, slack }) {
+export default function TeamIndex({ auth, start, end, range, rows, totals, charts, permissions, slack, shiftOptions = [], shiftIds: shiftIdsProp = [] }) {
     DISPLAY = usePage().props.display || DISPLAY;
     const [sending, setSending] = useState(false);
     const [query, setQuery] = useState('');
+    const [shiftIds, setShiftIds] = useState((shiftIdsProp || []).map(String));
     const [nowTs, setNowTs] = useState(Date.now());
     const renderTsRef = useRef(Date.now());
     const [customStart, setCustomStart] = useState(start);
@@ -86,7 +88,17 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
             ? row.total_seconds + Math.max(0, Math.floor((nowTs - renderTsRef.current) / 1000))
             : row.total_seconds;
 
-    const go = (params) => router.get(route('team.index'), params, { preserveScroll: true });
+    const go = (params) => router.get(
+        route('team.index'),
+        { ...params, ...(shiftIds.length ? { shift_ids: shiftIds } : {}) },
+        { preserveScroll: true },
+    );
+    const shiftFilterOptions = (shiftOptions || []).map((s) => ({ value: String(s.id), label: s.name }))
+        .concat([{ value: 'no_shift', label: 'No shift' }]);
+    const applyShiftFilter = (sel) => {
+        setShiftIds(sel);
+        router.get(route('team.index'), { ...rangeParams, ...(sel.length ? { shift_ids: sel } : {}) }, { preserveScroll: true });
+    };
     const applyCustom = () => {
         if (customStart && customEnd) go({ start: customStart, end: customEnd });
     };
@@ -140,6 +152,16 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
                                     className="w-44 rounded-md border border-slate-700 bg-slate-900 py-1 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-400 focus:border-orange-500 focus:outline-none"
                                 />
                             </div>
+                            {shiftOptions.length > 0 && (
+                                <SearchableMultiSelect
+                                    label="Shift"
+                                    options={shiftFilterOptions}
+                                    selectedValues={shiftIds}
+                                    onChange={applyShiftFilter}
+                                    placeholder="All shifts"
+                                    searchPlaceholder="Search shift…"
+                                />
+                            )}
                             <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
                                 {totals.people_live} live now
                             </span>
@@ -207,6 +229,7 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
                                 <tr>
                                     <th className="px-4 py-2 text-left">Member</th>
                                     <th className="px-4 py-2 text-left">Status</th>
+                                    <th className="px-4 py-2 text-left">Shift</th>
                                     <th className="px-4 py-2 text-right">Tracked</th>
                                     <th className="px-4 py-2 text-left">Activity</th>
                                     <th className="px-4 py-2 text-left">Top client</th>
@@ -262,6 +285,11 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
                                             {row.is_live && row.live?.client && (
                                                 <div className="mt-1 text-[11px] text-slate-400 truncate max-w-[220px]">{row.live.client}</div>
                                             )}
+                                        </td>
+                                        <td className="px-4 py-3 text-xs">
+                                            {row.shift_name
+                                                ? <span className="rounded-full bg-slate-800 px-2 py-0.5 font-medium text-slate-200">{row.shift_name}</span>
+                                                : <span className="text-slate-500">—</span>}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-slate-100">
                                             {fmtHm(trackedSecondsFor(row))}

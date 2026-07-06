@@ -17,7 +17,7 @@ const roleStyles = {
 
 const noDesignationValue = 'no_designation';
 
-export default function UsersList({ auth, users, filters = {}, filterOptions = {}, managedDesignations = [], permissionGroups = {} }) {
+export default function UsersList({ auth, users, filters = {}, filterOptions = {}, managedDesignations = [], managedShifts = [], permissionGroups = {} }) {
     const can = (permission) => auth.user?.is_super_admin || auth.user?.permissions?.includes(permission);
     const [search, setSearch] = useState(filters.search || '');
     const [roles, setRoles] = useState((filters.roles || []).map(String));
@@ -27,6 +27,8 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
     const [deleteUser, setDeleteUser] = useState(null);
     const [showDesignationDialog, setShowDesignationDialog] = useState(false);
     const [newDesignation, setNewDesignation] = useState('');
+    const [showShiftDialog, setShowShiftDialog] = useState(false);
+    const [newShift, setNewShift] = useState('');
 
     // Bulk edit: only the sections the admin enables get applied.
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -201,6 +203,27 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
         });
     };
 
+    const addShift = (event) => {
+        event.preventDefault();
+        const name = newShift.trim();
+        if (!name) return;
+
+        router.post(route('users.shifts.store'), {
+            name,
+            return_to: currentListUrl(),
+        }, {
+            preserveScroll: true,
+            onSuccess: () => setNewShift(''),
+        });
+    };
+
+    const removeShift = (shift) => {
+        router.delete(route('users.shifts.destroy', shift.id), {
+            data: { return_to: currentListUrl() },
+            preserveScroll: true,
+        });
+    };
+
     // Deactivate someone who left (or reactivate). Their history is kept; a
     // deactivated user can't log in or track, and drops out of active views.
     const setStatus = (user) => {
@@ -244,6 +267,13 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                                     className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 shadow-sm hover:bg-slate-800"
                                 >
                                     Manage designations
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowShiftDialog(true)}
+                                    className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 shadow-sm hover:bg-slate-800"
+                                >
+                                    Manage shifts
                                 </button>
                                 <Link
                                     href={route('users.create')}
@@ -723,6 +753,60 @@ export default function UsersList({ auth, users, filters = {}, filterOptions = {
                             <button
                                 type="button"
                                 onClick={() => setShowDesignationDialog(false)}
+                                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showShiftDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="w-full max-w-lg rounded-lg bg-slate-900 shadow-xl">
+                        <div className="border-b border-slate-800 px-5 py-4">
+                            <h2 className="text-lg font-bold text-white">Manage shifts</h2>
+                            <p className="mt-1 text-sm text-slate-400">Shifts you can assign to people (Morning, Evening, …). Deleting one clears it from anyone who had it.</p>
+                        </div>
+                        <div className="space-y-4 p-5">
+                            <form onSubmit={addShift} className="flex gap-2">
+                                <input
+                                    value={newShift}
+                                    onChange={(event) => setNewShift(event.target.value)}
+                                    placeholder="Add shift (e.g. Noon)"
+                                    className="min-w-0 flex-1 rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 placeholder-slate-500 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
+                                />
+                                <button
+                                    type="submit"
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                                >
+                                    Add
+                                </button>
+                            </form>
+
+                            <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-800">
+                                {managedShifts.length === 0 ? (
+                                    <div className="px-4 py-6 text-center text-sm text-slate-400">No shifts yet.</div>
+                                ) : managedShifts.map((shift) => (
+                                    <div key={shift.id} className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 last:border-b-0">
+                                        <span className="text-sm font-semibold text-slate-100">{shift.name}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeShift(shift)}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/40 text-rose-300 hover:bg-rose-500/15"
+                                            title={`Remove ${shift.name}`}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex justify-end border-t border-slate-800 px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowShiftDialog(false)}
                                 className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                             >
                                 Close

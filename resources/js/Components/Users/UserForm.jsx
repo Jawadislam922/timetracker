@@ -24,6 +24,7 @@ export default function UserForm({
     permissionGroups = {},
     canManageAccess = false,
     designationOptions = [],
+    shiftOptions = [],
     returnTo = '',
 }) {
     const editing = Boolean(user);
@@ -39,6 +40,7 @@ export default function UserForm({
         email: user?.email || '',
         password: '',
         designation: user?.designation || '',
+        shift_id: user?.shift_id ?? '',
         joining_date: user?.joining_date || '',
         shift_start_time: user?.shift_start_time || '',
         shift_grace_minutes: user?.shift_grace_minutes ?? 15,
@@ -185,6 +187,18 @@ export default function UserForm({
                                 onChange={(event) => form.setData('joining_date', event.target.value)}
                                 className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
                             />
+                        </Field>
+                        <Field label="Shift" hint="Which shift this person is on (Morning/Evening/…). Managers filter the team by this; add or edit shift names on the Users list page." error={form.errors.shift_id}>
+                            <select
+                                value={form.data.shift_id ?? ''}
+                                onChange={(event) => form.setData('shift_id', event.target.value === '' ? '' : Number(event.target.value))}
+                                className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
+                            >
+                                <option value="">No shift</option>
+                                {shiftOptions.map((shift) => (
+                                    <option key={shift.id} value={shift.id}>{shift.name}</option>
+                                ))}
+                            </select>
                         </Field>
                         <Field label="Shift start time" hint="Used to detect late coming automatically." error={form.errors.shift_start_time}>
                             <input

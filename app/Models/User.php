@@ -29,6 +29,7 @@ class User extends Authenticatable
         'avatar',
         'designation',
         'joining_date',
+        'shift_id',
         'shift_start_time',
         'shift_grace_minutes',
         'work_timezone',
@@ -326,6 +327,21 @@ class User extends Authenticatable
     public function shiftOverrides()
     {
         return $this->hasMany(UserShiftOverride::class);
+    }
+
+    /**
+     * The curated shift (Morning/Noon/Evening/Night/…) this person is assigned
+     * to — a filter/grouping LABEL, separate from the shift timing. Nullable.
+     */
+    public function shift()
+    {
+        return $this->belongsTo(Shift::class);
+    }
+
+    /** Convenience for payloads/tables: the assigned shift's name, or null. */
+    public function getShiftNameAttribute(): ?string
+    {
+        return $this->shift?->name;
     }
 
     /**

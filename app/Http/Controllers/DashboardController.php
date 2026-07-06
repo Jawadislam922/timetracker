@@ -21,6 +21,10 @@ class DashboardController extends Controller
      */
     public function index()
     {
-        return Inertia::render('Dashboard');
+        // The only server prop the page needs: the curated shift list, so the
+        // team panel's shift filter can be built without an extra round-trip.
+        return Inertia::render('Dashboard', [
+            'shiftOptions' => \App\Models\Shift::orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 }

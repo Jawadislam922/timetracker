@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { useFormatters } from '@/lib/datetime';
+import SearchableMultiSelect from '@/Components/Filters/SearchableMultiSelect';
 import {
     Activity,
     AlertTriangle,
@@ -337,7 +338,7 @@ function LeaderboardView({ rows, loading, rangeLabel }) {
     );
 }
 
-export default function Dashboard({ auth }) {
+export default function Dashboard({ auth, shiftOptions = [] }) {
     // Renders the live clock in the viewer's chosen display timezone (Profile →
     // Time zone), not a hard-coded Asia/Karachi, so the switcher applies here too.
     const { formatTime, tz } = useFormatters();
@@ -362,6 +363,15 @@ export default function Dashboard({ auth }) {
     const [teamTab, setTeamTab] = useState('shifts');
     const [shiftBoard, setShiftBoard] = useState(null);
     const [canClockOutOthers, setCanClockOutOthers] = useState(false);
+    // Shift filter for the team panel. A ref mirrors it so the live-refresh
+    // interval + clock-action refetch read the current selection without being
+    // re-created on every change.
+    const [shiftIds, setShiftIds] = useState([]);
+    const shiftIdsRef = useRef([]);
+    shiftIdsRef.current = shiftIds;
+    const shiftFilterOptions = (shiftOptions || []).map((s) => ({ value: String(s.id), label: s.name }))
+        .concat([{ value: 'no_shift', label: 'No shift' }]);
+    const summaryParams = () => (shiftIdsRef.current.length ? { params: { shift_ids: shiftIdsRef.current } } : {});
     // Admin "clock out for them" modal: the target member + chosen time/note.
     const [clockOut, setClockOut] = useState(null);
     // Leaderboard: today (from the live summary) vs this week (ranged endpoint).
@@ -395,7 +405,7 @@ export default function Dashboard({ auth }) {
         // recorded today" people saw on a perfectly good day.
         const [entriesResult, summaryResult] = await Promise.allSettled([
             axios.get('/time-entries/today'),
-            axios.get('/time-entries/today-summary'),
+            axios.get('/time-entries/today-summary', summaryParams()),
         ]);
 
         if (entriesResult.status === 'fulfilled') {
@@ -433,6 +443,13 @@ export default function Dashboard({ auth }) {
         };
     }, []);
 
+    // Re-fetch the team panel when the shift filter changes (skip the mount run).
+    const shiftFilterMounted = useRef(false);
+    useEffect(() => {
+        if (!shiftFilterMounted.current) { shiftFilterMounted.current = true; return; }
+        loadDashboard(false);
+    }, [shiftIds]);
+
     // At-a-glance trend: refetch whenever the quick toggle changes. Only team
     // viewers get the command center, so only they hit this endpoint.
     useEffect(() => {
@@ -462,9 +479,12 @@ export default function Dashboard({ auth }) {
         if (tableRange === 'custom' && (!tableCustom.start || !tableCustom.end)) return undefined;
         let cancelled = false;
         setRangedLoading(true);
-        const params = tableRange === 'custom'
-            ? { start: tableCustom.start, end: tableCustom.end }
-            : { range: tableRange };
+        const params = {
+            ...(tableRange === 'custom'
+                ? { start: tableCustom.start, end: tableCustom.end }
+                : { range: tableRange }),
+            ...(shiftIds.length ? { shift_ids: shiftIds } : {}),
+        };
         axios
             .get('/time-entries/team-activity', { params })
             .then((res) => {
@@ -479,7 +499,7 @@ export default function Dashboard({ auth }) {
         return () => {
             cancelled = true;
         };
-    }, [tableRange, tableCustom, canViewTeam]);
+    }, [tableRange, tableCustom, canViewTeam, shiftIds]);
 
     // Leaderboard "this week": fetch the ranged totals only when that view + range
     // is actually open ("today" derives from the live summary already in hand).
@@ -581,7 +601,7 @@ export default function Dashboard({ auth }) {
             const nextEntries = [response.data.entry, ...entries];
             setEntries(nextEntries);
             setTodayStats(calculateStats(nextEntries));
-            const summaryResponse = await axios.get('/time-entries/today-summary');
+            const summaryResponse = await axios.get('/time-entries/today-summary', summaryParams());
             setEmployeesData(summaryResponse.data.employees || []);
             setTeamKpis(summaryResponse.data.team_kpis || null);
             setNeedsAttention(summaryResponse.data.needs_attention || []);
@@ -713,6 +733,7 @@ export default function Dashboard({ auth }) {
                         {[
                             ['Employee', null],
                             ['Status', 'Whether the desktop tracker is recording right now'],
+                            ['Shift', 'Assigned shift (Morning/Evening/…)'],
                             ['Tracked today', 'Desktop-tracker work + manual diary hours, this calendar day — matches the Timeline exactly'],
                             ['Activity', 'Share of tracked time with keyboard/mouse input'],
                             ['Yesterday', 'Tracked yesterday (calendar day) — a night shift’s evening lands here after midnight'],
@@ -748,6 +769,11 @@ export default function Dashboard({ auth }) {
                                 ) : (
                                     <span className="text-xs text-slate-500">—</span>
                                 )}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-xs">
+                                {employee.shift_name
+                                    ? <span className="rounded-full bg-slate-800 px-2 py-0.5 font-medium text-slate-200">{employee.shift_name}</span>
+                                    : <span className="text-slate-500">—</span>}
                             </td>
                             <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-orange-300">{formatHours(employee.tracked_hours || 0)}</td>
                             <td className="whitespace-nowrap px-4 py-3">
@@ -1021,6 +1047,17 @@ export default function Dashboard({ auth }) {
                                             </button>
                                         ))}
                                     </div>
+
+                                    {shiftOptions.length > 0 && (
+                                        <SearchableMultiSelect
+                                            label="Shift"
+                                            options={shiftFilterOptions}
+                                            selectedValues={shiftIds}
+                                            onChange={setShiftIds}
+                                            placeholder="All shifts"
+                                            searchPlaceholder="Search shift…"
+                                        />
+                                    )}
 
                                     {teamTab === 'leaderboard' && (
                                         <div className="flex rounded-lg border border-slate-700 bg-slate-800/60 p-0.5">

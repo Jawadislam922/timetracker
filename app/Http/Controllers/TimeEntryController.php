@@ -215,7 +215,9 @@ class TimeEntryController extends Controller
             // effectiveShiftFor() per employee without an N+1 (one extra query
             // for the whole team instead of one per person). Non-tracking staff
             // (HR etc.) are excluded so they don't dilute the KPIs at 0%.
-            $employees = User::active()->tracksTime()->with('shiftOverrides')->get();
+            $employeesQuery = User::active()->tracksTime()->with(['shiftOverrides', 'shift:id,name,sort_order']);
+            \App\Support\ShiftFilter::apply($employeesQuery, request());
+            $employees = $employeesQuery->get();
             $ids = $employees->pluck('id')->all();
             $entriesByUser = $this->loadSummaryEntries($ids, $now, $weekStart, $monthStart);
             $trackedByUserDate = $this->loadTrackedStats($ids, $now, $weekStart, $monthStart);
@@ -287,7 +289,9 @@ class TimeEntryController extends Controller
         [$dayStart, $dayEnd] = BusinessTime::utcRange($rangeStart, $rangeEnd);
         $svc = app(TrackingSessionService::class);
 
-        $users = User::active()->tracksTime()->orderBy('name')->get(['id', 'name', 'designation', 'avatar']);
+        $usersQuery = User::active()->tracksTime()->with('shift:id,name')->orderBy('name');
+        \App\Support\ShiftFilter::apply($usersQuery, $request);
+        $users = $usersQuery->get(['id', 'name', 'designation', 'avatar', 'shift_id']);
         $ids = $users->pluck('id');
 
         // Sessions overlapping the range (each clamped to its in-range share),
@@ -337,6 +341,7 @@ class TimeEntryController extends Controller
                 'user_id' => $u->id,
                 'user_name' => $u->name,
                 'designation' => $u->designation ?? 'Employee',
+                'shift_name' => $u->shift_name,
                 'avatar' => $u->avatar_url ?? null,
                 'tracked_seconds' => $trackedSeconds + $manualSeconds,
                 'in_office_seconds' => $inOfficeSeconds,
@@ -833,6 +838,7 @@ class TimeEntryController extends Controller
             'user_name' => $employee->name,
             'avatar' => $employee->avatar_url ?? null,
             'designation' => $employee->designation ?? 'Employee',
+            'shift_name' => $employee->shift_name,
             'total_work_hours' => $todayStats['workHours'],
             'total_break_hours' => $todayStats['breakHours'],
             'weekly_work_hours' => $weeklyStats['workHours'],

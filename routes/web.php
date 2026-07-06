@@ -103,6 +103,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/users/{user}/status', [UserController::class, 'setStatus'])->middleware('permission:users.manage')->name('users.set-status');
     Route::post('/users/designations', [UserController::class, 'storeDesignation'])->middleware('permission:users.manage')->name('users.designations.store');
     Route::delete('/users/designations/{designation}', [UserController::class, 'destroyDesignation'])->middleware('permission:users.manage')->name('users.designations.destroy');
+    Route::post('/users/shifts', [UserController::class, 'storeShift'])->middleware('permission:users.manage')->name('users.shifts.store');
+    Route::delete('/users/shifts/{shift}', [UserController::class, 'destroyShift'])->middleware('permission:users.manage')->name('users.shifts.destroy');
     Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.manage')->name('users.store');
     Route::get('/users/{user}/edit', [UserController::class, 'edit'])->middleware('permission:users.manage')->name('users.edit');
     Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])->middleware('permission:users.manage')->name('users.update');

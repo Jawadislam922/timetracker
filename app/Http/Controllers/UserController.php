@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Designation;
+use App\Models\Shift;
 use App\Models\MonitoringSetting;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -29,6 +30,13 @@ class UserController extends Controller
         $designations = collect(is_array($rawDesignations) ? $rawDesignations : [$rawDesignations])
             ->map(fn ($designation) => (string) $designation)
             ->filter(fn ($designation) => $designation !== '' && $designation !== 'all')
+            ->unique()
+            ->values()
+            ->all();
+        $rawShiftIds = $request->input('shift_ids', []);
+        $shiftIds = collect(is_array($rawShiftIds) ? $rawShiftIds : [$rawShiftIds])
+            ->map(fn ($id) => (string) $id)
+            ->filter(fn ($id) => $id !== '' && $id !== 'all')
             ->unique()
             ->values()
             ->all();
@@ -64,6 +72,20 @@ class UserController extends Controller
                     $designationQuery->{$method}(function ($emptyQuery) {
                         $emptyQuery->whereNull('designation')->orWhere('designation', '');
                     });
+                }
+            });
+        }
+
+        // Apply shift filter (curated shift ids + a "no_shift" sentinel).
+        if (! empty($shiftIds)) {
+            $query->where(function ($shiftQuery) use ($shiftIds) {
+                $regularShiftIds = array_values(array_filter($shiftIds, fn ($id) => $id !== 'no_shift'));
+                if (! empty($regularShiftIds)) {
+                    $shiftQuery->whereIn('shift_id', $regularShiftIds);
+                }
+                if (in_array('no_shift', $shiftIds, true)) {
+                    $method = empty($regularShiftIds) ? 'where' : 'orWhere';
+                    $shiftQuery->{$method}(fn ($emptyQuery) => $emptyQuery->whereNull('shift_id'));
                 }
             });
         }
@@ -139,6 +161,7 @@ class UserController extends Controller
             'filters' => [
                 'search' => $request->get('search', ''),
                 'designations' => $designations,
+                'shift_ids' => $shiftIds,
                 'roles' => $roles,
                 'status' => $status,
                 'sort' => $sort,
@@ -147,11 +170,13 @@ class UserController extends Controller
             'permissionGroups' => config('access.permissions'),
             'filterOptions' => [
                 'designations' => $allDesignations,
+                'shifts' => $this->shiftOptions(),
                 'roles' => collect(User::ROLES)->map(
                     fn (string $label, string $value) => ['value' => $value, 'label' => $label]
                 )->values(),
             ],
             'managedDesignations' => $this->designationOptions(),
+            'managedShifts' => $this->shiftOptions(),
         ]);
     }
 
@@ -172,6 +197,7 @@ class UserController extends Controller
             'include_in_slack_reports' => 'nullable|boolean',
             'tracks_time' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
@@ -209,6 +235,7 @@ class UserController extends Controller
                 ? (bool) ($validated['tracks_time'] ?? true)
                 : true,
             'designation' => $validated['designation'] ?? null,
+            'shift_id' => $validated['shift_id'] ?? null,
             'joining_date' => $validated['joining_date'] ?? null,
             'shift_start_time' => $validated['shift_start_time'] ?? null,
             'shift_grace_minutes' => $validated['shift_grace_minutes'] ?? 15,
@@ -247,6 +274,7 @@ class UserController extends Controller
                 'tracks_time' => (bool) $user->tracks_time,
                 'avatar_url' => $user->avatar_url,
                 'designation' => $user->designation,
+                'shift_id' => $user->shift_id,
                 'joining_date' => $user->joining_date?->format('Y-m-d'),
                 'shift_start_time' => $user->shift_start_time?->format('H:i'),
                 'shift_grace_minutes' => $user->shift_grace_minutes ?? 15,
@@ -278,6 +306,7 @@ class UserController extends Controller
             'include_in_slack_reports' => 'nullable|boolean',
             'tracks_time' => 'nullable|boolean',
             'designation' => 'nullable|string|max:255',
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
             'joining_date' => ['nullable', 'date_format:Y-m-d'],
             'shift_start_time' => ['nullable', 'date_format:H:i'],
             'shift_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
@@ -307,6 +336,7 @@ class UserController extends Controller
         $user->name = $validated['name'];
         $user->email = $validated['email'];
         $user->designation = $validated['designation'] ?? null;
+        $user->shift_id = $validated['shift_id'] ?? null;
         $user->joining_date = $validated['joining_date'] ?? null;
         $user->shift_start_time = $validated['shift_start_time'] ?? null;
         $user->shift_grace_minutes = $validated['shift_grace_minutes'] ?? 15;
@@ -408,10 +438,54 @@ class UserController extends Controller
             abort(403);
         }
 
+        // Clear it from anyone who has it FIRST, so rememberDesignation() can't
+        // resurrect it on their next save (the "comes back after delete" bug),
+        // and no user is left pointing at a removed suggestion.
+        User::where('designation', $designation->name)->update(['designation' => null]);
         $designation->delete();
 
         return $this->redirectToReturnPath($request, 'users.index', [
-            'success' => 'Designation removed from suggestions.',
+            'success' => 'Designation removed.',
+        ]);
+    }
+
+    public function storeShift(Request $request)
+    {
+        if (! $request->user()->hasPermission('users.manage')) {
+            abort(403);
+        }
+
+        $validated = $request->validate(['name' => ['required', 'string', 'max:100']]);
+        $name = $this->normalizeDesignationName($validated['name']);
+
+        if ($name === '') {
+            throw ValidationException::withMessages(['name' => 'Enter a shift name.']);
+        }
+        if (Shift::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists()) {
+            throw ValidationException::withMessages(['name' => 'This shift already exists.']);
+        }
+
+        Shift::create(['name' => $name, 'sort_order' => ((int) Shift::max('sort_order')) + 1]);
+
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => 'Shift added.',
+        ]);
+    }
+
+    public function destroyShift(Request $request, Shift $shift)
+    {
+        if (! $request->user()->hasPermission('users.manage')) {
+            abort(403);
+        }
+
+        // Clear it from everyone who had it (owner's choice), then delete. The
+        // FK's nullOnDelete is the DB backstop; doing it explicitly keeps the
+        // behaviour identical on SQLite (tests) and MySQL (prod).
+        User::where('shift_id', $shift->id)->update(['shift_id' => null]);
+        $shift->delete();
+
+        return $this->redirectToReturnPath($request, 'users.index', [
+            'success' => 'Shift removed.',
         ]);
     }
 
@@ -422,6 +496,7 @@ class UserController extends Controller
             'permissionGroups' => config('access.permissions'),
             'canManageAccess' => request()->user()->isSuperAdmin(),
             'designationOptions' => $this->designationOptions()->pluck('name')->values()->all(),
+            'shiftOptions' => $this->shiftOptions(),
         ];
     }
 
@@ -429,6 +504,14 @@ class UserController extends Controller
     {
         return Designation::query()
             ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    /** The curated shift list (id + name), ordered for the pick-only dropdown. */
+    private function shiftOptions()
+    {
+        return Shift::query()
+            ->orderBy('sort_order')->orderBy('name')
             ->get(['id', 'name']);
     }
 
@@ -484,6 +567,8 @@ class UserController extends Controller
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'set_designation' => ['boolean'],
             'designation' => ['nullable', 'string', 'max:255'],
+            'set_shift_id' => ['boolean'],
+            'shift_id' => ['nullable', 'integer', 'exists:shifts,id'],
             'permissions_add' => ['array'],
             'permissions_add.*' => [Rule::in($this->permissionKeys())],
             'permissions_remove' => ['array'],
@@ -519,6 +604,10 @@ class UserController extends Controller
 
             if (! empty($data['set_designation'])) {
                 $user->designation = $data['designation'] ?: null;
+            }
+
+            if (! empty($data['set_shift_id'])) {
+                $user->shift_id = $data['shift_id'] ?: null;
             }
 
             if ($wantsPermissionChanges && ! $user->isSuperAdmin()) {

@@ -61,24 +61,46 @@ class ShiftBoardService
             return $this->classify($emp, $entriesByUser->get($emp->id, collect()), $rowsById->get($emp->id, []), $now, $canManage, $buffer, $defaultHours);
         });
 
-        $byBand = $rows->groupBy('band');
-        $bands = [];
+        // Group by the ASSIGNED shift name when the person has one, else by the
+        // derived ShiftBand (Day/Evening/Night/Unscheduled). Named-shift groups
+        // sort first (by the shift's sort_order), then band groups in their
+        // canonical order — so once everyone has a shift the board reads as the
+        // curated shifts, and un-assigned people still show during rollout.
+        $grouped = $rows->groupBy(fn ($r) => $r['shift_name'] !== null ? 'shift:'.$r['shift_name'] : 'band:'.$r['band']);
 
-        foreach (ShiftBand::ORDER as $band) {
-            $members = $byBand->get($band);
-            if (! $members || $members->isEmpty()) {
-                continue;
+        $groups = [];
+        foreach ($grouped as $members) {
+            $first = $members->first();
+            if ($first['shift_name'] !== null) {
+                $key = 'shift:'.$first['shift_name'];
+                $label = $first['shift_name'];
+                $range = null;
+                $order = [0, $first['shift_sort'] ?? 999, $label];
+            } else {
+                // Band-fallback group — keep the plain band key ('day'/'evening'
+                // /'night'/'unscheduled') so it stays backward-compatible.
+                $band = $first['band'];
+                $key = $band;
+                $label = ShiftBand::label($band);
+                $range = ShiftBand::rangeLabel($band);
+                $bandIndex = array_search($band, ShiftBand::ORDER, true);
+                $order = [1, $bandIndex === false ? 99 : $bandIndex, $label];
             }
+            $groups[] = compact('key', 'label', 'range', 'members', 'order');
+        }
+        usort($groups, fn ($a, $b) => $a['order'] <=> $b['order']);
 
-            $sorted = $members->sort(function ($a, $b) {
+        $bands = [];
+        foreach ($groups as $group) {
+            $sorted = $group['members']->sort(function ($a, $b) {
                 return [self::SEVERITY_RANK[$a['severity']] ?? 9, self::STATUS_ORDER[$a['status']] ?? 9, $a['shift_start'] ?? '99:99', $a['name']]
                     <=> [self::SEVERITY_RANK[$b['severity']] ?? 9, self::STATUS_ORDER[$b['status']] ?? 9, $b['shift_start'] ?? '99:99', $b['name']];
             })->values();
 
             $bands[] = [
-                'key' => $band,
-                'label' => ShiftBand::label($band),
-                'range' => ShiftBand::rangeLabel($band),
+                'key' => $group['key'],
+                'label' => $group['label'],
+                'range' => $group['range'],
                 'summary' => [
                     'total' => $sorted->count(),
                     'on_now' => $sorted->whereIn('status', ['working', 'on_break'])->count(),
@@ -208,6 +230,8 @@ class ShiftBoardService
             'name' => $emp->name,
             'avatar' => $emp->avatar_url ?? null,
             'designation' => $emp->designation ?? 'Employee',
+            'shift_name' => $emp->shift?->name,
+            'shift_sort' => $emp->shift?->sort_order,
             'shift_start' => $effectiveStart?->format('H:i'),
             'band' => ShiftBand::classify($effectiveStart),
             'status' => $status,

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useFormatters } from '@/lib/datetime';
+import SearchableMultiSelect from '@/Components/Filters/SearchableMultiSelect';
 import {
     Activity,
     CalendarDays,
@@ -130,7 +131,7 @@ const EmployeeIdentity = ({ employee, size = 'small' }) => {
     );
 };
 
-export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAttendance = false, canEditClockTimes = false, canSendAttendanceSlack = false, slackConfigured = false }) {
+export default function EmployeeAttendance({ auth, serverDate, shiftOptions = [], canManuallyMarkAttendance = false, canEditClockTimes = false, canSendAttendanceSlack = false, slackConfigured = false }) {
     const { formatTime } = useFormatters();
     const canExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('attendance.export');
     const canSendSlack = canSendAttendanceSlack || auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.send_slack');
@@ -167,6 +168,9 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
     const [isSavingClock, setIsSavingClock] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
+    const [shiftIds, setShiftIds] = useState([]);
+    const shiftFilterOptions = (shiftOptions || []).map((s) => ({ value: String(s.id), label: s.name }))
+        .concat([{ value: 'no_shift', label: 'No shift' }]);
     const [expandedEmployees, setExpandedEmployees] = useState({});
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
     const canManualMark = canManuallyMarkAttendance || monthlyGridData.canManualMark;
@@ -176,7 +180,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
         try {
             if (activeTab === 'monthly') {
-                const response = await axios.get('/employee-attendance/monthly', { params: { month: selectedMonth } });
+                const response = await axios.get('/employee-attendance/monthly', { params: { month: selectedMonth, ...(shiftIds.length ? { shift_ids: shiftIds } : {}) } });
                 setMonthlyGridData({
                     days: response.data.days || [],
                     employees: response.data.employees || [],
@@ -192,7 +196,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                 : activeTab === 'detailed'
                     ? '/employee-attendance/detailed'
                     : '/employee-attendance/timeline';
-            const response = await axios.get(endpoint, { params: { date: selectedDate } });
+            const response = await axios.get(endpoint, { params: { date: selectedDate, ...(shiftIds.length ? { shift_ids: shiftIds } : {}) } });
 
             if (activeTab === 'summary') setEmployeesData(response.data.employees || []);
             if (activeTab === 'detailed') setDetailedActivityData(response.data.activities || []);
@@ -208,7 +212,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
 
     useEffect(() => {
         fetchAttendanceData();
-    }, [selectedDate, selectedMonth, activeTab]);
+    }, [selectedDate, selectedMonth, activeTab, shiftIds]);
 
     const updateManualStatus = async (userId, date, statusCode) => {
         const cellKey = `${userId}-${date}`;
@@ -678,6 +682,16 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                         ))}
                                     </select>
                                 )}
+                                {shiftOptions.length > 0 && (
+                                    <SearchableMultiSelect
+                                        label="Shift"
+                                        options={shiftFilterOptions}
+                                        selectedValues={shiftIds}
+                                        onChange={setShiftIds}
+                                        placeholder="All shifts"
+                                        searchPlaceholder="Search shift…"
+                                    />
+                                )}
                             </div>
                         </div>
 
@@ -711,7 +725,7 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                 <table className="min-w-full divide-y divide-slate-800">
                                                     <thead className="bg-slate-950/40">
                                                         <tr>
-                                                            {['Employee', 'Status', 'Work Hours', 'Break', 'First In', 'Last Activity', 'Actions'].map((heading) => (
+                                                            {['Employee', 'Status', 'Shift', 'Work Hours', 'Break', 'First In', 'Last Activity', 'Actions'].map((heading) => (
                                                                 <th key={heading} className="whitespace-nowrap px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">{heading}</th>
                                                             ))}
                                                         </tr>
@@ -724,6 +738,11 @@ export default function EmployeeAttendance({ auth, serverDate, canManuallyMarkAt
                                                                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle(employee.current_status)}`}>
                                                                         {employee.current_status}
                                                                     </span>
+                                                                </td>
+                                                                <td className="whitespace-nowrap px-4 py-3 text-xs">
+                                                                    {employee.shift_name
+                                                                        ? <span className="rounded-full bg-slate-800 px-2 py-0.5 font-medium text-slate-200">{employee.shift_name}</span>
+                                                                        : <span className="text-slate-500">—</span>}
                                                                 </td>
                                                                 <td className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-slate-100">{formatHours(employee.total_work_hours)}</td>
                                                                 <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-300">{formatHours(employee.total_break_hours)}</td>

@@ -35,7 +35,9 @@ class TeamController extends Controller
 
         // Only time-tracking staff appear in performance — HR/finance and other
         // non-tracking roles are excluded so they don't read as "0% this week".
-        $users = User::active()->tracksTime()->orderBy('name')->get(['id', 'name', 'email', 'role', 'designation', 'avatar']);
+        $usersQuery = User::active()->tracksTime()->with('shift:id,name')->orderBy('name');
+        \App\Support\ShiftFilter::apply($usersQuery, $request);
+        $users = $usersQuery->get(['id', 'name', 'email', 'role', 'designation', 'avatar', 'shift_id']);
 
         // Sessions that OVERLAP the selected day — including one that started
         // the previous evening and is still running. Each session's time is
@@ -148,6 +150,7 @@ class TeamController extends Controller
                 'email' => $u->email,
                 'role' => $u->role,
                 'designation' => $u->designation,
+                'shift_name' => $u->shift_name,
                 'avatar_url' => $u->avatar_url,
                 'total_seconds' => $totalSeconds,
                 'tracked_seconds' => $trackedSeconds,
@@ -193,6 +196,8 @@ class TeamController extends Controller
             'start' => $rangeStart->toDateString(),
             'end' => $rangeEnd->toDateString(),
             'range' => $request->input('range', $rangeStart->toDateString() === $rangeEnd->toDateString() ? 'today' : 'custom'),
+            'shiftOptions' => \App\Models\Shift::orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
+            'shiftIds' => \App\Support\ShiftFilter::parse($request)[0],
             'rows' => $rows,
             'totals' => $totals,
             'charts' => $charts,

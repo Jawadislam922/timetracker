@@ -43,6 +43,7 @@ class EmployeeAttendanceController extends Controller
     {
         return Inertia::render('EmployeeAttendance', [
             'serverDate' => Carbon::today('Asia/Karachi')->toDateString(),
+            'shiftOptions' => \App\Models\Shift::orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
             'canManuallyMarkAttendance' => $this->canManuallyMarkAttendance(request()->user()),
             'canEditClockTimes' => $this->canEditClockTimes(request()->user()),
             'canSendAttendanceSlack' => request()->user()?->hasPermission('reports.send_slack') ?? false,
@@ -391,15 +392,17 @@ class EmployeeAttendanceController extends Controller
         // Live grid hides deactivated staff going forward, but a deactivated user
         // who has entries/manual marks in the viewed month still renders so the
         // historical period stays intact.
-        $employees = User::query()
+        $employeesQuery = User::query()
+            ->with('shift:id,name')
             ->where(function ($query) use ($usersWithHistory) {
                 $query->active();
                 if ($usersWithHistory->isNotEmpty()) {
                     $query->orWhereIn('id', $usersWithHistory->all());
                 }
             })
-            ->orderBy('name')
-            ->get()
+            ->orderBy('name');
+        \App\Support\ShiftFilter::apply($employeesQuery, $request);
+        $employees = $employeesQuery->get()
             ->map(function (User $employee) use ($days, $carbonDays, $entriesByUserDate, $manualMarks, $now, $today, $summaryTemplate) {
                 $summary = $summaryTemplate;
 
@@ -435,6 +438,7 @@ class EmployeeAttendanceController extends Controller
                     'user_name' => $employee->name,
                     'avatar' => $employee->avatar_url ?? null,
                     'designation' => $employee->designation ?? 'Employee',
+                    'shift_name' => $employee->shift_name,
                     'days' => $dayCells,
                     'summary' => $summary,
                 ];
@@ -745,7 +749,7 @@ class EmployeeAttendanceController extends Controller
         // Live summary view: only iterate active staff. Deactivated users with no
         // entries are already skipped (the null-on-empty filter below), and their
         // historical day entries remain queryable by explicit user id elsewhere.
-        $employees = User::active()->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+        $employees = \App\Support\ShiftFilter::apply(User::active()->with('shift:id,name'), $request)->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
             $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
@@ -765,6 +769,7 @@ class EmployeeAttendanceController extends Controller
                 'user_name' => $employee->name,
                 'avatar' => $employee->avatar_url ?? null,
                 'designation' => $employee->designation ?? 'Employee',
+                'shift_name' => $employee->shift_name,
                 'total_work_hours' => $stats['workHours'],
                 'total_break_hours' => $stats['breakHours'],
                 'current_status' => $stats['status'],
@@ -790,7 +795,7 @@ class EmployeeAttendanceController extends Controller
 
         // Live detailed view iterates active staff only (deactivated users are
         // hidden going forward); empty-entry users are dropped below.
-        $activities = User::active()->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+        $activities = \App\Support\ShiftFilter::apply(User::active()->with('shift:id,name'), $request)->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
             $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
@@ -802,6 +807,7 @@ class EmployeeAttendanceController extends Controller
                 'user_name' => $employee->name,
                 'avatar' => $employee->avatar_url ?? null,
                 'designation' => $employee->designation ?? 'Employee',
+                'shift_name' => $employee->shift_name,
                 'entries' => $entries->map(function ($entry) {
                     return [
                         'id' => $entry->id,
@@ -835,7 +841,7 @@ class EmployeeAttendanceController extends Controller
 
         // Live timeline view iterates active staff only; empty-entry users are
         // dropped below.
-        $timelines = User::active()->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
+        $timelines = \App\Support\ShiftFilter::apply(User::active()->with('shift:id,name'), $request)->orderBy('name')->get()->map(function ($employee) use ($entriesByUser) {
             $entries = $entriesByUser->get($employee->id, collect());
 
             if ($entries->isEmpty()) {
@@ -850,6 +856,7 @@ class EmployeeAttendanceController extends Controller
                 'user_name' => $employee->name,
                 'avatar' => $employee->avatar_url ?? null,
                 'designation' => $employee->designation ?? 'Employee',
+                'shift_name' => $employee->shift_name,
                 'total_work_hours' => $stats['workHours'],
                 'total_break_hours' => $stats['breakHours'],
                 'sessions' => $sessions,
