@@ -36,6 +36,8 @@ class TimeEntry extends Model
     protected static function booted(): void
     {
         static::created(function (self $entry) {
+            self::flagMisfiledActionDate($entry);
+
             app()->terminating(function () use ($entry) {
                 try {
                     app(\App\Services\AttendanceClockNotifier::class)->notify($entry);
@@ -44,6 +46,43 @@ class TimeEntry extends Model
                 }
             });
         });
+    }
+
+    /**
+     * Diagnostic guard: a clock punch's attendance day must equal
+     * attendanceDateFor() applied to its own timestamp. If any write path files
+     * it on a different day (reported: a clock-in a minute before shift start
+     * landing on the previous day, so it vanishes from that day's attendance),
+     * log the exact source — note + request path — so the culprit path can be
+     * fixed at the root. Never allowed to break the clock action itself.
+     */
+    private static function flagMisfiledActionDate(self $entry): void
+    {
+        try {
+            if (! in_array($entry->action_type, ['clock_in', 'clock_out', 'break_start', 'break_end'], true) || ! $entry->user) {
+                return;
+            }
+
+            $stored = $entry->getRawOriginal('action_date');
+            $stored = $stored ? substr((string) $stored, 0, 10) : null;
+            $correct = $entry->user->attendanceDateFor($entry->action_timestamp);
+
+            if ($stored !== $correct) {
+                \Illuminate\Support\Facades\Log::warning('Attendance action_date mismatch at creation', [
+                    'entry_id' => $entry->id,
+                    'user_id' => $entry->user_id,
+                    'action_type' => $entry->action_type,
+                    'action_timestamp' => (string) $entry->action_timestamp,
+                    'stored_action_date' => $stored,
+                    'correct_action_date' => $correct,
+                    'notes' => $entry->notes,
+                    'request_path' => request()->path(),
+                    'request_method' => request()->method(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Diagnostics must never break a clock action.
+        }
     }
 
     public function user()
