@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\TimeEntry;
 use App\Models\TrackingActivitySample;
 use App\Models\TrackingScreenshot;
 use App\Models\TrackingSession;
@@ -73,6 +74,22 @@ class SilentTrackerCheck extends Command
             $user = User::find($s->user_id);
             $name = $user?->name ?? ('#'.$s->user_id);
 
+            // A break legitimately captures nothing — never AV-alert someone on
+            // break. The desktop can keep the tracked-seconds counter advancing
+            // during a break, which would otherwise fool the paused-vs-block
+            // check below into a false antivirus alarm (the reported Asim Khan
+            // case: captures stopped the instant he hit break, but the timer
+            // kept ticking, so the watchdog cried "AV block").
+            if (TimeEntry::currentClockState($s->user_id) === 'break_start') {
+                if (! $dry) {
+                    TrackingSession::where('id', $s->id)->update(['health_probe_seconds' => (int) $s->total_seconds]);
+                }
+                \App\Support\TrackerHealthDiagnostics::capture($s, 'skipped: on break', $last, $now);
+                $this->line(sprintf('%-22s no capture but ON BREAK → skip', $name));
+
+                continue;
+            }
+
             // Distinguish a PAUSED tracker (idle/break — legitimately captures
             // nothing) from an AV-BLOCKED one (working but capture blocked). The
             // desktop freezes total_seconds while paused and keeps advancing it
@@ -106,6 +123,7 @@ class SilentTrackerCheck extends Command
             $flagged++;
 
             $this->announce($slack, $user, $s, $last);
+            \App\Support\TrackerHealthDiagnostics::capture($s, 'ALERTED: working but no capture (likely AV block)', $last, $now);
             TrackingSession::where('id', $s->id)->update([
                 'health_probe_seconds' => $cur,
                 'health_alerted_at' => $now,
@@ -128,7 +146,7 @@ class SilentTrackerCheck extends Command
 
         $lastTxt = $last ? $last->format('g:i A') : 'never';
         $slack->postToChannel($channel, sprintf(
-            ":warning: *%s*'s tracker is live (sending time) but has captured *no screenshots/activity* since %s — likely an antivirus block on that machine. Device: %s. Session started %s.",
+            ":warning: *%s*'s tracker is live and *actively counting time* (clocked in, not on break) but has captured *no screenshots/activity* since %s — likely an antivirus block on that machine. Device: %s. Session started %s.",
             $user?->name ?? 'Someone',
             $lastTxt,
             $s->device_name ?: 'unknown',
