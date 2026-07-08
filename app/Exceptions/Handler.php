@@ -23,8 +23,12 @@ class Handler extends ExceptionHandler
      */
     public function register(): void
     {
+        // App-wide error capture: every real server error is snapshotted (route,
+        // user, input, app stack trace) into the diagnostics store so it can be
+        // tracked down with `php artisan diagnostics errors`. Everyday non-errors
+        // (4xx/validation/auth) are filtered out inside captureException().
         $this->reportable(function (Throwable $e) {
-            //
+            \App\Support\Diagnostics::captureException($e);
         });
     }
 }
