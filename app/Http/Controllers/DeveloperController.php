@@ -315,6 +315,21 @@ class DeveloperController extends Controller
         ]);
     }
 
+    /**
+     * Recent captured diagnostics across every category (server errors, desktop
+     * telemetry, attendance mis-files, tracker-health) so problems are visible
+     * here instead of only over SSH.
+     */
+    public function diagnostics(Request $request): JsonResponse
+    {
+        $this->authorizeDeveloper($request);
+
+        return response()->json([
+            'counts' => \App\Support\Diagnostics::counts(),
+            'recent' => \App\Support\Diagnostics::recent(50),
+        ]);
+    }
+
     private function authorizeDeveloper(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdmin(), 403, 'Developer tools are restricted to Super Admins.');

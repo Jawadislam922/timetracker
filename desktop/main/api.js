@@ -194,6 +194,13 @@ async function sendActivityBatch(payload) {
   return res.data;
 }
 
+// Upload a batch of client-side diagnostic events (errors, capture failures,
+// pause/break transitions) so problems on this machine are visible server-side.
+async function sendDiagnostics(events, deviceName) {
+  const res = await client().post('/diagnostics', { events, device_name: deviceName });
+  return res.data;
+}
+
 function isOnline(error) {
   // axios network error has no response; treat anything without response as offline
   return !!(error && error.response);
@@ -219,5 +226,6 @@ module.exports = {
   timeClockAct,
   uploadScreenshot,
   sendActivityBatch,
+  sendDiagnostics,
   isOnline,
 };

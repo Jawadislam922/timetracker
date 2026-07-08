@@ -200,13 +200,11 @@ class SessionController extends Controller
 
         // Tell the desktop the user's current clock state so a break started on
         // the web dashboard also pauses the tracker (the desktop pauses when it
-        // sees on_break). Mirrors TimeClockController::status — break_start is
-        // the canonical "on break" marker; break_end/clock_in mean working.
-        $now = Carbon::now('Asia/Karachi');
-        $lastAction = TimeEntry::forUser($user->id)
-            ->forDate($user->attendanceDateFor($now))
-            ->orderByDesc('action_timestamp')->orderByDesc('id')
-            ->value('action_type');
+        // sees on_break). Use the GLOBAL current clock state — exactly what
+        // TimeClockController::status returns — not a date-filtered query: a
+        // punch filed on an adjacent attendance day (the action_date edge cases)
+        // must never make the desktop miss a live break and keep counting time.
+        $lastAction = TimeEntry::currentClockState($user->id);
 
         return response()->json([
             'status' => 'ok',

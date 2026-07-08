@@ -13,6 +13,7 @@ const store = require('./store');
 const screenshotService = require('./screenshotService');
 const activityService = require('./activityService');
 const diag = require('./diag');
+const report = require('./report');
 const { DEFAULTS } = require('./config');
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -122,17 +123,21 @@ class Tracker extends EventEmitter {
       clearTimeout(this.timers.screenshot);
       this.timers.screenshot = null;
     }
+    report.info('pause', 'timer frozen (' + this.session.pause_reason + ')',
+      { pause_reason: this.session.pause_reason, total_seconds: this._currentSeconds() });
     if (reason) this.emit('warning', reason);
     this.emit('changed', this.status());
   }
 
   _resumeSession(reason = null) {
     if (!this.session || !this.session.paused_at_ms) return;
+    const wasReason = this.session.pause_reason;
     this.session.paused_at_ms = null;
     this.session.last_change_at_ms = Date.now();
     this._lastTickMs = Date.now();
     this.session.pause_reason = null;
     this._scheduleNextScreenshot();
+    report.info('resume', 'timer running again (was ' + wasReason + ')', { was_reason: wasReason });
     if (reason) this.emit('warning', reason);
     this.emit('changed', this.status());
   }
@@ -272,7 +277,13 @@ class Tracker extends EventEmitter {
       '| settings capture_enabled=' + this.settings.capture_enabled,
       'screenshots_per_hour=' + this.settings.screenshots_per_hour,
       'min/max=' + this.settings.screenshot_interval_min_seconds + '/' + this.settings.screenshot_interval_max_seconds);
-    this._captureScreenshot().catch((err) => diag.log('initial capture: ERROR', err && err.message ? err.message : String(err)));
+    report.info('session_start', 'session ' + this.session.id + ' started',
+      { capture_enabled: this.settings.capture_enabled, screenshots_per_hour: this.settings.screenshots_per_hour });
+    this._captureScreenshot().catch((err) => {
+      const msg = err && err.message ? err.message : String(err);
+      diag.log('initial capture: ERROR', msg);
+      report.warn('screenshot_capture_failed', msg, { where: 'initial' });
+    });
 
     this.emit('changed', this.status());
   }
@@ -298,6 +309,10 @@ class Tracker extends EventEmitter {
       // accept the local state as stopped.
       this.emit('warning', 'Could not notify server of stop: ' + (err.response?.data?.message || err.message));
     }
+
+    report.info('session_stop', 'session ' + this.session.id + ' stopped',
+      { total_seconds: stopPayload.total_seconds });
+    report.flush().catch(() => {}); // best-effort: get this session's telemetry up before we lose focus
 
     const stopped = { ...this.session, stopped_at: stopPayload.stopped_at };
     this.session = null;
@@ -427,7 +442,9 @@ class Tracker extends EventEmitter {
       try {
         await this._captureScreenshot();
       } catch (err) {
-        diag.log('capture timer: ERROR', err && err.message ? err.message : String(err));
+        const msg = err && err.message ? err.message : String(err);
+        diag.log('capture timer: ERROR', msg);
+        report.warn('screenshot_capture_failed', msg, { where: 'scheduled' });
       }
       this._scheduleNextScreenshot();
     }, delayMs);
@@ -592,6 +609,8 @@ class Tracker extends EventEmitter {
           if (resp && resp.on_break && this.session
             && this.session.id === h.tracking_session_id
             && this.session.pause_reason !== 'break') {
+            report.info('break_detected', 'server reported on_break — pausing tracker',
+              { was_paused: !!this.session.paused_at_ms, prev_reason: this.session.pause_reason });
             this.pauseForBreak();
           }
         } catch (err) {
@@ -674,6 +693,7 @@ class Tracker extends EventEmitter {
       }
     } finally {
       this._draining = false;
+      report.flush().catch(() => {}); // piggy-back telemetry upload on the sync loop
       this.emit('changed', this.status());
     }
   }

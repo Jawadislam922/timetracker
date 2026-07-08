@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Desktop\ActivityController as DesktopActivityController;
 use App\Http\Controllers\Api\Desktop\AuthController as DesktopAuthController;
+use App\Http\Controllers\Api\Desktop\DiagnosticsController as DesktopDiagnosticsController;
 use App\Http\Controllers\Api\Desktop\MetaController as DesktopMetaController;
 use App\Http\Controllers\Api\Desktop\ScreenshotController as DesktopScreenshotController;
 use App\Http\Controllers\Api\Desktop\SessionController as DesktopSessionController;
@@ -59,5 +60,9 @@ Route::prefix('desktop')->group(function () {
 
         Route::post('/screenshots', [DesktopScreenshotController::class, 'store'])->name('desktop.screenshots.store');
         Route::post('/activity/batch', [DesktopActivityController::class, 'batch'])->name('desktop.activity.batch');
+
+        // Client-side error / telemetry the tracker uploads (capture failures,
+        // pause/break transitions, crashes) → the 'desktop' diagnostics category.
+        Route::post('/diagnostics', [DesktopDiagnosticsController::class, 'store'])->name('desktop.diagnostics.store');
     });
 });

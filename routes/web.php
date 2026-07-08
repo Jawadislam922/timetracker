@@ -231,6 +231,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/run', [DeveloperController::class, 'run'])->name('developer.run');
         Route::put('/env', [DeveloperController::class, 'updateEnv'])->name('developer.env.update');
         Route::get('/logs', [DeveloperController::class, 'logs'])->name('developer.logs');
+        Route::get('/diagnostics', [DeveloperController::class, 'diagnostics'])->name('developer.diagnostics');
         Route::post('/branding', [BrandingController::class, 'update'])->name('developer.branding.update');
     });
 

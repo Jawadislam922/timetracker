@@ -101,6 +101,8 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
     const [logLines, setLogLines] = useState([]);
     const [logFile, setLogFile] = useState(null);
     const [logsLoading, setLogsLoading] = useState(false);
+    const [diag, setDiag] = useState({ counts: {}, recent: [] });
+    const [diagLoading, setDiagLoading] = useState(false);
     const [envDraft, setEnvDraft] = useState(() => buildEnvDraft(envGroups));
     const [savingEnv, setSavingEnv] = useState(false);
     const [logoFile, setLogoFile] = useState(null);
@@ -158,7 +160,20 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
         }
     };
 
-    useEffect(() => { loadLogs(); }, []);
+    const loadDiag = async () => {
+        setDiagLoading(true);
+        try {
+            const res = await fetch(route('developer.diagnostics'), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            const json = await res.json();
+            setDiag({ counts: json.counts || {}, recent: json.recent || [] });
+        } catch {
+            setDiag({ counts: {}, recent: [] });
+        } finally {
+            setDiagLoading(false);
+        }
+    };
+
+    useEffect(() => { loadLogs(); loadDiag(); }, []);
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-100">Developer</h2>}>
@@ -395,6 +410,51 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                             </div>
                         </div>
                     </div>
+                </Card>
+
+                <Card title="Diagnostics — recent errors & events" icon={Activity}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(diag.counts).length === 0 && (
+                                <span className="text-xs text-slate-400">Nothing captured yet.</span>
+                            )}
+                            {Object.entries(diag.counts).map(([cat, n]) => (
+                                <span key={cat} className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-300">
+                                    {cat} <b className="text-slate-100">{n}</b>
+                                </span>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={loadDiag}
+                            disabled={diagLoading}
+                            className="inline-flex shrink-0 items-center gap-1 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                        >
+                            <RefreshCw className={['h-3 w-3', diagLoading ? 'animate-spin' : ''].join(' ')} />
+                            Refresh
+                        </button>
+                    </div>
+                    <div className="max-h-80 divide-y divide-slate-800 overflow-auto rounded bg-slate-900">
+                        {diag.recent.length === 0 ? (
+                            <p className="p-3 text-xs text-slate-500">{diagLoading ? 'Loading…' : 'No events captured — no errors. 👍'}</p>
+                        ) : diag.recent.map((e, i) => {
+                            const severe = e.level === 'error' || e.category === 'errors';
+                            const warnish = e.level === 'warn';
+                            const chip = severe
+                                ? 'bg-rose-500/15 text-rose-300'
+                                : warnish ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-700/40 text-slate-300';
+                            return (
+                                <div key={i} className="flex items-start gap-2 p-2.5">
+                                    <span className={['mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold', chip].join(' ')}>{e.category}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="break-words font-mono text-[11px] leading-snug text-slate-200">{e.summary}</p>
+                                        <p className="text-[10px] text-slate-500">{e.captured_at}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">Full detail over SSH: <code className="text-slate-300">php artisan diagnostics &lt;category&gt; --full</code></p>
                 </Card>
 
                 <Card title={`Logs ${logFile ? `— ${logFile}` : ''}`} icon={AlertTriangle}>

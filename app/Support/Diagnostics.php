@@ -69,6 +69,7 @@ class Diagnostics
             }
 
             $file = self::capture('errors', [
+                'level' => 'error',
                 'summary' => class_basename($e).': '.\Illuminate\Support\Str::limit($e->getMessage(), 140),
                 'exception' => [
                     'class' => get_class($e),
@@ -155,6 +156,53 @@ class Diagnostics
                 break;
             }
         }
+
+        return $out;
+    }
+
+    /** Recent captured events across every category, newest first (for the UI). */
+    public static function recent(int $limit = 50): array
+    {
+        $base = self::baseDir();
+        if (! File::isDirectory($base)) {
+            return [];
+        }
+
+        $items = [];
+        foreach (File::directories($base) as $dir) {
+            $cat = basename($dir);
+            foreach (File::files($dir) as $f) {
+                $items[] = ['category' => $cat, 'sort' => $f->getFilename(), 'path' => $f->getPathname()];
+            }
+        }
+        // Filenames start with Ymd-His → lexical sort is chronological.
+        usort($items, fn ($a, $b) => strcmp($b['sort'], $a['sort']));
+
+        return collect(array_slice($items, 0, $limit))->map(function ($it) {
+            $data = json_decode((string) @file_get_contents($it['path']), true) ?: [];
+
+            return [
+                'category' => $it['category'],
+                'captured_at' => $data['captured_at'] ?? null,
+                'level' => $data['level'] ?? null,
+                'summary' => $data['summary'] ?? $data['decision'] ?? '(no summary)',
+            ];
+        })->all();
+    }
+
+    /** Per-category event counts. */
+    public static function counts(): array
+    {
+        $base = self::baseDir();
+        if (! File::isDirectory($base)) {
+            return [];
+        }
+
+        $out = [];
+        foreach (File::directories($base) as $dir) {
+            $out[basename($dir)] = count(File::files($dir));
+        }
+        arsort($out);
 
         return $out;
     }

@@ -9,8 +9,19 @@ const ipc = require('./ipc');
 const store = require('./store');
 const tray = require('./tray');
 const updater = require('./updater');
+const report = require('./report');
 
 const PROTOCOL = 'timetracker';
+
+// Capture crashes so they reach the server diagnostics (viewable on the Developer
+// page) instead of vanishing on the employee's PC. We log + report and keep
+// running — a stray error must not take down a background tracker.
+process.on('uncaughtException', (err) => {
+  try { report.error('uncaughtException', err && err.message, { stack: err && err.stack ? String(err.stack).split('\n').slice(0, 8).join('\n') : null }); } catch { /* best-effort */ }
+});
+process.on('unhandledRejection', (reason) => {
+  try { report.error('unhandledRejection', reason && reason.message ? reason.message : String(reason)); } catch { /* best-effort */ }
+});
 
 let mainWindow = null;
 let pendingDeepLink = null;
@@ -50,6 +61,9 @@ if (!gotLock) {
     ipc.register();
     createWindow();
     updater.init();
+    report.info('app_ready', 'desktop app started');
+    // Push buffered telemetry to the server periodically (best-effort).
+    setInterval(() => report.flush().catch(() => {}), 60_000);
 
     tray.init(() => mainWindow, !!(store.get('prefs') || {}).minimizeToTray);
 
