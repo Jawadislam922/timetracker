@@ -64,8 +64,9 @@ class AttendanceActionDateRepairTest extends TestCase
         $this->assertSame('2026-07-07', substr((string) $bad->fresh()->getRawOriginal('action_date'), 0, 10), 'dry run must not write');
     }
 
-    public function test_guard_logs_a_warning_when_a_punch_is_created_mis_filed(): void
+    public function test_guard_captures_a_diagnostic_snapshot_when_a_punch_is_mis_filed(): void
     {
+        \Illuminate\Support\Facades\File::deleteDirectory(\App\Support\AttendanceDiagnostics::dir());
         Log::spy();
         $user = User::factory()->create(['shift_start_time' => '09:00:00', 'work_timezone' => 'Asia/Karachi']);
 
@@ -74,5 +75,30 @@ class AttendanceActionDateRepairTest extends TestCase
         Log::shouldHaveReceived('warning')
             ->withArgs(fn ($message) => str_contains((string) $message, 'action_date mismatch'))
             ->atLeast()->once();
+
+        $files = \Illuminate\Support\Facades\File::files(\App\Support\AttendanceDiagnostics::dir());
+        $this->assertCount(1, $files, 'a diagnostic snapshot file should be written');
+        $snap = json_decode(\Illuminate\Support\Facades\File::get($files[0]->getPathname()), true);
+        $this->assertSame('2026-07-07', $snap['entry']['stored_action_date']);
+        $this->assertSame('2026-07-08', $snap['entry']['correct_action_date']);
+        $this->assertNotEmpty($snap['backtrace'], 'snapshot should capture the app call path');
+        $this->assertArrayHasKey('clock', $snap);
+
+        // The viewer command surfaces the captured event.
+        $this->artisan('attendance:diagnostics')->assertExitCode(0);
+
+        \Illuminate\Support\Facades\File::deleteDirectory(\App\Support\AttendanceDiagnostics::dir());
+    }
+
+    public function test_a_correctly_filed_punch_captures_nothing(): void
+    {
+        \Illuminate\Support\Facades\File::deleteDirectory(\App\Support\AttendanceDiagnostics::dir());
+        $user = User::factory()->create(['shift_start_time' => '09:00:00', 'work_timezone' => 'Asia/Karachi']);
+
+        // 08:58 with a 09:00 shift is correctly today — no snapshot.
+        $this->punch($user, 'clock_in', '2026-07-08 08:58:53', '2026-07-08');
+
+        $this->assertFalse(\Illuminate\Support\Facades\File::isDirectory(\App\Support\AttendanceDiagnostics::dir())
+            && count(\Illuminate\Support\Facades\File::files(\App\Support\AttendanceDiagnostics::dir())) > 0);
     }
 }
