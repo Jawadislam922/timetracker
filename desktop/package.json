@@ -1,13 +1,13 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
     "name": "Spark"
   },
-  "_comment_version": "0.4.2 — fix double-start race (two near-simultaneous start() calls no longer double-count time); wall-clock time model is immune to duplicate timers + sleep gaps; stop tracking cleanly on quit/shutdown; per-employee last-client + diagnostic log on shared PCs",
+  "_comment_version": "0.4.3 — client-side error/telemetry reporting: screenshot capture failures (antivirus blocks), pause/break transitions, session start/stop and crashes upload to the server and show on the Developer page, so machine problems are diagnosable remotely instead of only in the local capture.log",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
