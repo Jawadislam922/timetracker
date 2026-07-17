@@ -10,6 +10,7 @@ const store = require('./store');
 const tray = require('./tray');
 const updater = require('./updater');
 const report = require('./report');
+const collector = require('./collector');
 
 const PROTOCOL = 'timetracker';
 
@@ -64,6 +65,9 @@ if (!gotLock) {
     report.info('app_ready', 'desktop app started');
     // Push buffered telemetry to the server periodically (best-effort).
     setInterval(() => report.flush().catch(() => {}), 60_000);
+    // Endpoint-compliance inventory: once shortly after launch, then hourly.
+    setTimeout(() => collector.run().catch(() => {}), 45_000);
+    setInterval(() => collector.run().catch(() => {}), 60 * 60_000);
 
     tray.init(() => mainWindow, !!(store.get('prefs') || {}).minimizeToTray);
 

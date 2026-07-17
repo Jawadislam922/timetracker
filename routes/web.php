@@ -245,6 +245,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Monitoring (screenshot tracker) routes
     Route::prefix('monitoring')->group(function () {
+        // Machine Compliance — installed extensions/programs/processes/VPN per PC,
+        // blocklist-matched. Sensitive; Super-Admin-level (monitoring.settings).
+        Route::get('/compliance', [\App\Http\Controllers\ComplianceController::class, 'index'])
+            ->middleware('permission:monitoring.settings')->name('monitoring.compliance');
         Route::get('/sessions', [MonitoringController::class, 'sessions'])->name('monitoring.sessions');
         Route::get('/sessions/{session}', [MonitoringController::class, 'showSession'])->name('monitoring.sessions.show');
         Route::get('/screenshots/{screenshot}/image', [MonitoringController::class, 'screenshotImage'])->name('monitoring.screenshots.image');

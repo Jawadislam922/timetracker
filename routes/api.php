@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Desktop\ActivityController as DesktopActivityController;
 use App\Http\Controllers\Api\Desktop\AuthController as DesktopAuthController;
 use App\Http\Controllers\Api\Desktop\DiagnosticsController as DesktopDiagnosticsController;
+use App\Http\Controllers\Api\Desktop\MachineReportController as DesktopMachineReportController;
 use App\Http\Controllers\Api\Desktop\MetaController as DesktopMetaController;
 use App\Http\Controllers\Api\Desktop\ScreenshotController as DesktopScreenshotController;
 use App\Http\Controllers\Api\Desktop\SessionController as DesktopSessionController;
@@ -64,5 +65,9 @@ Route::prefix('desktop')->group(function () {
         // Client-side error / telemetry the tracker uploads (capture failures,
         // pause/break transitions, crashes) → the 'desktop' diagnostics category.
         Route::post('/diagnostics', [DesktopDiagnosticsController::class, 'store'])->name('desktop.diagnostics.store');
+
+        // Endpoint compliance inventory (extensions, programs, processes, VPN) →
+        // blocklist-matched for the Machine Compliance dashboard.
+        Route::post('/machine-report', [DesktopMachineReportController::class, 'store'])->name('desktop.machine-report.store');
     });
 });

@@ -137,6 +137,7 @@ export default function Authenticated({ user, header, children }) {
         can('users.view') && { label: 'Users', href: route('users.index'), icon: Users, active: ['users.index', 'users.create', 'users.edit'] },
         can('clients.view') && { label: 'Clients', href: route('clients.index'), icon: Briefcase, active: ['clients.index', 'clients.create', 'clients.edit'] },
         can('profiles.view') && { label: 'Profiles', href: route('upwork-profiles.index'), icon: UserCircle, active: ['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'] },
+        can('monitoring.settings') && { label: 'Compliance', href: route('monitoring.compliance'), icon: Activity, active: ['monitoring.compliance'] },
         can('monitoring.settings') && { label: 'Settings', href: route('settings.index'), icon: SettingsIcon, active: ['settings.index'] },
         user?.is_super_admin && { label: 'Developer', href: route('developer.index'), icon: Wrench, active: ['developer.index'] },
     ].filter(Boolean), [user?.is_super_admin, user?.permissions]);

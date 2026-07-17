@@ -1,13 +1,13 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
     "name": "Spark"
   },
-  "_comment_version": "0.4.3 — client-side error/telemetry reporting: screenshot capture failures (antivirus blocks), pause/break transitions, session start/stop and crashes upload to the server and show on the Developer page, so machine problems are diagnosable remotely instead of only in the local capture.log",
+  "_comment_version": "0.4.4 — Machine Compliance: the agent inventories installed browser extensions, programs, running processes and network/VPN adapters and uploads them; the server matches them against an automation/VPN blocklist (refresh tools, scrapers, jigglers, VPNs) and surfaces hits on a Compliance dashboard + Slack alert, so a tool that could get an Upwork profile flagged is caught without visiting the PC",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {

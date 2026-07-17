@@ -201,6 +201,13 @@ async function sendDiagnostics(events, deviceName) {
   return res.data;
 }
 
+// Upload endpoint-compliance inventory (installed extensions, programs,
+// processes, network) so automation tools / VPNs are visible on the dashboard.
+async function sendMachineReport(payload) {
+  const res = await client().post('/machine-report', payload);
+  return res.data;
+}
+
 function isOnline(error) {
   // axios network error has no response; treat anything without response as offline
   return !!(error && error.response);
@@ -227,5 +234,6 @@ module.exports = {
   uploadScreenshot,
   sendActivityBatch,
   sendDiagnostics,
+  sendMachineReport,
   isOnline,
 };
