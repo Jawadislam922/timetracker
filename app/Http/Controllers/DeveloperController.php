@@ -67,6 +67,8 @@ class DeveloperController extends Controller
                 'label' => 'Slack bot (channel posts + DMs)',
                 'fields' => [
                     ['key' => 'SLACK_BOT_TOKEN', 'label' => 'Bot User OAuth token (xoxb-...)', 'type' => 'secret'],
+                    ['key' => 'SLACK_COMPLIANCE_CHANNEL', 'label' => 'Machine-compliance alerts channel', 'type' => 'text', 'placeholder' => '#extension-application'],
+                    ['key' => 'SLACK_TRACKER_HEALTH_CHANNEL', 'label' => 'Tracker-health alerts channel', 'type' => 'text', 'placeholder' => '#tracker-health'],
                     ['key' => 'SLACK_RESETS_CHANNEL', 'label' => 'Password-reset codes channel', 'type' => 'text', 'placeholder' => '#password-resets'],
                     ['key' => 'SLACK_DIGEST_CHANNEL', 'label' => 'Digest channel (future use)', 'type' => 'text', 'placeholder' => '#daily-reports'],
                 ],

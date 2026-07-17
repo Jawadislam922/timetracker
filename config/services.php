@@ -86,6 +86,10 @@ return [
         // but no screenshots/samples (likely antivirus block).
         'tracker_health_slack_enabled' => env('TRACKER_HEALTH_SLACK', false),
         'tracker_health_channel' => env('SLACK_TRACKER_HEALTH_CHANNEL'),
+        // Machine-compliance alerts (a flagged extension / program / VPN found on
+        // a PC). Its own channel so it doesn't drown the attendance channels;
+        // falls back to the tracker-health then clock-in channel when unset.
+        'compliance_channel' => env('SLACK_COMPLIANCE_CHANNEL'),
     ],
 
 ];

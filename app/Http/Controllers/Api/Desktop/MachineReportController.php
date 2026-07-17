@@ -36,7 +36,7 @@ class MachineReportController extends Controller
         $user = $request->user();
         $device = $data['device_name'] ?? null;
         $stored = 0;
-        $totalFlagged = 0;
+        $newFlags = [];   // NEW flagged items across this whole upload → one message
 
         foreach ($data['reports'] as $report) {
             $items = array_values(array_filter($report['items'], 'is_array'));
@@ -56,49 +56,61 @@ class MachineReportController extends Controller
             ]);
             $stored++;
 
-            if ($flagged) {
-                $totalFlagged += count($flagged);
-                $this->alertOnNewFlags($user->name, $device, $report['kind'], $flagged);
+            foreach ($flagged as $f) {
+                $label = $f['name'] ?? $f['title'] ?? $f['process'] ?? $f['path'] ?? 'unknown';
+                // Diagnostics record for every hit (the dashboard/audit trail).
+                Diagnostics::capture('monitoring', [
+                    'level' => ($f['severity'] ?? 'warn') === 'critical' ? 'error' : 'warn',
+                    'summary' => sprintf('[%s] %s on %s (%s) — %s / %s',
+                        strtoupper($f['severity'] ?? 'warn'), $label, $device ?: '?', $user->name, $report['kind'], $f['rule'] ?? '?'),
+                    'user' => $user->name, 'device' => $device, 'kind' => $report['kind'],
+                    'item' => $label, 'rule' => $f['rule'] ?? null, 'severity' => $f['severity'] ?? 'warn',
+                ]);
+
+                // Only NEW (per machine+item, once a day) items go into the Slack digest.
+                $key = 'machineflag:'.md5(($device ?? '').'|'.$label);
+                if (! Cache::has($key)) {
+                    Cache::put($key, true, now()->addDay());
+                    $newFlags[] = ['item' => $label, 'kind' => $report['kind'], 'rule' => $f['rule'] ?? '?', 'severity' => $f['severity'] ?? 'warn'];
+                }
             }
         }
 
-        return response()->json(['stored' => $stored, 'flagged' => $totalFlagged]);
+        // ONE consolidated Slack message per person+machine per upload.
+        if ($newFlags) {
+            $this->announce($user->name, $device, $newFlags);
+        }
+
+        return response()->json(['stored' => $stored, 'flagged' => count($newFlags)]);
     }
 
-    /**
-     * Slack-alert a flagged item the first time it's seen for this machine
-     * (deduped for a day) — installing a refresh tool / scraper / VPN / jiggler
-     * is the exact thing that gets a profile banned.
-     */
-    private function alertOnNewFlags(string $userName, ?string $device, string $kind, array $flagged): void
+    /** One tidy message per person listing every newly-found flagged item. */
+    private function announce(string $userName, ?string $device, array $newFlags): void
     {
-        foreach ($flagged as $f) {
-            $label = $f['name'] ?? $f['title'] ?? $f['process'] ?? $f['path'] ?? 'unknown';
-            $key = 'machineflag:'.md5(($device ?? '').'|'.$kind.'|'.$label);
-            if (Cache::has($key)) {
-                continue;
+        try {
+            $channel = config('services.attendance.compliance_channel')
+                ?: config('services.attendance.tracker_health_channel')
+                ?: config('services.attendance.clockin_channel');
+            if (! $channel) {
+                return;
             }
-            Cache::put($key, true, now()->addDay());
 
-            Diagnostics::capture('monitoring', [
-                'level' => $f['severity'] === 'critical' ? 'error' : 'warn',
-                'summary' => sprintf('[%s] %s on %s (%s) — %s / %s',
-                    strtoupper($f['severity']), $label, $device ?: '?', $userName, $kind, $f['rule']),
-                'user' => $userName, 'device' => $device, 'kind' => $kind,
-                'item' => $label, 'rule' => $f['rule'], 'severity' => $f['severity'],
-            ]);
+            $critical = collect($newFlags)->contains(fn ($f) => $f['severity'] === 'critical');
+            $lines = collect($newFlags)->map(fn ($f) => sprintf('  • *%s*  _(%s · %s)_', $f['item'], $f['rule'], $f['kind']))->implode("\n");
 
-            try {
-                $channel = config('services.attendance.tracker_health_channel') ?: config('services.attendance.clockin_channel');
-                if ($channel) {
-                    app(\App\Services\SlackBotService::class)->postToChannel($channel, sprintf(
-                        ":rotating_light: Compliance: *%s* has *%s* installed (%s) on %s — %s. This can get an Upwork profile flagged; review + remove.",
-                        $userName, $label, $f['rule'], $device ?: 'unknown PC', ucfirst($kind)
-                    ));
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Machine-flag Slack alert failed', ['message' => $e->getMessage()]);
-            }
+            $message = sprintf(
+                "%s *Compliance — %s* on `%s`\nFound %d flagged item%s that can get an Upwork profile flagged — review + remove:\n%s",
+                $critical ? ':rotating_light:' : ':warning:',
+                $userName,
+                $device ?: 'unknown PC',
+                count($newFlags),
+                count($newFlags) === 1 ? '' : 's',
+                $lines,
+            );
+
+            app(\App\Services\SlackBotService::class)->postToChannel($channel, $message);
+        } catch (\Throwable $e) {
+            Log::warning('Compliance Slack alert failed', ['message' => $e->getMessage()]);
         }
     }
 }
