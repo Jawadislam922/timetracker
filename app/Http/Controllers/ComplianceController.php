@@ -58,6 +58,7 @@ class ComplianceController extends Controller
         return Inertia::render('Monitoring/Compliance', [
             'machines' => $machines,
             'flags' => $flags,
+            'extensions' => $this->extensionInventory($reports),
             'summary' => [
                 'machines' => $machines->count(),
                 'flagged_machines' => $machines->where('flagged_count', '>', 0)->count(),
@@ -65,5 +66,57 @@ class ComplianceController extends Controller
             ],
             'lastReport' => optional($reports->max('created_at'))->toDateTimeString(),
         ]);
+    }
+
+    /**
+     * Every distinct browser extension across the team, with who has it — so
+     * "Instant Data Scraper is on 3 machines" is one click to the names. Flagged
+     * (blocklisted) extensions sort first; everything else is listed too so a
+     * human can spot a tool the blocklist doesn't know yet.
+     *
+     * @param  \Illuminate\Support\Collection<int, MachineReport>  $reports
+     */
+    private function extensionInventory($reports): array
+    {
+        $map = [];
+
+        foreach ($reports->where('kind', 'extensions') as $r) {
+            foreach ((array) $r->items as $it) {
+                $name = trim((string) ($it['name'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+                $key = mb_strtolower($name);
+                if (! isset($map[$key])) {
+                    $hit = \App\Support\AutomationBlocklist::scan([$it]);
+                    $map[$key] = [
+                        'name' => $name,
+                        'flagged' => ! empty($hit),
+                        'rule' => $hit[0]['rule'] ?? null,
+                        'severity' => $hit[0]['severity'] ?? null,
+                        'users' => [],
+                    ];
+                }
+                $map[$key]['users'][] = [
+                    'user' => $r->user?->name,
+                    'device' => $r->device_name,
+                    'browser' => $it['browser'] ?? null,
+                    'enabled' => $it['enabled'] ?? null,
+                ];
+            }
+        }
+
+        return collect($map)->map(function ($e) {
+            $users = collect($e['users']);
+            $e['people'] = $users->pluck('user')->filter()->unique()->count();
+            $e['machines'] = $users->pluck('device')->filter()->unique()->count();
+            // Dedup the who-list by user+device (same person, two profiles → one row).
+            $e['users'] = $users->unique(fn ($u) => $u['user'].'|'.$u['device'])->values()->all();
+
+            return $e;
+        })
+            ->sortByDesc(fn ($e) => ($e['flagged'] ? 1_000_000 : 0) + $e['people'])
+            ->values()
+            ->all();
     }
 }

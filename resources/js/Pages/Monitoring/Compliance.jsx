@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react';
 import { Head } from '@inertiajs/react';
-import { ShieldAlert, ShieldCheck, Monitor, Puzzle, Package, Cpu, Wifi } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Monitor, Puzzle, Package, Cpu, Wifi, ChevronRight, Search } from 'lucide-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const SEV = {
@@ -9,8 +10,15 @@ const SEV = {
 };
 const KIND_ICON = { extensions: Puzzle, programs: Package, processes: Cpu, network: Wifi };
 
-export default function Compliance({ auth, machines = [], flags = [], summary = {}, lastReport }) {
+export default function Compliance({ auth, machines = [], flags = [], extensions = [], summary = {}, lastReport }) {
     const clean = (summary.flagged_machines || 0) === 0;
+    const [extQuery, setExtQuery] = useState('');
+    const [openExt, setOpenExt] = useState(null);
+
+    const shownExtensions = useMemo(() => {
+        const q = extQuery.trim().toLowerCase();
+        return q ? extensions.filter((e) => e.name.toLowerCase().includes(q)) : extensions;
+    }, [extensions, extQuery]);
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-100">Machine Compliance</h2>}>
@@ -69,6 +77,63 @@ export default function Compliance({ auth, machines = [], flags = [], summary = 
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                </section>
+
+                {/* Extensions across the team */}
+                <section className="rounded-lg border border-slate-800 bg-slate-900">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-5 py-3">
+                        <div>
+                            <h3 className="font-semibold text-white">Browser extensions</h3>
+                            <p className="text-xs text-slate-400">Every extension across all machines — flagged first. Click one to see who has it.</p>
+                        </div>
+                        <label className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/40 px-3 py-1.5">
+                            <Search className="h-3.5 w-3.5 text-slate-500" />
+                            <input value={extQuery} onChange={(e) => setExtQuery(e.target.value)} placeholder="Search extensions…"
+                                className="w-44 border-0 bg-transparent p-0 text-sm text-slate-200 placeholder-slate-500 focus:ring-0" />
+                        </label>
+                    </div>
+                    {extensions.length === 0 ? (
+                        <p className="px-5 py-8 text-center text-sm text-slate-500">No extension inventory yet — machines report within ~an hour of updating.</p>
+                    ) : (
+                        <div className="divide-y divide-slate-800">
+                            {shownExtensions.map((e, i) => {
+                                const open = openExt === e.name;
+                                return (
+                                    <div key={i}>
+                                        <button type="button" onClick={() => setOpenExt(open ? null : e.name)}
+                                            className="flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-slate-800/40">
+                                            <ChevronRight className={['h-4 w-4 shrink-0 text-slate-500 transition-transform', open ? 'rotate-90' : ''].join(' ')} />
+                                            <Puzzle className={['h-4 w-4 shrink-0', e.flagged ? 'text-rose-400' : 'text-slate-500'].join(' ')} />
+                                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">{e.name}</span>
+                                            {e.flagged && (
+                                                <span className={['rounded border px-2 py-0.5 text-[10px] font-semibold uppercase', SEV[e.severity] || SEV.warn].join(' ')}>
+                                                    {e.rule}
+                                                </span>
+                                            )}
+                                            <span className="shrink-0 text-xs text-slate-400">{e.people} {e.people === 1 ? 'person' : 'people'}</span>
+                                        </button>
+                                        {open && (
+                                            <div className="bg-slate-950/40 px-5 pb-3 pl-12">
+                                                <table className="w-full text-xs">
+                                                    <tbody className="divide-y divide-slate-800/60">
+                                                        {e.users.map((u, j) => (
+                                                            <tr key={j}>
+                                                                <td className="py-1.5 pr-3 text-slate-200">{u.user || '—'}</td>
+                                                                <td className="py-1.5 pr-3 font-mono text-slate-400">{u.device}</td>
+                                                                <td className="py-1.5 pr-3 text-slate-500">{u.browser}</td>
+                                                                <td className="py-1.5 text-slate-500">{u.enabled === false ? 'disabled' : 'enabled'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            {shownExtensions.length === 0 && <p className="px-5 py-6 text-center text-sm text-slate-500">No extensions match “{extQuery}”.</p>}
                         </div>
                     )}
                 </section>
