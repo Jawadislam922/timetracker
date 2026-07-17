@@ -29,7 +29,7 @@ class MachineReportTest extends TestCase
             ['name' => 'Grammarly for Chrome'],
             ['name' => 'Adobe Acrobat'],
             ['name' => 'Visual Studio Code'],
-        ]);
+        ], 'extensions');
 
         $rules = collect($hits)->pluck('rule')->all();
         $this->assertContains('upwork_refresh_bid', $rules);
@@ -37,6 +37,74 @@ class MachineReportTest extends TestCase
         $this->assertContains('jiggler_autoclicker', $rules);
         $this->assertContains('vpn_proxy', $rules);
         $this->assertCount(4, $hits, 'only the four automation/VPN tools should flag, not Grammarly/Acrobat/VS Code');
+    }
+
+    /**
+     * The false positives that made the owner distrust the whole feature:
+     * benign tools were flagged as VPNs only because they REQUEST the "proxy"
+     * browser permission. Matching must be on the tool NAME, never permissions.
+     */
+    public function test_benign_tools_that_merely_request_the_proxy_permission_are_not_flagged(): void
+    {
+        $hits = AutomationBlocklist::scan([
+            ['name' => 'Similarweb - Website Traffic, AI Traffic & SEO Checker', 'permissions' => ['proxy', 'tabs', 'webRequest']],
+            ['name' => 'IDM Integration Module', 'permissions' => ['proxy', 'downloads']],
+            ['name' => 'uBlock Origin', 'permissions' => ['proxy', 'webRequest']],
+            ['name' => 'AdGuard AdBlocker', 'permissions' => ['proxy']],
+        ], 'extensions');
+
+        $this->assertCount(0, $hits, 'permissions must never drive a flag — only the tool name');
+    }
+
+    /** "hola" (Hola VPN) must be a whole word, not a substring of Scholar/Nicholas. */
+    public function test_vpn_word_patterns_do_not_match_innocent_substrings(): void
+    {
+        $hits = AutomationBlocklist::scan([
+            ['name' => 'Google Scholar Button'],
+            ['name' => 'Nicholas Theme'],
+        ], 'extensions');
+
+        $this->assertCount(0, $hits);
+    }
+
+    /** Only refresh/bid, scraper and jiggler tools alert to Slack; VPN/automation are watch-only. */
+    public function test_only_upwork_banning_categories_are_alertable(): void
+    {
+        $hits = collect(AutomationBlocklist::scan([
+            ['name' => 'Easy Auto Refresh'],
+            ['name' => 'Instant Data Scraper'],
+            ['name' => 'OP Auto Clicker'],
+            ['name' => 'NordVPN'],
+            ['name' => 'Selenium IDE'],
+        ], 'extensions'))->keyBy('rule');
+
+        $this->assertTrue($hits['upwork_refresh_bid']['alert']);
+        $this->assertTrue($hits['scraper']['alert']);
+        $this->assertTrue($hits['jiggler_autoclicker']['alert']);
+        $this->assertFalse($hits['vpn_proxy']['alert'], 'VPNs are recorded but never alert');
+        $this->assertFalse($hits['automation_framework']['alert'], 'automation frameworks are watch-only');
+    }
+
+    /** A VPN install is stored (visible on the dashboard) but raises no Slack alert. */
+    public function test_a_vpn_is_recorded_but_does_not_alert(): void
+    {
+        $user = User::factory()->create(['name' => 'Sana Malik']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $this->postJson('/api/desktop/machine-report', [
+            'device_name' => 'PC-VPN-1',
+            'app_version' => '0.4.5',
+            'platform' => 'win32',
+            'reports' => [
+                ['kind' => 'extensions', 'items' => [
+                    ['name' => 'NordVPN', 'id' => 'nvpn'],
+                    ['name' => 'Auto Refresh Plus | Page Monitor', 'id' => 'arp'],
+                ]],
+            ],
+        ])->assertOk()->assertJson(['flagged' => 1]); // only the refresh tool alerts
+
+        $ext = MachineReport::where('device_name', 'PC-VPN-1')->where('kind', 'extensions')->first();
+        $this->assertSame(2, $ext->flagged_count, 'both the VPN and the refresh tool are recorded');
     }
 
     public function test_agent_uploads_inventory_and_it_is_stored_with_flags(): void
@@ -68,5 +136,54 @@ class MachineReportTest extends TestCase
 
         $prog = MachineReport::where('device_name', 'PC-GD-2')->where('kind', 'programs')->first();
         $this->assertSame(0, $prog->flagged_count);
+    }
+
+    /** A still-installed tool alerts once, not on every hourly re-upload. */
+    public function test_a_banning_tool_alerts_once_then_stays_quiet_until_removed_and_reinstalled(): void
+    {
+        $user = User::factory()->create(['name' => 'Bilal Raza']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $withTool = ['device_name' => 'PC-Q-1', 'reports' => [
+            ['kind' => 'extensions', 'items' => [['name' => 'Easy Auto Refresh', 'id' => 'ear1']]],
+        ]];
+        $withoutTool = ['device_name' => 'PC-Q-1', 'reports' => [
+            ['kind' => 'extensions', 'items' => [['name' => 'uBlock Origin', 'id' => 'ub1']]],
+        ]];
+
+        // First sighting alerts.
+        $this->postJson('/api/desktop/machine-report', $withTool)->assertJson(['flagged' => 1]);
+        // Same tool re-uploaded → no new alert.
+        $this->postJson('/api/desktop/machine-report', $withTool)->assertJson(['flagged' => 0]);
+
+        $flag = \App\Models\MachineFlag::where('label', 'Easy Auto Refresh')->first();
+        $this->assertSame('open', $flag->status);
+
+        // Tool removed → flag auto-resolves.
+        $this->postJson('/api/desktop/machine-report', $withoutTool)->assertJson(['flagged' => 0]);
+        $this->assertSame('resolved', $flag->fresh()->status);
+
+        // Reinstalled later → alerts again (install detection).
+        $this->postJson('/api/desktop/machine-report', $withTool)->assertJson(['flagged' => 1]);
+        $this->assertSame('open', $flag->fresh()->status);
+    }
+
+    /** An ignored tool never alerts again, and is not auto-resolved when it disappears. */
+    public function test_ignored_tool_stays_silent(): void
+    {
+        $user = User::factory()->create(['name' => 'Hira Aslam']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $payload = ['device_name' => 'PC-IG-1', 'reports' => [
+            ['kind' => 'extensions', 'items' => [['name' => 'OP Auto Clicker', 'id' => 'opac']]],
+        ]];
+
+        $this->postJson('/api/desktop/machine-report', $payload)->assertJson(['flagged' => 1]);
+
+        \App\Models\MachineFlag::where('label', 'OP Auto Clicker')->update(['status' => 'ignored']);
+
+        // Re-upload while ignored → silent.
+        $this->postJson('/api/desktop/machine-report', $payload)->assertJson(['flagged' => 0]);
+        $this->assertSame('ignored', \App\Models\MachineFlag::where('label', 'OP Auto Clicker')->first()->status);
     }
 }

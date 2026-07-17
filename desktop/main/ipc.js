@@ -9,6 +9,7 @@ const diag = require('./diag');
 const tracker = require('./trackerService');
 const tray = require('./tray');
 const updater = require('./updater');
+const collector = require('./collector');
 
 const PREF_DEFAULTS = {
   autoStartTracking: false,
@@ -57,6 +58,9 @@ function register() {
     // theirs left from a previous shift. Never touches another employee's lane.
     try { queue.setUser(user.id); diag.setUser(user.id); } catch { /* ignore */ }
     tracker.drainOnce().catch(() => {});
+    // Inventory shortly after sign-in so a machine reports without waiting for
+    // the launch timer (which can miss the window if login lands late).
+    setTimeout(() => collector.run('login').catch(() => {}), 5_000);
     return user;
   });
   ipcMain.handle('auth:logout', async () => {
@@ -145,6 +149,9 @@ function register() {
     // Starting a break pauses tracking too (screenshots + timer freeze). Break
     // end does NOT auto-resume — the user must press Resume (owner decision).
     if (actionType === 'break_start') tracker.pauseForBreak();
+    // A clock-in is the moment we know the PC is manned — inventory it now so the
+    // machine reliably shows on the compliance dashboard (debounced in collector).
+    if (actionType === 'clock_in') setTimeout(() => collector.run('clock_in').catch(() => {}), 3_000);
     return res;
   });
 

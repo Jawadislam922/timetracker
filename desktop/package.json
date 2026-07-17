@@ -1,13 +1,13 @@
 {
   "name": "timetracker-desktop",
   "productName": "SA Track",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Desktop screenshot tracker for the Timetracker web app",
   "main": "main/main.js",
   "author": {
     "name": "Spark"
   },
-  "_comment_version": "0.4.4 — Machine Compliance: the agent inventories installed browser extensions, programs, running processes and network/VPN adapters and uploads them; the server matches them against an automation/VPN blocklist (refresh tools, scrapers, jigglers, VPNs) and surfaces hits on a Compliance dashboard + Slack alert, so a tool that could get an Upwork profile flagged is caught without visiting the PC",
+  "_comment_version": "0.4.5 — Machine Compliance quality pass: inventory only ENABLED, on-disk extensions (drops disabled + account-synced ghosts); run a collection right after sign-in and clock-in (not just the launch timer) so a manned PC reliably reports; report every run outcome (sent/skip/empty/failed) to diagnostics so a silent machine is diagnosable. Server side: name-only blocklist matching (no more permission-driven false VPN flags), only auto-refresh/scraper/jiggler tools alert, VPNs/automation are recorded-not-alerted, and a durable machine_flags ledger alerts once per install with Acknowledge/Ignore.",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {

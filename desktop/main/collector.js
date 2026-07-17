@@ -59,6 +59,13 @@ function collectExtensions() {
     catch { continue; }
 
     for (const profile of profiles) {
+      // Which extension ids are actually unpacked on disk for this profile — lets
+      // us drop account-SYNCED "ghosts" Chrome knows about but that aren't really
+      // installed here (why two people on one Google account showed identical lists).
+      let installedIds = null;
+      try { installedIds = new Set(fs.readdirSync(path.join(userData, profile, 'Extensions'))); }
+      catch { installedIds = null; }
+
       for (const file of ['Secure Preferences', 'Preferences']) {
         const p = path.join(userData, profile, file);
         let prefs;
@@ -68,15 +75,17 @@ function collectExtensions() {
 
         for (const [id, ext] of Object.entries(settings)) {
           const man = ext?.manifest;
-          if (!man || !man.name) continue;                       // skip stubs
+          if (!man || !man.name) continue;                        // skip stubs
           if (ext.location === 5 || ext.location === 10) continue; // component/system
+          if (ext.state !== 1) continue;                          // owner policy: enabled only
+          if (installedIds && !installedIds.has(id)) continue;    // synced ghost, not on disk
           let name = man.name;
           if (typeof name === 'string' && name.startsWith('__MSG_')) name = ext.path || id;
           out.push({
             browser, profile, id,
             name: String(name).slice(0, 160),
             version: man.version || null,
-            enabled: ext.state === 1,
+            enabled: true,
             from_webstore: ext.from_webstore === true,
             permissions: []
               .concat(man.permissions || [], man.host_permissions || [], man.optional_permissions || [])
@@ -130,10 +139,23 @@ async function collectNetwork() {
   return adapters.filter((a) => a && a.adapter).slice(0, 60);
 }
 
-/** Gather everything and upload. Runs on a timer + on demand. */
-async function run() {
-  if (process.platform !== 'win32') return;      // Windows-only for now
-  if (!store.get('token')) return;               // not signed in yet
+let lastRun = 0;
+
+/**
+ * Gather everything and upload. Runs on a timer, on sign-in, and right after a
+ * clock-in. Every outcome — including the no-op branches — is reported to the
+ * diagnostics pipe so a silent machine is diagnosable instead of invisible.
+ *
+ * @param {string} [reason] what triggered this run (timer|login|clock_in) — for telemetry
+ */
+async function run(reason) {
+  if (process.platform !== 'win32') { report.info('machine_report_skip', 'non-windows platform'); return; }
+  if (!store.get('token')) { report.info('machine_report_skip', 'not signed in yet'); return; }
+
+  // Debounce: the hourly timer and a clock-in can land together; one upload is enough.
+  const startedAt = Date.now();
+  if (startedAt - lastRun < 90_000) return;
+  lastRun = startedAt;
 
   try {
     const [extensions, programs, processes, network] = await Promise.all([
@@ -143,15 +165,15 @@ async function run() {
       collectNetwork().catch(() => []),
     ]);
 
-    const now = new Date().toISOString();
+    const nowIso = new Date().toISOString();
     const reports = [
-      { kind: 'extensions', collected_at: now, items: extensions },
-      { kind: 'programs', collected_at: now, items: programs },
-      { kind: 'processes', collected_at: now, items: processes },
-      { kind: 'network', collected_at: now, items: network },
+      { kind: 'extensions', collected_at: nowIso, items: extensions },
+      { kind: 'programs', collected_at: nowIso, items: programs },
+      { kind: 'processes', collected_at: nowIso, items: processes },
+      { kind: 'network', collected_at: nowIso, items: network },
     ].filter((r) => r.items.length);
 
-    if (!reports.length) return;
+    if (!reports.length) { report.warn('machine_report_empty', 'all collectors returned 0 items (PowerShell blocked?)'); return; }
 
     await api.sendMachineReport({
       device_name: store.get('deviceName') || os.hostname(),
@@ -159,7 +181,7 @@ async function run() {
       platform: process.platform,
       reports,
     });
-    report.info('machine_report', `inventory sent: ext=${extensions.length} prog=${programs.length} proc=${processes.length}`);
+    report.info('machine_report', `sent (${reason || 'timer'}): ext=${extensions.length} prog=${programs.length} proc=${processes.length} net=${network.length}`);
   } catch (e) {
     report.warn('machine_report_failed', e && e.message ? e.message : String(e));
   }

@@ -860,6 +860,14 @@ export default function Dashboard({ auth, shiftOptions = [] }) {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3">
+                                <Link
+                                    href={route('desktop-downloads.index')}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-orange-500/40 bg-orange-500/15 px-3 py-2 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
+                                    title="Download the SA Track desktop app — installable on any PC without signing in"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Get desktop app
+                                </Link>
                                 <div className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${currentStatus.className}`}>
                                     <span className={`h-2 w-2 rounded-full ${currentStatus.dot}`} />
                                     {currentStatus.label}

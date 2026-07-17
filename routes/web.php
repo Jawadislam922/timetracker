@@ -68,6 +68,16 @@ Route::get('/branding/logo', [BrandingController::class, 'logo'])->name('brandin
 // has no web session. File safety is enforced inside the controller.
 Route::get('/desktop-updates/{file}', [DesktopDownloadController::class, 'updates'])->name('desktop-updates.file');
 
+// Desktop app download page + installers — PUBLIC on purpose: an admin should be
+// able to open this on any office PC and install the tracker without signing the
+// web app in on every machine. The page itself renders a guest shell when there's
+// no session; logged-in users get it inside the normal app layout. `/download` is
+// a short, memorable alias for typing on a fresh machine.
+Route::get('/download', [DesktopDownloadController::class, 'index'])->name('desktop-downloads.public');
+Route::get('/desktop-downloads', [DesktopDownloadController::class, 'index'])->name('desktop-downloads.index');
+Route::get('/desktop-downloads/windows', [DesktopDownloadController::class, 'windows'])->name('desktop-downloads.windows');
+Route::get('/desktop-downloads/mac', [DesktopDownloadController::class, 'mac'])->name('desktop-downloads.mac');
+
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -91,10 +101,6 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/avatar/{user}', [\App\Http\Controllers\AvatarController::class, 'show'])->name('avatar.show');
-
-    Route::get('/desktop-downloads', [DesktopDownloadController::class, 'index'])->name('desktop-downloads.index');
-    Route::get('/desktop-downloads/windows', [DesktopDownloadController::class, 'windows'])->name('desktop-downloads.windows');
-    Route::get('/desktop-downloads/mac', [DesktopDownloadController::class, 'mac'])->name('desktop-downloads.mac');
 
     Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->middleware('permission:users.manage')->name('users.create');
@@ -249,6 +255,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // blocklist-matched. Sensitive; Super-Admin-level (monitoring.settings).
         Route::get('/compliance', [\App\Http\Controllers\ComplianceController::class, 'index'])
             ->middleware('permission:monitoring.settings')->name('monitoring.compliance');
+        Route::patch('/compliance/flags/{flag}', [\App\Http\Controllers\ComplianceController::class, 'updateFlag'])
+            ->middleware('permission:monitoring.settings')->name('monitoring.compliance.flag');
+        Route::delete('/compliance/machine', [\App\Http\Controllers\ComplianceController::class, 'destroyMachine'])
+            ->middleware('permission:monitoring.settings')->name('monitoring.compliance.machine.destroy');
         Route::get('/sessions', [MonitoringController::class, 'sessions'])->name('monitoring.sessions');
         Route::get('/sessions/{session}', [MonitoringController::class, 'showSession'])->name('monitoring.sessions.show');
         Route::get('/screenshots/{screenshot}/image', [MonitoringController::class, 'screenshotImage'])->name('monitoring.screenshots.image');

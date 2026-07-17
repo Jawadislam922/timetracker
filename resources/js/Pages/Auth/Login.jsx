@@ -222,7 +222,16 @@ export default function Login({ status, canResetPassword }) {
 
                     {/* Footer */}
                     <div className="mt-8 text-center">
-                        <p className="text-xs text-slate-400">
+                        <Link
+                            href={route('desktop-downloads.public')}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-400 hover:text-orange-300"
+                        >
+                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+                            </svg>
+                            Download the desktop app
+                        </Link>
+                        <p className="mt-3 text-xs text-slate-400">
                             © {new Date().getFullYear()} Sparking Asia. All rights reserved.
                         </p>
                     </div>

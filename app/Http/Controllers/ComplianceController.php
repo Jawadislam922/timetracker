@@ -2,77 +2,211 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\MachineFlag;
 use App\Models\MachineReport;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Machine Compliance — what's installed/running on every PC, with the
- * automation/VPN blocklist hits surfaced first. Lets a manager answer "is any
- * machine running a refresh tool / scraper / jiggler / VPN that could get an
- * Upwork profile banned?" from one page instead of visiting each desk.
+ * Machine Compliance — a tool-first view of what's installed on every PC.
+ *
+ * The flagged tools come from the durable machine_flags ledger (open +
+ * acknowledged), grouped by tool so "Instant Data Scraper is on 3 machines" is
+ * one row you expand to the names — no walking desk to desk. Only the
+ * Upwork-banning categories are alarming; VPNs / automation frameworks are
+ * shown as "watch". Managers Acknowledge or Ignore a flag from here.
  */
 class ComplianceController extends Controller
 {
-    private const SEV_ORDER = ['critical' => 0, 'high' => 1, 'warn' => 2];
+    private const SEV_WEIGHT = ['critical' => 3, 'high' => 2, 'medium' => 1, 'low' => 0];
 
     public function index(Request $request): Response
     {
-        // Latest report per (machine, kind) — the current picture.
+        // ---- Flagged tools, from the ledger, grouped by tool ------------------
+        $flags = MachineFlag::with('user:id,name')
+            ->whereIn('status', ['open', 'acknowledged'])
+            ->get();
+
+        $tools = $flags
+            ->groupBy(fn ($f) => $f->rule.'|'.mb_strtolower($f->label))
+            ->map(function ($g) {
+                $first = $g->first();
+
+                return [
+                    'name' => $first->label,
+                    'rule' => $first->rule,
+                    'severity' => $first->severity,
+                    'alert' => (bool) $first->alert,
+                    'category' => $first->alert ? 'ban' : 'watch',
+                    'people' => $g->pluck('user_id')->unique()->count(),
+                    'machines' => $g->pluck('device_name')->unique()->count(),
+                    'occurrences' => $g->sortBy('user_id')->map(fn ($f) => [
+                        'id' => $f->id,
+                        'user' => $f->user?->name,
+                        'device' => $f->device_name,
+                        'status' => $f->status,
+                        'first_seen' => optional($f->first_seen_at)->toDateTimeString(),
+                        'last_seen' => optional($f->last_seen_at)->toDateTimeString(),
+                        'app_version' => $f->app_version,
+                    ])->values()->all(),
+                ];
+            })
+            ->sortByDesc(fn ($t) => ($t['alert'] ? 1_000_000 : 0)
+                + (self::SEV_WEIGHT[$t['severity']] ?? 0) * 1_000
+                + $t['people'])
+            ->values();
+
+        // Open banning flags per (user, device) → the machine's "needs action" badge.
+        $openByMachine = $flags->where('alert', true)->where('status', 'open')
+            ->groupBy(fn ($f) => $f->device_name.'|'.$f->user_id)
+            ->map->count();
+
+        // ---- Machines, from the latest daily snapshots ------------------------
         $latestIds = MachineReport::selectRaw('MAX(id) as id')
             ->groupBy('user_id', 'device_name', 'kind')
             ->pluck('id');
-
         $reports = MachineReport::with('user:id,name')->whereIn('id', $latestIds)->get();
 
-        $machines = $reports->groupBy(fn ($r) => $r->device_name.'|'.$r->user_id)->map(function ($g) {
+        $machines = $reports->groupBy(fn ($r) => $r->device_name.'|'.$r->user_id)->map(function ($g) use ($openByMachine) {
             $first = $g->first();
+            $key = $first->device_name.'|'.$first->user_id;
 
             return [
                 'device' => $first->device_name ?: 'unknown',
+                'device_name' => $first->device_name,
                 'user' => $first->user?->name,
+                'user_id' => $first->user_id,
                 'app_version' => $first->app_version,
                 'last_seen' => optional($g->max('collected_at') ?? $g->max('created_at'))->toDateTimeString(),
                 'counts' => $g->mapWithKeys(fn ($r) => [$r->kind => (int) $r->item_count])->all(),
-                'flagged_count' => (int) $g->sum('flagged_count'),
+                'open_alerts' => (int) ($openByMachine[$key] ?? 0),
             ];
-        })->sortByDesc('flagged_count')->values();
-
-        $flags = [];
-        foreach ($reports as $r) {
-            foreach (($r->flagged ?? []) as $f) {
-                $flags[] = [
-                    'device' => $r->device_name ?: 'unknown',
-                    'user' => $r->user?->name,
-                    'kind' => $r->kind,
-                    'item' => $f['name'] ?? $f['title'] ?? $f['process'] ?? $f['path'] ?? 'unknown',
-                    'rule' => $f['rule'] ?? '?',
-                    'severity' => $f['severity'] ?? 'warn',
-                    'seen' => optional($r->collected_at)->toDateTimeString(),
-                ];
-            }
-        }
-        usort($flags, fn ($a, $b) => (self::SEV_ORDER[$a['severity']] ?? 3) <=> (self::SEV_ORDER[$b['severity']] ?? 3));
+        })->sortByDesc('open_alerts')->values();
 
         return Inertia::render('Monitoring/Compliance', [
+            'tools' => $tools,
             'machines' => $machines,
-            'flags' => $flags,
+            'employees' => $this->employeeInventory($reports),
             'extensions' => $this->extensionInventory($reports),
             'summary' => [
                 'machines' => $machines->count(),
-                'flagged_machines' => $machines->where('flagged_count', '>', 0)->count(),
-                'flags' => count($flags),
+                'open_alerts' => $flags->where('alert', true)->where('status', 'open')->count(),
+                'watch' => $flags->where('alert', false)->count(),
             ],
             'lastReport' => optional($reports->max('created_at'))->toDateTimeString(),
         ]);
     }
 
+    /** Acknowledge (seen, stay quiet), Ignore (never alert here again), or reopen a flag. */
+    public function updateFlag(Request $request, MachineFlag $flag): RedirectResponse
+    {
+        $data = $request->validate([
+            'status' => ['required', 'in:open,acknowledged,ignored'],
+        ]);
+
+        $flag->status = $data['status'];
+        if ($data['status'] === 'acknowledged') {
+            $flag->acknowledged_by = $request->user()->id;
+            $flag->acknowledged_at = now();
+        }
+        if ($data['status'] === 'open') {
+            $flag->acknowledged_by = null;
+            $flag->acknowledged_at = null;
+            $flag->resolved_at = null;
+        }
+        $flag->save();
+
+        return back();
+    }
+
+    /** Delete a machine's compliance history (snapshots + ledger) for review cleanup. */
+    public function destroyMachine(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'user_id' => ['required', 'integer'],
+            'device_name' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $scope = fn ($q) => $q->where('user_id', $data['user_id'])
+            ->where('device_name', $data['device_name'] ?? null);
+
+        $scope(MachineReport::query())->delete();
+        $scope(MachineFlag::query())->delete();
+
+        return back();
+    }
+
     /**
-     * Every distinct browser extension across the team, with who has it — so
-     * "Instant Data Scraper is on 3 machines" is one click to the names. Flagged
-     * (blocklisted) extensions sort first; everything else is listed too so a
-     * human can spot a tool the blocklist doesn't know yet.
+     * One row per employee → every ENABLED extension they run across their
+     * machines. With 100-200 extensions team-wide, browsing by person ("what is
+     * Ali running?") beats clicking each tool one by one. Flagged extensions and
+     * people who have them sort first.
+     *
+     * @param  \Illuminate\Support\Collection<int, MachineReport>  $reports
+     */
+    private function employeeInventory($reports): array
+    {
+        $byUser = [];
+
+        foreach ($reports->where('kind', 'extensions') as $r) {
+            $uid = $r->user_id;
+            if (! isset($byUser[$uid])) {
+                $byUser[$uid] = ['user_id' => $uid, 'user' => $r->user?->name, 'devices' => [], 'exts' => []];
+            }
+            if ($r->device_name) {
+                $byUser[$uid]['devices'][$r->device_name] = true;
+            }
+            foreach ((array) $r->items as $it) {
+                if (($it['enabled'] ?? true) === false) {
+                    continue; // enabled-only record
+                }
+                $name = trim((string) ($it['name'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+                $key = mb_strtolower($name);
+                if (! isset($byUser[$uid]['exts'][$key])) {
+                    $hit = \App\Support\AutomationBlocklist::scan([$it], 'extensions');
+                    $byUser[$uid]['exts'][$key] = [
+                        'name' => $name,
+                        'browser' => $it['browser'] ?? null,
+                        'device' => $r->device_name,
+                        'flagged' => ! empty($hit),
+                        'rule' => $hit[0]['rule'] ?? null,
+                        'severity' => $hit[0]['severity'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        $rows = collect($byUser)->map(function ($e) {
+            $exts = collect($e['exts'])
+                ->sortByDesc(fn ($x) => ($x['flagged'] ? 1 : 0))
+                ->values();
+
+            return [
+                'user_id' => $e['user_id'],
+                'user' => $e['user'],
+                'machines' => array_keys($e['devices']),
+                'count' => $exts->count(),
+                'flagged' => $exts->where('flagged', true)->count(),
+                'extensions' => $exts->all(),
+            ];
+        })->values()->all();
+
+        // People with flagged extensions first, then alphabetical for easy scanning.
+        usort($rows, fn ($a, $b) => ($b['flagged'] <=> $a['flagged'])
+            ?: strcasecmp($a['user'] ?? '', $b['user'] ?? ''));
+
+        return $rows;
+    }
+
+    /**
+     * Every distinct ENABLED browser extension across the team, with who has it —
+     * so "Instant Data Scraper is on 3 machines" is one click to the names.
+     * Flagged (blocklisted) extensions sort first.
      *
      * @param  \Illuminate\Support\Collection<int, MachineReport>  $reports
      */
@@ -82,13 +216,16 @@ class ComplianceController extends Controller
 
         foreach ($reports->where('kind', 'extensions') as $r) {
             foreach ((array) $r->items as $it) {
+                if (($it['enabled'] ?? true) === false) {
+                    continue; // enabled-only record
+                }
                 $name = trim((string) ($it['name'] ?? ''));
                 if ($name === '') {
                     continue;
                 }
                 $key = mb_strtolower($name);
                 if (! isset($map[$key])) {
-                    $hit = \App\Support\AutomationBlocklist::scan([$it]);
+                    $hit = \App\Support\AutomationBlocklist::scan([$it], 'extensions');
                     $map[$key] = [
                         'name' => $name,
                         'flagged' => ! empty($hit),
@@ -110,7 +247,6 @@ class ComplianceController extends Controller
             $users = collect($e['users']);
             $e['people'] = $users->pluck('user')->filter()->unique()->count();
             $e['machines'] = $users->pluck('device')->filter()->unique()->count();
-            // Dedup the who-list by user+device (same person, two profiles → one row).
             $e['users'] = $users->unique(fn ($u) => $u['user'].'|'.$u['device'])->values()->all();
 
             return $e;

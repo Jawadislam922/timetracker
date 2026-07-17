@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Apple, CheckCircle2, Copy, Download, FolderOpen, Laptop, MonitorDown, Network, ShieldAlert, ShieldCheck } from 'lucide-react';
 
@@ -282,11 +282,7 @@ function DownloadCard({ title, subtitle, icon: Icon, accent, download }) {
 }
 
 export default function DesktopDownloads({ auth, downloads }) {
-    return (
-        <AuthenticatedLayout user={auth.user} header="Desktop App">
-            <Head title="Desktop App" />
-
-            <div className="min-h-screen bg-slate-950">
+    const body = (
             <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
                 <div className="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-5 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -347,7 +343,30 @@ export default function DesktopDownloads({ auth, downloads }) {
                     </div>
                 </div>
             </div>
-            </div>
-        </AuthenticatedLayout>
+    );
+
+    if (auth?.user) {
+        return (
+            <AuthenticatedLayout user={auth.user} header="Desktop App">
+                <Head title="Desktop App" />
+                {body}
+            </AuthenticatedLayout>
+        );
+    }
+
+    // Public — installable on any PC without signing into the web app first.
+    return (
+        <div className="min-h-screen bg-slate-950">
+            <Head title="Download SA Track Desktop" />
+            <header className="border-b border-slate-800 bg-slate-900">
+                <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+                    <span className="flex items-center gap-2 font-bold text-white">
+                        <MonitorDown className="h-5 w-5 text-orange-400" /> SA Track
+                    </span>
+                    <Link href={route('login')} className="text-sm font-semibold text-slate-300 hover:text-white">Sign in</Link>
+                </div>
+            </header>
+            {body}
+        </div>
     );
 }
