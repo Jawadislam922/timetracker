@@ -25,7 +25,7 @@ const RULE_LABEL = {
 const VIEWS = [
     ['action', 'Needs action'],
     ['people', 'By employee'],
-    ['software', 'By tool'],
+    ['software', 'By extension'],
     ['machines', 'Machines'],
 ];
 
