@@ -104,7 +104,12 @@ function collectExtensions() {
           let name = man.name;
           if (typeof name === 'string' && name.startsWith('__MSG_')) name = ext.path || id;
           out.push({
-            browser, profile, id,
+            // NOTE: the Chrome profile directory name is deliberately NOT sent.
+            // Hostinger's firewall blocks any request body carrying a repeated
+            // `profile` field (standard ModSecurity rule), which 403'd the whole
+            // inventory upload — extensions, programs and processes together —
+            // for every machine with ~20+ extensions. The server never used it.
+            browser, id,
             name: String(name).slice(0, 160),
             version: man.version || null,
             enabled: true,
