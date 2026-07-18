@@ -124,6 +124,12 @@ class ComplianceController extends Controller
                 'machines' => $machines->count(),
                 'open_alerts' => $flags->where('alert', true)->where('status', 'open')->count(),
                 'watch' => $flags->where('alert', false)->count(),
+                // Agents older than this could not report browser extensions at all,
+                // so an empty extension list from them must not read as "clean".
+                'min_agent' => $minAgent = (string) config('desktop.min_agent_version', '0.4.6'),
+                'outdated_agents' => $machines
+                    ->filter(fn ($m) => ! $m['app_version'] || version_compare((string) $m['app_version'], $minAgent, '<'))
+                    ->count(),
             ],
             'lastReport' => optional($machineRows->max('created_at'))->toDateTimeString(),
         ]);

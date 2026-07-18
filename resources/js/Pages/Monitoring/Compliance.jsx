@@ -82,6 +82,18 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                     {lastReport && <span className="ml-1 text-slate-500">Last report {lastReport}.</span>}
                 </p>
 
+                {summary.outdated_agents > 0 && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                            <strong>{summary.outdated_agents}</strong> machine{summary.outdated_agents === 1 ? '' : 's'} still
+                            run an agent older than {summary.min_agent}, which could not report browser extensions at all.
+                            Treat an empty extension list from those as <em>unknown</em>, not clean — they update automatically
+                            when the tracker next starts.
+                        </span>
+                    </div>
+                )}
+
                 {/* Summary */}
                 <div className="grid gap-3 sm:grid-cols-3">
                     <Tile icon={Monitor} label="Machines reporting" value={summary.machines || 0} tone="slate" />

@@ -33,4 +33,18 @@ return [
 
     'downloads_base_url' => env('DESKTOP_DOWNLOADS_BASE_URL'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Minimum trustworthy agent version
+    |--------------------------------------------------------------------------
+    |
+    | Compliance data from agents older than this is incomplete — 0.4.5 and
+    | earlier could not report browser extensions at all (they filtered on a
+    | Chrome field that no longer exists). The dashboard warns when machines are
+    | below this so nobody reads an empty extension list as "clean".
+    |
+    */
+
+    'min_agent_version' => env('DESKTOP_MIN_AGENT_VERSION', '0.4.6'),
+
 ];
