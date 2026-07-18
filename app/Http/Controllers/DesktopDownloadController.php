@@ -115,9 +115,15 @@ class DesktopDownloadController extends Controller
         foreach ($this->searchDirs() as $dir) {
             $path = rtrim($dir, '/').'/'.$file;
             if (File::isFile($path)) {
+                // A ~90MB installer over a slow link streams for minutes; don't let
+                // the PHP execution-time limit kill it mid-download (the "reaches
+                // X%, vanishes, restarts" bug — electron-updater can't resume).
+                @set_time_limit(0);
+
                 return response()->file($path, [
                     'Cache-Control' => 'no-cache',
                     'X-Content-Type-Options' => 'nosniff',
+                    'Accept-Ranges' => 'bytes',
                 ]);
             }
         }
