@@ -213,8 +213,11 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = fals
     };
 
     return (
-        <figure className={`relative overflow-hidden rounded-md border bg-slate-950 ${selected ? 'border-rose-500/70 ring-1 ring-rose-500/50' : 'border-slate-800'}`}>
-            <div className="flex items-center justify-between bg-slate-900 px-2 py-1 text-[11px] text-slate-400">
+        // No `overflow-hidden` here: it would clip the hover preview. The header and
+        // footer round their own corners instead, and hovering lifts the card above
+        // its neighbours so the preview is never covered.
+        <figure className={`relative rounded-md border bg-slate-950 hover:z-30 ${selected ? 'border-rose-500/70 ring-1 ring-rose-500/50' : 'border-slate-800'}`}>
+            <div className="flex items-center justify-between rounded-t-md bg-slate-900 px-2 py-1 text-[11px] text-slate-400">
                 <span className="flex items-center gap-1.5">
                     {canDelete && onToggleSelect && (
                         <input
@@ -233,16 +236,31 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = fals
                 </div>
             </div>
             {shot.thumbnail_url ? (
-                <button type="button" onClick={() => onOpen?.(shot.id)} className="block w-full cursor-zoom-in" title="Open viewer">
+                // `group` + the peer overlay below: resting the pointer here shows a
+                // large uncropped preview, so a whole session can be reviewed by
+                // sweeping the mouse instead of opening every image.
+                <button
+                    type="button"
+                    onClick={() => onOpen?.(shot.id)}
+                    className="group relative block w-full cursor-zoom-in"
+                    title="Hover to preview · click to open full screen"
+                >
                     <img
                         src={shot.thumbnail_url}
                         alt={shot.active_window_title || 'Screenshot'}
                         loading="lazy"
-                        className="block h-32 w-full object-cover"
+                        className="block aspect-[16/10] w-full object-cover object-top"
                     />
+                    <span className="pointer-events-none absolute left-1/2 top-full z-40 hidden -translate-x-1/2 translate-y-2 group-hover:block">
+                        <img
+                            src={shot.image_url || shot.thumbnail_url}
+                            alt=""
+                            className="max-h-[70vh] w-[min(60vw,900px)] rounded-lg border border-slate-700 bg-slate-950 object-contain shadow-2xl shadow-black/60"
+                        />
+                    </span>
                 </button>
             ) : (
-                <div className="flex h-32 w-full items-center justify-center text-xs text-slate-500">Image unavailable</div>
+                <div className="flex aspect-[16/10] w-full items-center justify-center text-xs text-slate-500">Image unavailable</div>
             )}
             {(shot.active_app || shot.url_domain) && (
                 <figcaption className="truncate bg-slate-900 px-2 py-1 text-[11px] text-slate-400" title={shot.active_window_title || ''}>
@@ -250,7 +268,7 @@ function ScreenshotTile({ shot, canManage, canDelete, onChanged, selected = fals
                 </figcaption>
             )}
             <div
-                className="flex items-center gap-3 border-t border-slate-800 bg-slate-900 px-2 py-1 text-[11px] text-slate-300"
+                className="flex items-center gap-3 rounded-b-md border-t border-slate-800 bg-slate-900 px-2 py-1 text-[11px] text-slate-300"
                 title="Keystrokes and real mouse clicks recorded during this screenshot's period"
             >
                 <span><span className="text-slate-500">Keys</span> {shot.keystrokes ?? 0}</span>
@@ -400,7 +418,13 @@ function SessionCard({ session, canViewScreenshots, canManageScreenshots, canDel
                     )}
 
                     {canViewScreenshots && session.screenshots.length > 0 && (
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        // Width-driven, not fixed breakpoints: the browser fits as many
+                        // ~250px tiles as the page is actually wide, so a wide monitor
+                        // shows 5-6 per row and a laptop reflows to 3 — no wasted space.
+                        <div
+                            className="grid gap-3"
+                            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}
+                        >
                             {session.screenshots.map((shot) => (
                                 <ScreenshotTile
                                     key={shot.id}

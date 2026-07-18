@@ -92,7 +92,10 @@ export default function SessionDetail({ auth, session, screenshots = [], permiss
                         ) : screenshots.length === 0 ? (
                             <p className="text-sm text-slate-500">No screenshots captured.</p>
                         ) : (
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                            <div
+                                className="grid gap-3"
+                                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}
+                            >
                                 {screenshots.map((s, i) => (
                                     <button
                                         key={s.id}
@@ -104,11 +107,11 @@ export default function SessionDetail({ auth, session, screenshots = [], permiss
                                             <img
                                                 src={s.thumbnail_url}
                                                 alt={`Screenshot at ${fmtTime(s.captured_at)}`}
-                                                className="h-32 w-full object-cover"
+                                                className="aspect-[16/10] w-full object-cover object-top"
                                                 loading="lazy"
                                             />
                                         ) : (
-                                            <div className="flex h-32 w-full items-center justify-center text-xs text-slate-600">
+                                            <div className="flex aspect-[16/10] w-full items-center justify-center text-xs text-slate-600">
                                                 no preview
                                             </div>
                                         )}
