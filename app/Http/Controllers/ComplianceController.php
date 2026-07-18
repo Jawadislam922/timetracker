@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MachineFlag;
 use App\Models\MachineReport;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -103,11 +104,18 @@ class ComplianceController extends Controller
             return $scanCache[$k] ??= (\App\Support\AutomationBlocklist::scan([$it], 'extensions')[0] ?? null);
         };
 
+        // Cache the heavy inventories briefly, keyed on the report set so a new
+        // daily snapshot (or a delete) busts it. Slow-changing data — the ledger
+        // (tools/summary/machines) is never cached, so Acknowledge stays instant.
+        $invKey = 'compliance-inv:'.$latestIds->max().':'.$latestIds->count();
+
         return Inertia::render('Monitoring/Compliance', [
             'tools' => $tools,
             'machines' => $machines,
-            'employees' => fn () => $this->employeeInventory($getExtReports(), $flagOf),
-            'extensions' => fn () => $this->extensionInventory($getExtReports(), $flagOf),
+            'employees' => fn () => Cache::remember($invKey.':emp', now()->addMinutes(10),
+                fn () => $this->employeeInventory($getExtReports(), $flagOf)),
+            'extensions' => fn () => Cache::remember($invKey.':ext', now()->addMinutes(10),
+                fn () => $this->extensionInventory($getExtReports(), $flagOf)),
             'summary' => [
                 'machines' => $machines->count(),
                 'open_alerts' => $flags->where('alert', true)->where('status', 'open')->count(),

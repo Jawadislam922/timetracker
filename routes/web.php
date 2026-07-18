@@ -238,6 +238,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/env', [DeveloperController::class, 'updateEnv'])->name('developer.env.update');
         Route::get('/logs', [DeveloperController::class, 'logs'])->name('developer.logs');
         Route::get('/diagnostics', [DeveloperController::class, 'diagnostics'])->name('developer.diagnostics');
+        Route::get('/storage', [DeveloperController::class, 'storage'])->name('developer.storage');
         Route::post('/branding', [BrandingController::class, 'update'])->name('developer.branding.update');
     });
 

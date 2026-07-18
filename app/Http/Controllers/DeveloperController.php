@@ -332,6 +332,19 @@ class DeveloperController extends Controller
         ]);
     }
 
+    /** S3 storage usage + estimated cost for the admin Storage panel. */
+    public function storage(Request $request): JsonResponse
+    {
+        $this->authorizeDeveloper($request);
+
+        return response()->json(
+            app(\App\Services\S3UsageService::class)->usage(
+                withRealCost: $request->boolean('cost'),
+                fresh: $request->boolean('fresh'),
+            )
+        );
+    }
+
     private function authorizeDeveloper(Request $request): void
     {
         abort_unless($request->user()?->isSuperAdmin(), 403, 'Developer tools are restricted to Super Admins.');

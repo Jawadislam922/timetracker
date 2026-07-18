@@ -7,6 +7,7 @@ import {
     CheckCircle2,
     Database,
     FileText,
+    HardDrive,
     Image as ImageIcon,
     KeyRound,
     Play,
@@ -103,6 +104,8 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
     const [logsLoading, setLogsLoading] = useState(false);
     const [diag, setDiag] = useState({ counts: {}, recent: [] });
     const [diagLoading, setDiagLoading] = useState(false);
+    const [storage, setStorage] = useState(null);
+    const [storageLoading, setStorageLoading] = useState(false);
     const [envDraft, setEnvDraft] = useState(() => buildEnvDraft(envGroups));
     const [savingEnv, setSavingEnv] = useState(false);
     const [logoFile, setLogoFile] = useState(null);
@@ -173,7 +176,24 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
         }
     };
 
-    useEffect(() => { loadLogs(); loadDiag(); }, []);
+    const loadStorage = async ({ cost = false, fresh = false } = {}) => {
+        setStorageLoading(true);
+        try {
+            const qs = new URLSearchParams();
+            if (cost) qs.set('cost', '1');
+            if (fresh) qs.set('fresh', '1');
+            const res = await fetch(route('developer.storage') + (qs.toString() ? `?${qs}` : ''), {
+                credentials: 'same-origin', headers: { Accept: 'application/json' },
+            });
+            setStorage(await res.json());
+        } catch {
+            setStorage({ error: 'Could not reach the server.' });
+        } finally {
+            setStorageLoading(false);
+        }
+    };
+
+    useEffect(() => { loadLogs(); loadDiag(); loadStorage(); }, []);
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-100">Developer</h2>}>
@@ -201,6 +221,45 @@ export default function DeveloperIndex({ auth, system, health, schedule, envGrou
                         </pre>
                     </Card>
                 )}
+
+                <Card title="Storage (S3)" icon={HardDrive}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs text-slate-500">Screenshot bucket usage &amp; estimated cost</span>
+                        <button type="button" onClick={() => loadStorage({ fresh: true })} disabled={storageLoading}
+                            className="inline-flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">
+                            <RefreshCw className={['h-3 w-3', storageLoading ? 'animate-spin' : ''].join(' ')} /> Refresh
+                        </button>
+                    </div>
+                    {!storage ? (
+                        <p className="py-2 text-sm text-slate-500">Loading…</p>
+                    ) : storage.configured === false ? (
+                        <p className="py-2 text-sm text-slate-400">{storage.message || 'Screenshots are not on S3.'}</p>
+                    ) : storage.error ? (
+                        <div className="rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-5 text-amber-200">{storage.error}</div>
+                    ) : (
+                        <>
+                            <InfoRow label="Bucket" value={storage.bucket} />
+                            <InfoRow label="Region" value={storage.region} />
+                            <InfoRow label="Space used" value={storage.gb != null ? `${storage.gb} GB` : '—'} mono={false} />
+                            <InfoRow label="Objects" value={storage.objects != null ? storage.objects.toLocaleString() : '—'} mono={false} />
+                            <InfoRow label="Est. monthly cost" value={storage.estimated_monthly_usd != null ? `~$${storage.estimated_monthly_usd}/mo` : '—'} mono={false} />
+                            {storage.real_cost && (
+                                <InfoRow label="Actual S3 spend (this month)"
+                                    value={storage.real_cost.amount != null ? `$${storage.real_cost.amount} ${storage.real_cost.unit}` : (storage.real_cost.error || '—')} mono={false} />
+                            )}
+                            <InfoRow label="As of" value={storage.as_of} />
+                            {!storage.real_cost && (
+                                <button type="button" onClick={() => loadStorage({ cost: true, fresh: true })} disabled={storageLoading}
+                                    className="mt-2 text-xs font-medium text-orange-400 hover:text-orange-300 disabled:opacity-50">
+                                    Fetch actual cost (AWS Cost Explorer)
+                                </button>
+                            )}
+                            <p className="mt-2 text-[11px] leading-4 text-slate-500">
+                                Size comes from CloudWatch (updates ~daily). Estimate = size × ${storage.price_per_gb_month}/GB-month.
+                            </p>
+                        </>
+                    )}
+                </Card>
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                     <Card title="System" icon={Database}>

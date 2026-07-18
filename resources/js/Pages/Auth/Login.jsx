@@ -224,14 +224,14 @@ export default function Login({ status, canResetPassword }) {
                     <div className="mt-8 text-center">
                         <Link
                             href={route('desktop-downloads.public')}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-400 hover:text-orange-300"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-2.5 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/20"
                         >
-                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
                             </svg>
-                            Download the desktop app
+                            Download the desktop app — no sign-in needed
                         </Link>
-                        <p className="mt-3 text-xs text-slate-400">
+                        <p className="mt-4 text-xs text-slate-400">
                             © {new Date().getFullYear()} Sparking Asia. All rights reserved.
                         </p>
                     </div>
