@@ -67,9 +67,15 @@ class ComplianceDashboardTest extends TestCase
             'items' => [
                 ['name' => 'Instant Data Scraper', 'browser' => 'Chrome', 'enabled' => true],
                 ['name' => 'uBlock Origin', 'browser' => 'Chrome', 'enabled' => true],
-                ['name' => 'Old Disabled Thing', 'browser' => 'Chrome', 'enabled' => false],
             ],
-            'item_count' => 3, 'flagged_count' => 1,
+            'item_count' => 2, 'flagged_count' => 1,
+        ]);
+        // Programs count toward the same person — this is what made "Bitdefender VPN
+        // on 13 people" impossible to reconcile with an extensions-only view.
+        MachineReport::create([
+            'user_id' => $ali->id, 'device_name' => 'PC-ALI', 'kind' => 'programs', 'collected_at' => now(),
+            'items' => [['name' => 'NordVPN', 'publisher' => 'NordVPN s.a.']],
+            'item_count' => 1, 'flagged_count' => 1,
         ]);
         MachineReport::create([
             'user_id' => $bina->id, 'device_name' => 'PC-BINA', 'kind' => 'extensions', 'collected_at' => now(),
@@ -80,11 +86,12 @@ class ComplianceDashboardTest extends TestCase
         $this->actingAs($admin)->get('/monitoring/compliance')
             ->assertInertia(fn (Assert $page) => $page
                 ->has('employees', 2)
-                ->where('employees.0.user', 'Ali')          // flagged person sorts first
-                ->where('employees.0.flagged', 1)
-                ->where('employees.0.count', 2)              // enabled only — disabled one excluded
-                ->where('employees.0.extensions.0.name', 'Instant Data Scraper') // flagged ext first
-                ->where('employees.0.extensions.0.flagged', true)
+                ->where('employees.0.user', 'Ali')            // most-flagged person sorts first
+                ->where('employees.0.flagged', 2)             // scraper extension + NordVPN program
+                ->where('employees.0.count', 3)               // extensions AND programs
+                ->where('employees.0.extension_count', 2)
+                ->where('employees.0.program_count', 1)
+                ->where('employees.0.extensions.0.flagged', true) // flagged items sort first
                 ->where('employees.1.user', 'Bina')
             );
     }

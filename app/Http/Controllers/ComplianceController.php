@@ -92,16 +92,20 @@ class ComplianceController extends Controller
         // Heavy extension inventory is loaded once and shared, and only computed
         // on a FULL page visit — Acknowledge/Ignore partial reloads (only:[tools,
         // summary,machines]) skip these closures entirely, so the buttons are snappy.
-        $extReports = null;
-        $getExtReports = function () use (&$extReports, $latestIds) {
-            return $extReports ??= MachineReport::with('user:id,name')
-                ->whereIn('id', $latestIds)->where('kind', 'extensions')->get();
+        // Extensions + programs: together these answer "what does this person have
+        // installed". Processes/network are deliberately excluded here — they are
+        // huge and transient, and are already covered by the flagged-tools list.
+        $invReports = null;
+        $getInvReports = function () use (&$invReports, $latestIds) {
+            return $invReports ??= MachineReport::with('user:id,name')
+                ->whereIn('id', $latestIds)->whereIn('kind', ['extensions', 'programs'])->get();
         };
         $scanCache = [];
-        $flagOf = function ($it) use (&$scanCache) {
-            $k = mb_strtolower(trim((string) ($it['name'] ?? '')));
+        $flagOf = function ($it, $kind = 'extensions') use (&$scanCache) {
+            $name = mb_strtolower(trim((string) ($it['name'] ?? $it['process'] ?? $it['adapter'] ?? '')));
+            $k = $kind.'|'.$name;
 
-            return $scanCache[$k] ??= (\App\Support\AutomationBlocklist::scan([$it], 'extensions')[0] ?? null);
+            return $scanCache[$k] ??= (\App\Support\AutomationBlocklist::scan([$it], $kind)[0] ?? null);
         };
 
         // Cache the heavy inventories briefly, keyed on the report set so a new
@@ -112,10 +116,10 @@ class ComplianceController extends Controller
         return Inertia::render('Monitoring/Compliance', [
             'tools' => $tools,
             'machines' => $machines,
-            'employees' => fn () => Cache::remember($invKey.':emp', now()->addMinutes(10),
-                fn () => $this->employeeInventory($getExtReports(), $flagOf)),
-            'extensions' => fn () => Cache::remember($invKey.':ext', now()->addMinutes(10),
-                fn () => $this->extensionInventory($getExtReports(), $flagOf)),
+            'employees' => fn () => Cache::remember($invKey.':emp2', now()->addMinutes(10),
+                fn () => $this->employeeInventory($getInvReports(), $flagOf)),
+            'extensions' => fn () => Cache::remember($invKey.':ext2', now()->addMinutes(10),
+                fn () => $this->extensionInventory($getInvReports(), $flagOf)),
             'summary' => [
                 'machines' => $machines->count(),
                 'open_alerts' => $flags->where('alert', true)->where('status', 'open')->count(),
@@ -176,28 +180,29 @@ class ComplianceController extends Controller
     {
         $byUser = [];
 
-        foreach ($reports->where('kind', 'extensions') as $r) {
+        foreach ($reports as $r) {
             $uid = $r->user_id;
             if (! isset($byUser[$uid])) {
-                $byUser[$uid] = ['user_id' => $uid, 'user' => $r->user?->name, 'devices' => [], 'exts' => []];
+                $byUser[$uid] = ['user_id' => $uid, 'user' => $r->user?->name, 'devices' => [], 'items' => []];
             }
             if ($r->device_name) {
                 $byUser[$uid]['devices'][$r->device_name] = true;
             }
             foreach ((array) $r->items as $it) {
-                if (($it['enabled'] ?? true) === false) {
-                    continue; // enabled-only record
-                }
                 $name = trim((string) ($it['name'] ?? ''));
                 if ($name === '') {
                     continue;
                 }
-                $key = mb_strtolower($name);
-                if (! isset($byUser[$uid]['exts'][$key])) {
-                    $hit = $flagOf($it);
-                    $byUser[$uid]['exts'][$key] = [
+                // Key by kind+name so an extension and a program of the same name
+                // both show, and the same tool on two machines shows once.
+                $key = $r->kind.'|'.mb_strtolower($name);
+                if (! isset($byUser[$uid]['items'][$key])) {
+                    $hit = $flagOf($it, $r->kind);
+                    $byUser[$uid]['items'][$key] = [
                         'name' => $name,
+                        'kind' => $r->kind,
                         'browser' => $it['browser'] ?? null,
+                        'publisher' => $it['publisher'] ?? null,
                         'device' => $r->device_name,
                         'flagged' => (bool) $hit,
                         'rule' => $hit['rule'] ?? null,
@@ -208,7 +213,7 @@ class ComplianceController extends Controller
         }
 
         $rows = collect($byUser)->map(function ($e) {
-            $exts = collect($e['exts'])
+            $items = collect($e['items'])
                 ->sortByDesc(fn ($x) => ($x['flagged'] ? 1 : 0))
                 ->values();
 
@@ -216,9 +221,11 @@ class ComplianceController extends Controller
                 'user_id' => $e['user_id'],
                 'user' => $e['user'],
                 'machines' => array_keys($e['devices']),
-                'count' => $exts->count(),
-                'flagged' => $exts->where('flagged', true)->count(),
-                'extensions' => $exts->all(),
+                'count' => $items->count(),
+                'extension_count' => $items->where('kind', 'extensions')->count(),
+                'program_count' => $items->where('kind', 'programs')->count(),
+                'flagged' => $items->where('flagged', true)->count(),
+                'extensions' => $items->all(),
             ];
         })->values()->all();
 
@@ -242,9 +249,6 @@ class ComplianceController extends Controller
 
         foreach ($reports->where('kind', 'extensions') as $r) {
             foreach ((array) $r->items as $it) {
-                if (($it['enabled'] ?? true) === false) {
-                    continue; // enabled-only record
-                }
                 $name = trim((string) ($it['name'] ?? ''));
                 if ($name === '') {
                     continue;

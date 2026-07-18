@@ -46,12 +46,11 @@ class MachineReportController extends Controller
         foreach ($data['reports'] as $report) {
             $kind = $report['kind'];
             $items = array_values(array_filter($report['items'], 'is_array'));
-            // Flag only ENABLED extensions (owner's policy). The full item list is
-            // still stored as the daily record; a disabled/synced tool just doesn't flag.
-            $scanItems = $kind === 'extensions'
-                ? array_values(array_filter($items, fn ($i) => ($i['enabled'] ?? true) !== false))
-                : $items;
-            $hits = AutomationBlocklist::scan($scanItems, $kind);
+            // The agent already sends only ENABLED extensions (owner's policy), so
+            // trust it and scan everything received. Filtering on an `enabled` flag
+            // here silently dropped 100% of extensions from older agents, which
+            // reported enabled=false for every one.
+            $hits = AutomationBlocklist::scan($items, $kind);
 
             $collectedAt = isset($report['collected_at'])
                 ? rescue(fn () => Carbon::parse($report['collected_at']), now(), false)

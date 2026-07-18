@@ -219,7 +219,7 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                 <section className="rounded-lg border border-slate-800 bg-slate-900">
                     <div className="border-b border-slate-800 px-5 py-3">
                         <h3 className="font-semibold text-white">By employee</h3>
-                        <p className="text-xs text-slate-400">Pick a person to see every enabled extension they&apos;re running — no clicking each tool.</p>
+                        <p className="text-xs text-slate-400">Pick a person to see everything installed on their PC — browser extensions and programs.</p>
                     </div>
                     {employees.length === 0 ? (
                         <p className="px-5 py-8 text-center text-sm text-slate-500">No employee inventory yet.</p>
@@ -238,7 +238,9 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                             {emp.flagged > 0 && (
                                                 <span className="shrink-0 rounded bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-300">{emp.flagged} flagged</span>
                                             )}
-                                            <span className="shrink-0 text-xs text-slate-400">{emp.count} {emp.count === 1 ? 'extension' : 'extensions'}</span>
+                                            <span className="shrink-0 text-xs text-slate-400">
+                                                {emp.extension_count ?? 0} ext · {emp.program_count ?? 0} programs
+                                            </span>
                                         </button>
                                         {open && (
                                             <div className="bg-slate-950/40 px-5 pb-3 pl-12">
@@ -253,7 +255,12 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                                         <td className="py-1.5 pr-3">
                                                                             <span className={x.flagged ? 'font-medium text-amber-300' : 'text-slate-200'}>{x.name}</span>
                                                                         </td>
-                                                                        <td className="py-1.5 pr-3 text-slate-500">{x.browser}</td>
+                                                                        <td className="py-1.5 pr-3">
+                                                                            <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
+                                                                                {x.kind === 'programs' ? 'program' : 'extension'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="py-1.5 pr-3 text-slate-500">{x.browser || x.publisher}</td>
                                                                         <td className="py-1.5 text-right">
                                                                             {x.flagged && (
                                                                                 <span className={['rounded border px-2 py-0.5 text-[10px] font-semibold uppercase', SEV[x.severity] || SEV.low].join(' ')}>

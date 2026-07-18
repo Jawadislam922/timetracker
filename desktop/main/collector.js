@@ -44,6 +44,26 @@ function ps(command) {
   });
 }
 
+/**
+ * Is this extension enabled? Chromium has changed how it records this, so probe
+ * in order and DEFAULT TO ENABLED when the shape is unknown — a wrong "disabled"
+ * guess silently loses the extension entirely (0.4.5 checked `state === 1`, which
+ * is `undefined` on current Chrome/Edge, and dropped 100% of extensions).
+ */
+function isExtensionEnabled(ext) {
+  // Current Chrome/Edge: array of disable reasons — empty means enabled.
+  if (Array.isArray(ext.disable_reasons)) return ext.disable_reasons.length === 0;
+  // Some builds store it as a numeric bitmask.
+  if (typeof ext.disable_reasons === 'number') return ext.disable_reasons === 0;
+  // Older Chrome: 1 = enabled, 0 = disabled.
+  if (typeof ext.state === 'number') return ext.state === 1;
+  return true; // unknown shape → keep it, never silently drop
+}
+
+// Last scan's funnel, surfaced in telemetry so a regression like the above is
+// visible as "ext=0/58" instead of a silent zero.
+let extScanStats = { raw: 0, kept: 0 };
+
 /** Installed browser extensions across all Chrome/Edge/Brave profiles. */
 function collectExtensions() {
   const browsers = [
@@ -52,6 +72,7 @@ function collectExtensions() {
     ['Brave', path.join(LOCAL, 'BraveSoftware', 'Brave-Browser', 'User Data')],
   ];
   const out = [];
+  let raw = 0;
 
   for (const [browser, userData] of browsers) {
     let profiles = [];
@@ -77,7 +98,8 @@ function collectExtensions() {
           const man = ext?.manifest;
           if (!man || !man.name) continue;                        // skip stubs
           if (ext.location === 5 || ext.location === 10) continue; // component/system
-          if (ext.state !== 1) continue;                          // owner policy: enabled only
+          raw++;
+          if (!isExtensionEnabled(ext)) continue;                 // owner policy: enabled only
           if (installedIds && !installedIds.has(id)) continue;    // synced ghost, not on disk
           let name = man.name;
           if (typeof name === 'string' && name.startsWith('__MSG_')) name = ext.path || id;
@@ -98,7 +120,10 @@ function collectExtensions() {
   }
   // Dedup by browser+id (Secure Preferences + Preferences overlap).
   const seen = new Set();
-  return out.filter((e) => { const k = e.browser + e.id; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 500);
+  const deduped = out.filter((e) => { const k = e.browser + e.id; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 500);
+  extScanStats = { raw, kept: deduped.length };
+
+  return deduped;
 }
 
 /**
@@ -181,7 +206,7 @@ async function run(reason) {
       platform: process.platform,
       reports,
     });
-    report.info('machine_report', `sent (${reason || 'timer'}): ext=${extensions.length} prog=${programs.length} proc=${processes.length} net=${network.length}`);
+    report.info('machine_report', `sent (${reason || 'timer'}): ext=${extensions.length}/${extScanStats.raw} prog=${programs.length} proc=${processes.length} net=${network.length}`);
   } catch (e) {
     report.warn('machine_report_failed', e && e.message ? e.message : String(e));
   }
