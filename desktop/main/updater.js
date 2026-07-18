@@ -1,6 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow } = require('electron');
+const report = require('./report');
 
 // Auto-update via electron-updater against the generic feed on the web app
 // (https://timetracker.sparkingasia.com/desktop-updates — configured in
@@ -38,6 +39,11 @@ function init() {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  // Always do a plain full download. The block-based DIFFERENTIAL download fails
+  // to reassemble the NSIS installer on our host and loops ("downloads a bit,
+  // disappears, restarts"). The full file is ~90MB and downloads fine; reliability
+  // beats the bandwidth saving. (Feeds also omit the .blockmap as a belt.)
+  autoUpdater.disableDifferentialDownload = true;
   // Let the feed move clients DOWN a version, not just up. This is what makes
   // rollback possible: if a release turns out broken, an admin republishes the
   // previous good build as the active version (latest.yml) and every client
@@ -63,7 +69,10 @@ function init() {
     broadcast({ type: 'downloaded', version: downloadedVersion });
   });
 
-  autoUpdater.on('error', () => {
+  autoUpdater.on('error', (err) => {
+    // Surface to the diagnostics pipe so a failed auto-update is visible on the
+    // server instead of only a silent banner-disappearance on the user's PC.
+    try { report.warn('updater_error', err && err.message ? err.message : String(err)); } catch { /* ignore */ }
     broadcast({ type: 'error' });
   });
 
