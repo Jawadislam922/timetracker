@@ -56,8 +56,12 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
 
     const setStatus = (flagId, status) => {
         setBusy(flagId);
+        // Partial reload: only refresh the cheap ledger-backed props. The heavy
+        // extension/employee inventories are skipped, so the button is snappy and
+        // the expanded rows stay put (preserveState).
         router.patch(route('monitoring.compliance.flag', flagId), { status }, {
-            preserveScroll: true, preserveState: false, onFinish: () => setBusy(null),
+            preserveScroll: true, preserveState: true, only: ['tools', 'summary', 'machines'],
+            onFinish: () => setBusy(null),
         });
     };
 

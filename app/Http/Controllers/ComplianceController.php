@@ -64,12 +64,15 @@ class ComplianceController extends Controller
             ->map->count();
 
         // ---- Machines, from the latest daily snapshots ------------------------
+        // Metadata only — never load the heavy items/flagged JSON here.
         $latestIds = MachineReport::selectRaw('MAX(id) as id')
             ->groupBy('user_id', 'device_name', 'kind')
             ->pluck('id');
-        $reports = MachineReport::with('user:id,name')->whereIn('id', $latestIds)->get();
+        $machineRows = MachineReport::with('user:id,name')
+            ->whereIn('id', $latestIds)
+            ->get(['id', 'user_id', 'device_name', 'kind', 'item_count', 'app_version', 'collected_at', 'created_at']);
 
-        $machines = $reports->groupBy(fn ($r) => $r->device_name.'|'.$r->user_id)->map(function ($g) use ($openByMachine) {
+        $machines = $machineRows->groupBy(fn ($r) => $r->device_name.'|'.$r->user_id)->map(function ($g) use ($openByMachine) {
             $first = $g->first();
             $key = $first->device_name.'|'.$first->user_id;
 
@@ -85,17 +88,32 @@ class ComplianceController extends Controller
             ];
         })->sortByDesc('open_alerts')->values();
 
+        // Heavy extension inventory is loaded once and shared, and only computed
+        // on a FULL page visit — Acknowledge/Ignore partial reloads (only:[tools,
+        // summary,machines]) skip these closures entirely, so the buttons are snappy.
+        $extReports = null;
+        $getExtReports = function () use (&$extReports, $latestIds) {
+            return $extReports ??= MachineReport::with('user:id,name')
+                ->whereIn('id', $latestIds)->where('kind', 'extensions')->get();
+        };
+        $scanCache = [];
+        $flagOf = function ($it) use (&$scanCache) {
+            $k = mb_strtolower(trim((string) ($it['name'] ?? '')));
+
+            return $scanCache[$k] ??= (\App\Support\AutomationBlocklist::scan([$it], 'extensions')[0] ?? null);
+        };
+
         return Inertia::render('Monitoring/Compliance', [
             'tools' => $tools,
             'machines' => $machines,
-            'employees' => $this->employeeInventory($reports),
-            'extensions' => $this->extensionInventory($reports),
+            'employees' => fn () => $this->employeeInventory($getExtReports(), $flagOf),
+            'extensions' => fn () => $this->extensionInventory($getExtReports(), $flagOf),
             'summary' => [
                 'machines' => $machines->count(),
                 'open_alerts' => $flags->where('alert', true)->where('status', 'open')->count(),
                 'watch' => $flags->where('alert', false)->count(),
             ],
-            'lastReport' => optional($reports->max('created_at'))->toDateTimeString(),
+            'lastReport' => optional($machineRows->max('created_at'))->toDateTimeString(),
         ]);
     }
 
@@ -146,7 +164,7 @@ class ComplianceController extends Controller
      *
      * @param  \Illuminate\Support\Collection<int, MachineReport>  $reports
      */
-    private function employeeInventory($reports): array
+    private function employeeInventory($reports, callable $flagOf): array
     {
         $byUser = [];
 
@@ -168,14 +186,14 @@ class ComplianceController extends Controller
                 }
                 $key = mb_strtolower($name);
                 if (! isset($byUser[$uid]['exts'][$key])) {
-                    $hit = \App\Support\AutomationBlocklist::scan([$it], 'extensions');
+                    $hit = $flagOf($it);
                     $byUser[$uid]['exts'][$key] = [
                         'name' => $name,
                         'browser' => $it['browser'] ?? null,
                         'device' => $r->device_name,
-                        'flagged' => ! empty($hit),
-                        'rule' => $hit[0]['rule'] ?? null,
-                        'severity' => $hit[0]['severity'] ?? null,
+                        'flagged' => (bool) $hit,
+                        'rule' => $hit['rule'] ?? null,
+                        'severity' => $hit['severity'] ?? null,
                     ];
                 }
             }
@@ -210,7 +228,7 @@ class ComplianceController extends Controller
      *
      * @param  \Illuminate\Support\Collection<int, MachineReport>  $reports
      */
-    private function extensionInventory($reports): array
+    private function extensionInventory($reports, callable $flagOf): array
     {
         $map = [];
 
@@ -225,12 +243,12 @@ class ComplianceController extends Controller
                 }
                 $key = mb_strtolower($name);
                 if (! isset($map[$key])) {
-                    $hit = \App\Support\AutomationBlocklist::scan([$it], 'extensions');
+                    $hit = $flagOf($it);
                     $map[$key] = [
                         'name' => $name,
-                        'flagged' => ! empty($hit),
-                        'rule' => $hit[0]['rule'] ?? null,
-                        'severity' => $hit[0]['severity'] ?? null,
+                        'flagged' => (bool) $hit,
+                        'rule' => $hit['rule'] ?? null,
+                        'severity' => $hit['severity'] ?? null,
                         'users' => [],
                     ];
                 }
