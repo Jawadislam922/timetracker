@@ -75,7 +75,7 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="text-xl font-semibold text-slate-100">Machine Compliance</h2>}>
             <Head title="Machine Compliance" />
-            <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+            <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:px-8">
                 <p className="text-sm text-slate-400">
                     What&apos;s installed on each PC, matched against tools that can get an Upwork profile flagged. Only auto-refresh,
                     scraper and jiggler tools raise an alert; VPN / automation are shown here for review.
