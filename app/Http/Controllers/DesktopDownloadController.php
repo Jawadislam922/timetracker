@@ -96,6 +96,12 @@ class DesktopDownloadController extends Controller
 
         abort_unless($path, 404);
 
+        // Same offload for the manual download button — a browser pulling 90MB
+        // through PHP hits the same shared-hosting cut-off.
+        if ($redirect = $this->cdnUrlFor(basename($path))) {
+            return redirect()->away($redirect, 302);
+        }
+
         return response()->download($path, basename($path), [
             'Content-Type' => 'application/vnd.microsoft.portable-executable',
             'X-Content-Type-Options' => 'nosniff',
@@ -111,6 +117,13 @@ class DesktopDownloadController extends Controller
     {
         abort_unless(preg_match('/^[A-Za-z0-9][A-Za-z0-9 ._-]*$/', $file) === 1, 404);
         abort_unless(preg_match('/\.(yml|exe|blockmap|dmg|zip)$/i', $file) === 1, 404);
+
+        // Hand the big binaries off to S3/CloudFront when configured. latest.yml
+        // stays local (tiny, and it is what points here). Shared hosting cuts the
+        // ~90MB stream mid-download and electron-updater cannot resume; S3 can.
+        if ($redirect = $this->cdnUrlFor($file)) {
+            return redirect()->away($redirect, 302);
+        }
 
         foreach ($this->searchDirs() as $dir) {
             $path = rtrim($dir, '/').'/'.$file;
@@ -156,6 +169,20 @@ class DesktopDownloadController extends Controller
      * live OUTSIDE the working tree to survive a deploy. The remaining paths
      * are local-dev fallbacks.
      */
+    /**
+     * Public CDN URL for an installer binary, or null to serve it locally.
+     * Only the large artifacts are offloaded — never latest.yml.
+     */
+    private function cdnUrlFor(string $file): ?string
+    {
+        $base = config('desktop.downloads_base_url');
+        if (! $base || ! preg_match('/\.(exe|dmg|zip)$/i', $file)) {
+            return null;
+        }
+
+        return rtrim($base, '/').'/'.rawurlencode($file);
+    }
+
     private function searchDirs(): array
     {
         return array_filter([

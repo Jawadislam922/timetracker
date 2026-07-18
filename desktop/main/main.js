@@ -95,7 +95,11 @@ if (!gotLock) {
     if (stoppingForQuit || !tracker.status().running) return;
     if (event && typeof event.preventDefault === 'function') event.preventDefault();
     stoppingForQuit = true;
-    Promise.resolve(tracker.stop({}).catch(() => {})).finally(() => app.quit());
+    // Hard 4s guard: if the final stop stalls (slow/blocked network), quit anyway.
+    // Without this a hung stop never reaches app.quit(), so the app never exits —
+    // which made "Restart now" silently do nothing and leave the update pending.
+    const guard = new Promise((resolve) => setTimeout(resolve, 4000));
+    Promise.race([Promise.resolve(tracker.stop({}).catch(() => {})), guard]).finally(() => app.quit());
   };
   app.on('before-quit', stopThenQuit);
   try {
