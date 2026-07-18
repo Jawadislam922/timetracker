@@ -12,15 +12,25 @@ const SEV = {
     medium: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
     low: 'bg-slate-600/30 text-slate-300 border-slate-600/40',
 };
+// Plain language — you shouldn't need to know my internal category names.
 const RULE_LABEL = {
-    upwork_refresh_bid: 'Auto-refresh / bidding',
+    upwork_refresh_bid: 'Auto-refresh / bidding bot',
     scraper: 'Scraper',
     jiggler_autoclicker: 'Jiggler / auto-clicker',
+    antidetect_browser: 'Antidetect browser',
     vpn_proxy: 'VPN / proxy',
-    automation_framework: 'Automation framework',
+    automation_framework: 'Dev automation (watch only)',
 };
 
+const VIEWS = [
+    ['action', 'Needs action'],
+    ['people', 'By employee'],
+    ['software', 'By tool'],
+    ['machines', 'Machines'],
+];
+
 export default function Compliance({ auth, tools = [], machines = [], employees = [], extensions = [], summary = {}, lastReport }) {
+    const [view, setView] = useState('action'); // action | people | software | machines
     const [query, setQuery] = useState('');
     const [cat, setCat] = useState('all'); // all | ban | watch
     const [openTool, setOpenTool] = useState(null);
@@ -77,8 +87,8 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
             <Head title="Machine Compliance" />
             <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:px-8">
                 <p className="text-sm text-slate-400">
-                    What&apos;s installed on each PC, matched against tools that can get an Upwork profile flagged. Only auto-refresh,
-                    scraper and jiggler tools raise an alert; VPN / automation are shown here for review.
+                    What&apos;s installed on each PC, matched against tools that can get an Upwork profile flagged. Auto-refresh
+                    bots, scrapers, jigglers, antidetect browsers and VPNs raise an alert; dev automation tooling is watch-only.
                     {lastReport && <span className="ml-1 text-slate-500">Last report {lastReport}.</span>}
                 </p>
 
@@ -119,7 +129,26 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                     </div>
                 </div>
 
-                {/* Flagged tools — grouped by tool, expand to who has it */}
+                {/* One view at a time — the page answers a single question instead of
+                    being one long scroll of four overlapping lists. */}
+                <div className="flex flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-900 p-1">
+                    {VIEWS.map(([key, label]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            onClick={() => setView(key)}
+                            className={['rounded-md px-4 py-2 text-sm font-medium transition',
+                                view === key ? 'bg-orange-500/15 text-orange-300' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'].join(' ')}
+                        >
+                            {label}
+                            {key === 'action' && summary.open_alerts > 0 && (
+                                <span className="ml-2 rounded bg-rose-500/20 px-1.5 py-0.5 text-[11px] font-semibold text-rose-300">{summary.open_alerts}</span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {view === 'action' && (
                 <section className="rounded-lg border border-slate-800 bg-slate-900">
                     <div className="border-b border-slate-800 px-5 py-3">
                         <h3 className="font-semibold text-white">Flagged tools</h3>
@@ -185,7 +214,9 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                     )}
                 </section>
 
-                {/* Machines */}
+                )}
+
+                {view === 'machines' && (
                 <section className="rounded-lg border border-slate-800 bg-slate-900">
                     <div className="border-b border-slate-800 px-5 py-3">
                         <h3 className="font-semibold text-white">Machines</h3>
@@ -227,7 +258,9 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                     </div>
                 </section>
 
-                {/* By employee — pick a person, see everything they run */}
+                )}
+
+                {view === 'people' && (
                 <section className="rounded-lg border border-slate-800 bg-slate-900">
                     <div className="border-b border-slate-800 px-5 py-3">
                         <h3 className="font-semibold text-white">By employee</h3>
@@ -296,7 +329,9 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                     )}
                 </section>
 
-                {/* Extensions across the team (enabled only) */}
+                )}
+
+                {view === 'software' && (
                 <section className="rounded-lg border border-slate-800 bg-slate-900">
                     <div className="border-b border-slate-800 px-5 py-3">
                         <h3 className="font-semibold text-white">Browser extensions</h3>
@@ -344,6 +379,7 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                         </div>
                     )}
                 </section>
+                )}
             </div>
         </AuthenticatedLayout>
     );

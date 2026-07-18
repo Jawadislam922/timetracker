@@ -67,44 +67,51 @@ class MachineReportTest extends TestCase
         $this->assertCount(0, $hits);
     }
 
-    /** Only refresh/bid, scraper and jiggler tools alert to Slack; VPN/automation are watch-only. */
-    public function test_only_upwork_banning_categories_are_alertable(): void
+    /**
+     * Alerting policy: refresh/bid, scrapers, jigglers, antidetect browsers AND
+     * VPNs alert. Dev/QA automation frameworks stay watch-only (legitimate on an
+     * engineering machine).
+     */
+    public function test_alerting_policy_per_category(): void
     {
         $hits = collect(AutomationBlocklist::scan([
             ['name' => 'Easy Auto Refresh'],
             ['name' => 'Instant Data Scraper'],
             ['name' => 'OP Auto Clicker'],
             ['name' => 'NordVPN'],
+            ['name' => 'GoLogin'],
             ['name' => 'Selenium IDE'],
         ], 'extensions'))->keyBy('rule');
 
         $this->assertTrue($hits['upwork_refresh_bid']['alert']);
         $this->assertTrue($hits['scraper']['alert']);
         $this->assertTrue($hits['jiggler_autoclicker']['alert']);
-        $this->assertFalse($hits['vpn_proxy']['alert'], 'VPNs are recorded but never alert');
-        $this->assertFalse($hits['automation_framework']['alert'], 'automation frameworks are watch-only');
+        $this->assertTrue($hits['vpn_proxy']['alert'], 'VPNs alert for now (owner is verifying client use)');
+        $this->assertTrue($hits['antidetect_browser']['alert'], 'antidetect browsers are a hard Upwork ban risk');
+        $this->assertSame('antidetect_browser', $hits['antidetect_browser']['rule']);
+        $this->assertFalse($hits['automation_framework']['alert'], 'dev/QA tooling is watch-only');
     }
 
-    /** A VPN install is stored (visible on the dashboard) but raises no Slack alert. */
-    public function test_a_vpn_is_recorded_but_does_not_alert(): void
+    /** Watch-only tooling (dev/QA automation) is stored for review but never alerts. */
+    public function test_watch_only_tooling_is_recorded_but_does_not_alert(): void
     {
         $user = User::factory()->create(['name' => 'Sana Malik']);
         Sanctum::actingAs($user, ['desktop-tracker']);
 
         $this->postJson('/api/desktop/machine-report', [
             'device_name' => 'PC-VPN-1',
-            'app_version' => '0.4.5',
+            'app_version' => '0.4.6',
             'platform' => 'win32',
             'reports' => [
                 ['kind' => 'extensions', 'items' => [
-                    ['name' => 'NordVPN', 'id' => 'nvpn'],
-                    ['name' => 'Auto Refresh Plus | Page Monitor', 'id' => 'arp'],
+                    ['name' => 'Selenium IDE', 'id' => 'sel'],                      // watch only
+                    ['name' => 'Auto Refresh Plus | Page Monitor', 'id' => 'arp'],  // alerts
                 ]],
             ],
         ])->assertOk()->assertJson(['flagged' => 1]); // only the refresh tool alerts
 
         $ext = MachineReport::where('device_name', 'PC-VPN-1')->where('kind', 'extensions')->first();
-        $this->assertSame(2, $ext->flagged_count, 'both the VPN and the refresh tool are recorded');
+        $this->assertSame(2, $ext->flagged_count, 'both are recorded for review');
     }
 
     public function test_agent_uploads_inventory_and_it_is_stored_with_flags(): void

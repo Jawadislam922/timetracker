@@ -58,23 +58,35 @@ class AutomationBlocklist
                 'macro.?record',
             ],
         ],
-        // Recorded + shown, but never alerts (owner's policy: VPNs are review-only).
+        // Antidetect browsers run multiple identities from one machine — for Upwork
+        // this reads as multi-accounting and is a harder ban risk than a scraper.
+        'antidetect_browser' => [
+            'severity' => 'critical',
+            'alert' => true,
+            'patterns' => [
+                'multilogin', 'gologin', 'dolphin.?anty', 'antidetect', 'incogniton',
+                'adspower', 'kameleo', 'octo.?browser',
+            ],
+        ],
+        // Alerting for now — owner is checking whether VPNs are needed for client
+        // work; drop `alert` to false (or allowlist the sanctioned ones) if so.
         'vpn_proxy' => [
             'severity' => 'high',
-            'alert' => false,
+            'alert' => true,
             'patterns' => [
                 '\\bvpn\\b', 'browsec', '\\bhola\\b', 'windscribe', 'nordvpn', 'expressvpn', 'proton.?vpn',
                 'hotspot.?shield', 'urban.?vpn', '1click.?vpn', 'touch.?vpn', 'zenmate', 'tunnelbear',
                 'setupvpn', 'betternet', 'psiphon', 'ultrasurf', 'surfshark', 'veepn', '\\buvpn\\b', '\\b1vpn\\b',
             ],
         ],
+        // Dev/QA + RPA tooling: legitimate on an engineering machine, so recorded
+        // for review but never alerted. Antidetect browsers moved out (see above).
         'automation_framework' => [
             'severity' => 'medium',
             'alert' => false,
             'patterns' => [
                 'selenium', 'puppeteer', 'playwright', 'uipath', 'power.?automate', 'automa\\b',
-                'browserflow', 'axiom.?ai', 'bardeen', 'multilogin', 'gologin', 'dolphin.?anty',
-                'antidetect', 'incogniton',
+                'browserflow', 'axiom.?ai', 'bardeen',
             ],
         ],
     ];
