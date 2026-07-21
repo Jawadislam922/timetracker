@@ -68,9 +68,10 @@ class MachineReportTest extends TestCase
     }
 
     /**
-     * Alerting policy: refresh/bid, scrapers, jigglers, antidetect browsers AND
-     * VPNs alert. Dev/QA automation frameworks stay watch-only (legitimate on an
-     * engineering machine).
+     * Alerting policy: refresh/bid, scrapers, jigglers and antidetect browsers
+     * alert. VPNs and dev/QA automation frameworks stay watch-only — both are
+     * legitimate in this office (VPNs for client work), so they are recorded for
+     * review but never ping Slack.
      */
     public function test_alerting_policy_per_category(): void
     {
@@ -86,7 +87,7 @@ class MachineReportTest extends TestCase
         $this->assertTrue($hits['upwork_refresh_bid']['alert']);
         $this->assertTrue($hits['scraper']['alert']);
         $this->assertTrue($hits['jiggler_autoclicker']['alert']);
-        $this->assertTrue($hits['vpn_proxy']['alert'], 'VPNs alert for now (owner is verifying client use)');
+        $this->assertFalse($hits['vpn_proxy']['alert'], 'VPNs are watch-only — used for legitimate client work');
         $this->assertTrue($hits['antidetect_browser']['alert'], 'antidetect browsers are a hard Upwork ban risk');
         $this->assertSame('antidetect_browser', $hits['antidetect_browser']['rule']);
         $this->assertFalse($hits['automation_framework']['alert'], 'dev/QA tooling is watch-only');

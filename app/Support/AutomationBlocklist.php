@@ -68,11 +68,12 @@ class AutomationBlocklist
                 'adspower', 'kameleo', 'octo.?browser',
             ],
         ],
-        // Alerting for now — owner is checking whether VPNs are needed for client
-        // work; drop `alert` to false (or allowlist the sanctioned ones) if so.
+        // Watch-only: the owner confirmed VPNs are used for legitimate client work
+        // in the office, so they are recorded and shown on the dashboard for review
+        // but never ping Slack. Flip `alert` back to true only if that policy changes.
         'vpn_proxy' => [
             'severity' => 'high',
-            'alert' => true,
+            'alert' => false,
             'patterns' => [
                 '\\bvpn\\b', 'browsec', '\\bhola\\b', 'windscribe', 'nordvpn', 'expressvpn', 'proton.?vpn',
                 'hotspot.?shield', 'urban.?vpn', '1click.?vpn', 'touch.?vpn', 'zenmate', 'tunnelbear',
