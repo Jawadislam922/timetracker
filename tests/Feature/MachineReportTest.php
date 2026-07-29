@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\MachineFlag;
 use App\Models\MachineReport;
 use App\Models\User;
 use App\Support\AutomationBlocklist;
@@ -91,6 +92,87 @@ class MachineReportTest extends TestCase
         $this->assertTrue($hits['antidetect_browser']['alert'], 'antidetect browsers are a hard Upwork ban risk');
         $this->assertSame('antidetect_browser', $hits['antidetect_browser']['rule']);
         $this->assertFalse($hits['automation_framework']['alert'], 'dev/QA tooling is watch-only');
+    }
+
+    /**
+     * The same extension in two Chrome profiles is TWO findings, not one.
+     *
+     * People here run 20-30 profiles per PC, often one per Upwork account, so a
+     * scraper in "Upwork Faryal" and the same scraper in a personal profile carry
+     * different ban risk and each has to be cleared separately.
+     */
+    public function test_same_extension_in_two_profiles_creates_two_separate_flags(): void
+    {
+        $user = User::factory()->create(['name' => 'Areeba Shahid']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $this->postJson('/api/desktop/machine-report', [
+            'device_name' => 'HP-BD-5',
+            'app_version' => '0.4.8',
+            'platform' => 'win32',
+            'reports' => [[
+                'kind' => 'extensions',
+                'collected_at' => now()->toIso8601String(),
+                'items' => [
+                    ['browser' => 'Chrome', 'id' => 'ofaokhiedipichpaobibbnahnkdoiiah',
+                        'name' => 'Instant Data Scraper', 'browser_profile' => 'Upwork Faryal'],
+                    ['browser' => 'Chrome', 'id' => 'ofaokhiedipichpaobibbnahnkdoiiah',
+                        'name' => 'Instant Data Scraper', 'browser_profile' => 'Your Chrome'],
+                ],
+            ]],
+        ])->assertOk();
+
+        $flags = MachineFlag::where('user_id', $user->id)->where('rule', 'scraper')->get();
+        $this->assertCount(2, $flags, 'one flag per profile, not one collapsed row');
+        $this->assertEqualsCanonicalizing(
+            ['Upwork Faryal', 'Your Chrome'],
+            $flags->pluck('browser_profile')->all(),
+        );
+        $this->assertCount(2, $flags->pluck('signature')->unique(), 'signatures must differ per profile');
+    }
+
+    /** A profile label is employee-typed free text: angle brackets must not survive. */
+    public function test_profile_label_is_sanitised_and_clamped(): void
+    {
+        $user = User::factory()->create(['name' => 'Hina Batool']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $this->postJson('/api/desktop/machine-report', [
+            'device_name' => 'PC-VA-9',
+            'reports' => [[
+                'kind' => 'extensions',
+                'items' => [
+                    ['browser' => 'Chrome', 'id' => 'aaa', 'name' => 'Web Scraper',
+                        'browser_profile' => '<script>alert(1)</script>  Upwork   Nimra'],
+                ],
+            ]],
+        ])->assertOk();
+
+        $label = MachineFlag::where('user_id', $user->id)->value('browser_profile');
+        $this->assertStringNotContainsString('<', $label);
+        $this->assertStringNotContainsString('>', $label);
+        $this->assertSame('script alert(1) /script Upwork Nimra', $label,
+            'brackets become spaces and runs of whitespace collapse');
+    }
+
+    /** Agents older than 0.4.8 send no profile — they must still flag, with null. */
+    public function test_agent_without_profile_still_flags_with_null_profile(): void
+    {
+        $user = User::factory()->create(['name' => 'Ali Shamshad']);
+        Sanctum::actingAs($user, ['desktop-tracker']);
+
+        $this->postJson('/api/desktop/machine-report', [
+            'device_name' => 'SparkingAsia',
+            'app_version' => '0.4.7',
+            'reports' => [[
+                'kind' => 'extensions',
+                'items' => [['browser' => 'Chrome', 'id' => 'bbb', 'name' => 'Instant Data Scraper']],
+            ]],
+        ])->assertOk();
+
+        $flag = MachineFlag::where('user_id', $user->id)->firstOrFail();
+        $this->assertNull($flag->browser_profile);
+        $this->assertSame('open', $flag->status);
     }
 
     /** Watch-only tooling (dev/QA automation) is stored for review but never alerts. */

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import {
     ShieldAlert, ShieldCheck, Monitor, Puzzle, Search, ChevronRight, Trash2,
-    Check, BellOff, RotateCcw, Eye, User,
+    Check, BellOff, RotateCcw, Eye, User, Chrome,
 } from 'lucide-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
@@ -35,6 +35,7 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
     const [cat, setCat] = useState('all'); // all | ban | watch
     const [openTool, setOpenTool] = useState(null);
     const [openEmp, setOpenEmp] = useState(null);
+    const [openProfile, setOpenProfile] = useState(null);
     const [openExt, setOpenExt] = useState(null);
     const [busy, setBusy] = useState(null);
 
@@ -57,6 +58,20 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
         if (!q) return list;
         const m = list.filter((x) => x.name.toLowerCase().includes(q));
         return m.length ? m : list; // employee matched by name → show all their extensions
+    };
+
+    // Searching narrows to the profiles that actually contain a match, and drops
+    // the extensions inside them that don't — so "scraper" answers "which of this
+    // person's 26 profiles has a scraper" instead of listing all 26.
+    const filterProfiles = (list) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return list;
+        const hits = list
+            .map((p) => ({ ...p, extensions: p.extensions.filter((x) => x.name.toLowerCase().includes(q)) }))
+            .filter((p) => p.extensions.length
+                || (p.profile || '').toLowerCase().includes(q)
+                || (p.device || '').toLowerCase().includes(q));
+        return hits.length ? hits : list; // matched on the person's name → show everything
     };
 
     const shownExtensions = useMemo(() => {
@@ -184,6 +199,11 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                             <tr key={o.id}>
                                                                 <td className="py-1.5 pr-3 text-slate-200">{o.user || '—'}</td>
                                                                 <td className="py-1.5 pr-3 font-mono text-slate-400">{o.device}</td>
+                                                                <td className="py-1.5 pr-3">
+                                                                    {o.browser_profile
+                                                                        ? <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-300">{o.browser_profile}</span>
+                                                                        : <span className="text-[10px] italic text-slate-600" title="Agent older than 0.4.8 — cannot report the profile yet.">profile unknown</span>}
+                                                                </td>
                                                                 <td className="py-1.5 pr-3 text-slate-500">{o.first_seen?.slice(0, 10) || '—'}</td>
                                                                 <td className="py-1.5 pr-3">
                                                                     {o.status === 'acknowledged'
@@ -264,7 +284,10 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                 <section className="rounded-lg border border-slate-800 bg-slate-900">
                     <div className="border-b border-slate-800 px-5 py-3">
                         <h3 className="font-semibold text-white">By employee</h3>
-                        <p className="text-xs text-slate-400">Pick a person to see everything installed on their PC — browser extensions and programs.</p>
+                        <p className="text-xs text-slate-400">
+                            Pick a person, then a browser profile, to see exactly which extensions live in it.
+                            Search a tool name to jump straight to the profiles that have it.
+                        </p>
                     </div>
                     {employees.length === 0 ? (
                         <p className="px-5 py-8 text-center text-sm text-slate-500">No employee inventory yet.</p>
@@ -272,7 +295,10 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                         <div className="divide-y divide-slate-800">
                             {shownEmployees.map((emp) => {
                                 const open = openEmp === emp.user_id;
-                                const exts = open ? filterExts(emp.extensions) : [];
+                                // Extensions are grouped by browser profile; programs have
+                                // no profile, so they stay in a flat list underneath.
+                                const profiles = open ? filterProfiles(emp.profiles || []) : [];
+                                const programs = open ? filterExts((emp.extensions || []).filter((x) => x.kind === 'programs')) : [];
                                 return (
                                     <div key={emp.user_id}>
                                         <button type="button" onClick={() => setOpenEmp(open ? null : emp.user_id)}
@@ -284,39 +310,90 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                 <span className="shrink-0 rounded bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-300">{emp.flagged} flagged</span>
                                             )}
                                             <span className="shrink-0 text-xs text-slate-400">
-                                                {emp.extension_count ?? 0} ext · {emp.program_count ?? 0} programs
+                                                {(emp.profiles || []).length} profiles · {emp.extension_count ?? 0} ext · {emp.program_count ?? 0} programs
                                             </span>
                                         </button>
                                         {open && (
-                                            <div className="bg-slate-950/40 px-5 pb-3 pl-12">
-                                                {exts.length === 0 ? (
-                                                    <p className="py-2 text-xs text-slate-500">No extensions match “{query}”.</p>
+                                            <div className="bg-slate-950/40 px-5 pb-4 pl-12">
+                                                {profiles.length === 0 && programs.length === 0 ? (
+                                                    <p className="py-2 text-xs text-slate-500">Nothing matches “{query}”.</p>
                                                 ) : (
-                                                    <div className="max-h-96 overflow-y-auto">
-                                                        <table className="w-full text-xs">
-                                                            <tbody className="divide-y divide-slate-800/60">
-                                                                {exts.map((x, j) => (
-                                                                    <tr key={j}>
-                                                                        <td className="py-1.5 pr-3">
-                                                                            <span className={x.flagged ? 'font-medium text-amber-300' : 'text-slate-200'}>{x.name}</span>
-                                                                        </td>
-                                                                        <td className="py-1.5 pr-3">
-                                                                            <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
-                                                                                {x.kind === 'programs' ? 'program' : 'extension'}
+                                                    <div className="max-h-[32rem] space-y-3 overflow-y-auto py-2">
+                                                        {profiles.map((p, i) => {
+                                                            const pkey = `${emp.user_id}|${p.device}|${p.browser}|${p.profile}`;
+                                                            const popen = openProfile === pkey;
+                                                            return (
+                                                                <div key={i} className="rounded border border-slate-800 bg-slate-900/60">
+                                                                    <button type="button" onClick={() => setOpenProfile(popen ? null : pkey)}
+                                                                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-800/40">
+                                                                        <ChevronRight className={['h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform', popen ? 'rotate-90' : ''].join(' ')} />
+                                                                        <Chrome className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                                                                        {p.profile ? (
+                                                                            <span className="min-w-0 truncate text-xs font-semibold text-slate-100">{p.profile}</span>
+                                                                        ) : (
+                                                                            <span className="min-w-0 truncate text-xs font-semibold italic text-slate-500" title="This PC runs an agent older than 0.4.8, which cannot report which profile an extension is in — not the same as having no profile.">
+                                                                                profile unknown
                                                                             </span>
-                                                                        </td>
-                                                                        <td className="py-1.5 pr-3 text-slate-500">{x.browser || x.publisher}</td>
-                                                                        <td className="py-1.5 text-right">
-                                                                            {x.flagged && (
-                                                                                <span className={['rounded border px-2 py-0.5 text-[10px] font-semibold uppercase', SEV[x.severity] || SEV.low].join(' ')}>
-                                                                                    {RULE_LABEL[x.rule] || x.rule}
-                                                                                </span>
+                                                                        )}
+                                                                        <span className="shrink-0 text-[10px] uppercase tracking-wide text-slate-500">
+                                                                            {p.browser} · {p.device || 'unknown PC'}
+                                                                        </span>
+                                                                        <span className="ml-auto shrink-0 text-[11px] text-slate-400">
+                                                                            {p.flagged > 0 && (
+                                                                                <span className="mr-2 rounded bg-rose-500/15 px-1.5 py-0.5 font-semibold text-rose-300">{p.flagged} flagged</span>
                                                                             )}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
+                                                                            {p.count} ext
+                                                                        </span>
+                                                                    </button>
+                                                                    {popen && (
+                                                                        <table className="w-full border-t border-slate-800 text-xs">
+                                                                            <tbody className="divide-y divide-slate-800/60">
+                                                                                {p.extensions.map((x, j) => (
+                                                                                    <tr key={j}>
+                                                                                        <td className="py-1.5 pl-9 pr-3">
+                                                                                            <span className={x.flagged ? 'font-medium text-amber-300' : 'text-slate-200'}>{x.name}</span>
+                                                                                        </td>
+                                                                                        <td className="py-1.5 pr-3 text-right">
+                                                                                            {x.flagged && (
+                                                                                                <span className={['rounded border px-2 py-0.5 text-[10px] font-semibold uppercase', SEV[x.severity] || SEV.low].join(' ')}>
+                                                                                                    {RULE_LABEL[x.rule] || x.rule}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {programs.length > 0 && (
+                                                            <div className="rounded border border-slate-800 bg-slate-900/60">
+                                                                <div className="border-b border-slate-800 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                                                    Installed programs — not tied to a browser profile
+                                                                </div>
+                                                                <table className="w-full text-xs">
+                                                                    <tbody className="divide-y divide-slate-800/60">
+                                                                        {programs.map((x, j) => (
+                                                                            <tr key={j}>
+                                                                                <td className="py-1.5 pl-9 pr-3">
+                                                                                    <span className={x.flagged ? 'font-medium text-amber-300' : 'text-slate-200'}>{x.name}</span>
+                                                                                </td>
+                                                                                <td className="py-1.5 pr-3 text-slate-500">{x.publisher}</td>
+                                                                                <td className="py-1.5 pr-3 text-right">
+                                                                                    {x.flagged && (
+                                                                                        <span className={['rounded border px-2 py-0.5 text-[10px] font-semibold uppercase', SEV[x.severity] || SEV.low].join(' ')}>
+                                                                                            {RULE_LABEL[x.rule] || x.rule}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -355,16 +432,32 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                     {RULE_LABEL[e.rule] || e.rule}
                                                 </span>
                                             )}
-                                            <span className="shrink-0 text-xs text-slate-400">{e.people} {e.people === 1 ? 'person' : 'people'}</span>
+                                            <span className="shrink-0 text-xs text-slate-400">
+                                                {e.people} {e.people === 1 ? 'person' : 'people'}
+                                                {e.profiles > 0 && <span className="text-slate-500"> · {e.profiles} {e.profiles === 1 ? 'profile' : 'profiles'}</span>}
+                                            </span>
                                         </button>
                                         {open && (
                                             <div className="bg-slate-950/40 px-5 pb-3 pl-12">
                                                 <table className="w-full text-xs">
+                                                    <thead>
+                                                        <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                                                            <th className="py-1 pr-3 font-medium">Signed in as</th>
+                                                            <th className="py-1 pr-3 font-medium">On PC</th>
+                                                            <th className="py-1 pr-3 font-medium">In profile</th>
+                                                            <th className="py-1 font-medium">Browser</th>
+                                                        </tr>
+                                                    </thead>
                                                     <tbody className="divide-y divide-slate-800/60">
                                                         {e.users.map((u, j) => (
                                                             <tr key={j}>
                                                                 <td className="py-1.5 pr-3 text-slate-200">{u.user || '—'}</td>
                                                                 <td className="py-1.5 pr-3 font-mono text-slate-400">{u.device}</td>
+                                                                <td className="py-1.5 pr-3">
+                                                                    {u.profile
+                                                                        ? <span className="font-medium text-slate-200">{u.profile}</span>
+                                                                        : <span className="italic text-slate-500" title="Agent older than 0.4.8 — cannot report the profile yet.">unknown</span>}
+                                                                </td>
                                                                 <td className="py-1.5 text-slate-500">{u.browser}</td>
                                                             </tr>
                                                         ))}

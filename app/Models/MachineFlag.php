@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 class MachineFlag extends Model
 {
     protected $fillable = [
-        'user_id', 'device_name', 'kind', 'rule', 'severity', 'alert', 'label', 'signature',
+        'user_id', 'device_name', 'kind', 'rule', 'severity', 'alert', 'label', 'browser_profile', 'signature',
         'status', 'first_seen_at', 'last_seen_at', 'alerted_at', 'resolved_at',
         'acknowledged_by', 'acknowledged_at', 'note', 'app_version', 'platform',
     ];

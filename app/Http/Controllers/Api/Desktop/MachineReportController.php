@@ -132,6 +132,7 @@ class MachineReportController extends Controller
             $flag->severity = $f['severity'];
             $flag->alert = (bool) ($f['alert'] ?? false);
             $flag->label = $label;
+            $flag->browser_profile = self::profileOf($f) ?: null;
             $flag->app_version = $data['app_version'] ?? $flag->app_version;
             $flag->platform = $data['platform'] ?? $flag->platform;
             $flag->last_seen_at = now();
@@ -149,7 +150,11 @@ class MachineReportController extends Controller
             // Slack only for the Upwork-banning categories, and only on a real
             // open/reopen transition.
             if ($isNew && $flag->alert) {
-                $newFlags[] = ['item' => $label, 'kind' => $kind, 'rule' => $f['rule'] ?? '?', 'severity' => $f['severity'] ?? 'warn'];
+                $newFlags[] = [
+                    'item' => $label, 'kind' => $kind, 'rule' => $f['rule'] ?? '?',
+                    'severity' => $f['severity'] ?? 'warn',
+                    'browser_profile' => $flag->browser_profile,
+                ];
             }
         }
 
@@ -165,11 +170,19 @@ class MachineReportController extends Controller
         return $newFlags;
     }
 
-    /** Stable per-tool identity so the same install maps to the same ledger row. */
+    /**
+     * Stable per-tool identity so the same install maps to the same ledger row.
+     *
+     * For extensions the identity includes the BROWSER PROFILE, so the same tool
+     * in two Chrome profiles is two findings rather than one. That is deliberate:
+     * a scraper in "Upwork Faryal" and a scraper in someone's personal profile
+     * carry completely different Upwork ban risk, and each has to be cleared on
+     * its own. Older agents send no profile and collapse to one row, as before.
+     */
     private function signature(string $kind, array $item): string
     {
         $identity = match ($kind) {
-            'extensions' => ($item['browser'] ?? '').'|'.($item['id'] ?? $item['name'] ?? ''),
+            'extensions' => ($item['browser'] ?? '').'|'.self::profileOf($item).'|'.($item['id'] ?? $item['name'] ?? ''),
             'programs' => ($item['name'] ?? '').'|'.($item['publisher'] ?? ''),
             'processes' => $item['process'] ?? $item['path'] ?? '',
             'network' => ($item['adapter'] ?? '').'|'.($item['description'] ?? ''),
@@ -185,6 +198,27 @@ class MachineReportController extends Controller
         return $f['name'] ?? $f['title'] ?? $f['process'] ?? $f['adapter'] ?? $f['description'] ?? $f['path'] ?? 'unknown';
     }
 
+    /**
+     * The browser profile an extension lives in, normalised for storage and for
+     * the signature. Empty string for every non-extension kind and for agents
+     * older than 0.4.8 — which is why it must never be presented as "no profile"
+     * in the UI (it means "this agent cannot tell us yet").
+     *
+     * Re-sanitised here rather than trusting the client: the label is typed by an
+     * employee into Chrome and reaches us as free text.
+     */
+    private static function profileOf(array $item): string
+    {
+        $raw = $item['browser_profile'] ?? '';
+        if (! is_string($raw)) {
+            return '';
+        }
+
+        // Angle brackets become spaces rather than vanishing, so stripping them
+        // cannot run two words together into something misleading.
+        return mb_substr(trim(preg_replace('/\s+/u', ' ', str_replace(['<', '>'], ' ', $raw))), 0, 60);
+    }
+
     /** One tidy message per person listing every newly-installed banning tool. */
     private function announce(string $userName, ?string $device, array $newFlags): void
     {
@@ -197,7 +231,15 @@ class MachineReportController extends Controller
             }
 
             $critical = collect($newFlags)->contains(fn ($f) => $f['severity'] === 'critical');
-            $lines = collect($newFlags)->map(fn ($f) => sprintf('  • *%s*  _(%s · %s)_', $f['item'], $f['rule'], $f['kind']))->implode("\n");
+            // Name the browser profile when we know it: "which Upwork account is at
+            // risk" is the actionable part, not "which PC".
+            $lines = collect($newFlags)->map(fn ($f) => sprintf(
+                '  • *%s*  _(%s · %s)_%s',
+                $f['item'],
+                $f['rule'],
+                $f['kind'],
+                ! empty($f['browser_profile']) ? sprintf('  → profile *%s*', $f['browser_profile']) : '',
+            ))->implode("\n");
 
             $message = sprintf(
                 "%s *Compliance — %s* on `%s`\nNewly installed %d tool%s that can get an Upwork profile flagged — review + remove:\n%s",

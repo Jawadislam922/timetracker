@@ -43,10 +43,14 @@ class ComplianceController extends Controller
                     'category' => $first->alert ? 'ban' : 'watch',
                     'people' => $g->pluck('user_id')->unique()->count(),
                     'machines' => $g->pluck('device_name')->unique()->count(),
+                    'profiles' => $g->pluck('browser_profile')->filter()->unique()->count(),
                     'occurrences' => $g->sortBy('user_id')->map(fn ($f) => [
                         'id' => $f->id,
                         'user' => $f->user?->name,
                         'device' => $f->device_name,
+                        // null = the agent on that machine is older than 0.4.8 and
+                        // cannot report a profile. Shown as "profile unknown".
+                        'browser_profile' => $f->browser_profile,
                         'status' => $f->status,
                         'first_seen' => optional($f->first_seen_at)->toDateTimeString(),
                         'last_seen' => optional($f->last_seen_at)->toDateTimeString(),
@@ -116,9 +120,9 @@ class ComplianceController extends Controller
         return Inertia::render('Monitoring/Compliance', [
             'tools' => $tools,
             'machines' => $machines,
-            'employees' => fn () => Cache::remember($invKey.':emp2', now()->addMinutes(10),
+            'employees' => fn () => Cache::remember($invKey.':emp3', now()->addMinutes(10),
                 fn () => $this->employeeInventory($getInvReports(), $flagOf)),
-            'extensions' => fn () => Cache::remember($invKey.':ext2', now()->addMinutes(10),
+            'extensions' => fn () => Cache::remember($invKey.':ext3', now()->addMinutes(10),
                 fn () => $this->extensionInventory($getInvReports(), $flagOf)),
             'summary' => [
                 'machines' => $machines->count(),
@@ -199,15 +203,21 @@ class ComplianceController extends Controller
                 if ($name === '') {
                     continue;
                 }
-                // Key by kind+name so an extension and a program of the same name
-                // both show, and the same tool on two machines shows once.
-                $key = $r->kind.'|'.mb_strtolower($name);
+                // Key by kind+name+DEVICE+PROFILE. The profile has to be in the key:
+                // people run 20-30 Chrome profiles per PC (often one per Upwork
+                // account), so collapsing on name alone hides the fact that the same
+                // scraper sits in three of them — and hides WHICH three, which is the
+                // only part anyone can act on. Device is in the key too, because a
+                // colleague signing into someone else's PC is a real case here.
+                $profile = trim((string) ($it['browser_profile'] ?? ''));
+                $key = $r->kind.'|'.mb_strtolower($name).'|'.$r->device_name.'|'.$profile;
                 if (! isset($byUser[$uid]['items'][$key])) {
                     $hit = $flagOf($it, $r->kind);
                     $byUser[$uid]['items'][$key] = [
                         'name' => $name,
                         'kind' => $r->kind,
                         'browser' => $it['browser'] ?? null,
+                        'browser_profile' => $profile !== '' ? $profile : null,
                         'publisher' => $it['publisher'] ?? null,
                         'device' => $r->device_name,
                         'flagged' => (bool) $hit,
@@ -232,12 +242,58 @@ class ComplianceController extends Controller
                 'program_count' => $items->where('kind', 'programs')->count(),
                 'flagged' => $items->where('flagged', true)->count(),
                 'extensions' => $items->all(),
+                // Browser profiles this person has, each with the extensions living
+                // in it — the "under Jawad, which profile has which extension" view.
+                'profiles' => self::groupByProfile($items),
             ];
         })->values()->all();
 
         // People with flagged extensions first, then alphabetical for easy scanning.
         usort($rows, fn ($a, $b) => ($b['flagged'] <=> $a['flagged'])
             ?: strcasecmp($a['user'] ?? '', $b['user'] ?? ''));
+
+        return $rows;
+    }
+
+    /**
+     * Group one person's inventory into (device, browser profile) buckets.
+     *
+     * A bucket with `profile === null` means the agent on that machine predates
+     * 0.4.8 and cannot report profiles yet — presented as "profile unknown", never
+     * as "no profile", so a missing attribution is never mistaken for an all-clear.
+     *
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private static function groupByProfile($items): array
+    {
+        $buckets = [];
+
+        foreach ($items->where('kind', 'extensions') as $it) {
+            $key = ($it['device'] ?? '').'|'.($it['browser'] ?? '').'|'.($it['browser_profile'] ?? '');
+            if (! isset($buckets[$key])) {
+                $buckets[$key] = [
+                    'device' => $it['device'] ?? null,
+                    'browser' => $it['browser'] ?? null,
+                    'profile' => $it['browser_profile'] ?? null,
+                    'extensions' => [],
+                ];
+            }
+            $buckets[$key]['extensions'][] = $it;
+        }
+
+        $rows = [];
+        foreach ($buckets as $b) {
+            $exts = collect($b['extensions'])->sortByDesc(fn ($x) => $x['flagged'] ? 1 : 0)->values();
+            $b['extensions'] = $exts->all();
+            $b['count'] = $exts->count();
+            $b['flagged'] = $exts->where('flagged', true)->count();
+            $rows[] = $b;
+        }
+
+        // Profiles carrying a flagged tool first — that is the queue to work through.
+        usort($rows, fn ($a, $b) => ($b['flagged'] <=> $a['flagged'])
+            ?: strcasecmp((string) $a['profile'], (string) $b['profile']));
 
         return $rows;
     }
@@ -274,6 +330,10 @@ class ComplianceController extends Controller
                     'user' => $r->user?->name,
                     'device' => $r->device_name,
                     'browser' => $it['browser'] ?? null,
+                    // Whose login, on which PC, in which browser profile — the three
+                    // things needed to actually go and remove it. Matters most when
+                    // someone signs into a colleague's machine and installs something.
+                    'profile' => (($p = trim((string) ($it['browser_profile'] ?? ''))) !== '') ? $p : null,
                     'enabled' => $it['enabled'] ?? null,
                 ];
             }
@@ -283,7 +343,10 @@ class ComplianceController extends Controller
             $users = collect($e['users']);
             $e['people'] = $users->pluck('user')->filter()->unique()->count();
             $e['machines'] = $users->pluck('device')->filter()->unique()->count();
-            $e['users'] = $users->unique(fn ($u) => $u['user'].'|'.$u['device'])->values()->all();
+            $e['profiles'] = $users->pluck('profile')->filter()->unique()->count();
+            // One row per (person, machine, profile) so a tool in three of someone's
+            // profiles lists three places to go, not one.
+            $e['users'] = $users->unique(fn ($u) => $u['user'].'|'.$u['device'].'|'.$u['profile'])->values()->all();
 
             return $e;
         })
