@@ -65,9 +65,13 @@ if (!gotLock) {
     report.info('app_ready', 'desktop app started');
     // Push buffered telemetry to the server periodically (best-effort).
     setInterval(() => report.flush().catch(() => {}), 60_000);
-    // Endpoint-compliance inventory: once shortly after launch, then hourly.
+    // Endpoint-compliance inventory: once shortly after launch, then every 15 min as
+    // a floor, plus a filesystem watch that reports within ~20s of an extension being
+    // installed or removed. The hourly-only schedule meant a scraper installed at 09:05
+    // was invisible on the dashboard until ~10:05.
     setTimeout(() => collector.run().catch(() => {}), 45_000);
-    setInterval(() => collector.run().catch(() => {}), 60 * 60_000);
+    setInterval(() => collector.run().catch(() => {}), 15 * 60_000);
+    collector.watchForChanges();
 
     tray.init(() => mainWindow, !!(store.get('prefs') || {}).minimizeToTray);
 

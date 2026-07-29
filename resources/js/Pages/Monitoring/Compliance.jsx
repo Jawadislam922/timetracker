@@ -79,12 +79,15 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
         return q ? extensions.filter((e) => e.name.toLowerCase().includes(q)) : extensions;
     }, [extensions, query]);
 
-    const setStatus = (flagId, status) => {
+    // `ids` covers every browser profile this row represents, so one click clears
+    // the tool for that person instead of once per profile. The server re-scopes the
+    // list to the same person/machine/tool, so it can't reach another machine.
+    const setStatus = (flagId, status, ids) => {
         setBusy(flagId);
         // Partial reload: only refresh the cheap ledger-backed props. The heavy
         // extension/employee inventories are skipped, so the button is snappy and
         // the expanded rows stay put (preserveState).
-        router.patch(route('monitoring.compliance.flag', flagId), { status }, {
+        router.patch(route('monitoring.compliance.flag', flagId), { status, ids: ids || [] }, {
             preserveScroll: true, preserveState: true, only: ['tools', 'summary', 'machines'],
             onFinish: () => setBusy(null),
         });
@@ -200,9 +203,7 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                                 <td className="py-1.5 pr-3 text-slate-200">{o.user || '—'}</td>
                                                                 <td className="py-1.5 pr-3 font-mono text-slate-400">{o.device}</td>
                                                                 <td className="py-1.5 pr-3">
-                                                                    {o.browser_profile
-                                                                        ? <span className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-300">{o.browser_profile}</span>
-                                                                        : <span className="text-[10px] italic text-slate-600" title="Agent older than 0.4.8 — cannot report the profile yet.">profile unknown</span>}
+                                                                    <ProfileList profiles={o.profiles} unknown={o.unknown_profiles} />
                                                                 </td>
                                                                 <td className="py-1.5 pr-3 text-slate-500">{o.first_seen?.slice(0, 10) || '—'}</td>
                                                                 <td className="py-1.5 pr-3">
@@ -213,12 +214,14 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                                 <td className="py-1.5 text-right">
                                                                     <div className="inline-flex gap-1">
                                                                         {o.status !== 'acknowledged' && (
-                                                                            <ActionBtn disabled={busy === o.id} onClick={() => setStatus(o.id, 'acknowledged')} icon={Check} title="Acknowledge — seen, stay quiet" />
+                                                                            <ActionBtn disabled={busy === o.id} onClick={() => setStatus(o.id, 'acknowledged', o.ids)} icon={Check}
+                                                                                title={`Acknowledge — seen, stay quiet${o.ids?.length > 1 ? ` (all ${o.ids.length} profiles)` : ''}`} />
                                                                         )}
                                                                         {o.status === 'acknowledged' && (
-                                                                            <ActionBtn disabled={busy === o.id} onClick={() => setStatus(o.id, 'open')} icon={RotateCcw} title="Reopen" />
+                                                                            <ActionBtn disabled={busy === o.id} onClick={() => setStatus(o.id, 'open', o.ids)} icon={RotateCcw} title="Reopen" />
                                                                         )}
-                                                                        <ActionBtn disabled={busy === o.id} onClick={() => setStatus(o.id, 'ignored')} icon={BellOff} title="Ignore on this PC (never alert again)" danger />
+                                                                        <ActionBtn disabled={busy === o.id} onClick={() => setStatus(o.id, 'ignored', o.ids)} icon={BellOff}
+                                                                            title={`Ignore on this PC — never alert again${o.ids?.length > 1 ? ` (all ${o.ids.length} profiles)` : ''}`} danger />
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -451,14 +454,12 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                     <tbody className="divide-y divide-slate-800/60">
                                                         {e.users.map((u, j) => (
                                                             <tr key={j}>
-                                                                <td className="py-1.5 pr-3 text-slate-200">{u.user || '—'}</td>
-                                                                <td className="py-1.5 pr-3 font-mono text-slate-400">{u.device}</td>
-                                                                <td className="py-1.5 pr-3">
-                                                                    {u.profile
-                                                                        ? <span className="font-medium text-slate-200">{u.profile}</span>
-                                                                        : <span className="italic text-slate-500" title="Agent older than 0.4.8 — cannot report the profile yet.">unknown</span>}
+                                                                <td className="py-1.5 pr-3 align-top text-slate-200">{u.user || '—'}</td>
+                                                                <td className="py-1.5 pr-3 align-top font-mono text-slate-400">{u.device}</td>
+                                                                <td className="py-1.5 pr-3 align-top">
+                                                                    <ProfileList profiles={u.profiles} unknown={u.unknown_profiles} max={4} />
                                                                 </td>
-                                                                <td className="py-1.5 text-slate-500">{u.browser}</td>
+                                                                <td className="py-1.5 align-top text-slate-500">{u.browser}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
@@ -475,6 +476,39 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                 )}
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+/**
+ * The browser profiles one finding covers, on a single line.
+ *
+ * Someone can have a tool in a dozen profiles, so the first few are named and the
+ * rest collapse into "+N more" (full list on hover) — the names are the actionable
+ * part, but not at the cost of a cell that wraps to six lines.
+ */
+function ProfileList({ profiles = [], unknown = 0, max = 3 }) {
+    if (!profiles.length && !unknown) {
+        return <span className="text-slate-600">—</span>;
+    }
+    const shown = profiles.slice(0, max);
+    const rest = profiles.slice(max);
+    return (
+        <span className="inline-flex flex-wrap items-center gap-1">
+            {shown.map((p) => (
+                <span key={p} className="rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-200">{p}</span>
+            ))}
+            {rest.length > 0 && (
+                <span className="cursor-help text-[10px] text-slate-400" title={rest.join(', ')}>
+                    +{rest.length} more
+                </span>
+            )}
+            {unknown > 0 && (
+                <span className="text-[10px] italic text-slate-600"
+                    title="Reported by an agent older than 0.4.8, which cannot tell which profile an extension is in. Not the same as having no profile.">
+                    profile unknown
+                </span>
+            )}
+        </span>
     );
 }
 

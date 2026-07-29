@@ -44,18 +44,36 @@ class ComplianceController extends Controller
                     'people' => $g->pluck('user_id')->unique()->count(),
                     'machines' => $g->pluck('device_name')->unique()->count(),
                     'profiles' => $g->pluck('browser_profile')->filter()->unique()->count(),
-                    'occurrences' => $g->sortBy('user_id')->map(fn ($f) => [
-                        'id' => $f->id,
-                        'user' => $f->user?->name,
-                        'device' => $f->device_name,
-                        // null = the agent on that machine is older than 0.4.8 and
-                        // cannot report a profile. Shown as "profile unknown".
-                        'browser_profile' => $f->browser_profile,
-                        'status' => $f->status,
-                        'first_seen' => optional($f->first_seen_at)->toDateTimeString(),
-                        'last_seen' => optional($f->last_seen_at)->toDateTimeString(),
-                        'app_version' => $f->app_version,
-                    ])->values()->all(),
+                    // ONE row per (person, machine), with every affected browser
+                    // profile listed on it. Flags stay per-profile in the database —
+                    // a fresh install in a new profile still alerts — but four rows
+                    // reading "Jawad / Jawad / Chrome" that differ only in the profile
+                    // column is unreadable once a tool is on 20 machines.
+                    'occurrences' => $g->groupBy(fn ($f) => $f->user_id.'|'.$f->device_name)
+                        ->map(function ($rows) {
+                            $first = $rows->first();
+                            // Every flag id behind this row: Acknowledge/Ignore acts on
+                            // all of them at once, so one click clears the tool for
+                            // this person instead of four.
+                            $ids = $rows->pluck('id')->values()->all();
+                            $profiles = $rows->pluck('browser_profile')->filter()->unique()->sort()->values()->all();
+
+                            return [
+                                'id' => $first->id,
+                                'ids' => $ids,
+                                'user' => $first->user?->name,
+                                'device' => $first->device_name,
+                                'profiles' => $profiles,
+                                // True when at least one flag came from an agent older
+                                // than 0.4.8, which cannot report a profile at all.
+                                'unknown_profiles' => $rows->whereNull('browser_profile')->count(),
+                                // A row is only "acknowledged" once every profile is.
+                                'status' => $rows->contains(fn ($f) => $f->status === 'open') ? 'open' : 'acknowledged',
+                                'first_seen' => optional($rows->min('first_seen_at'))->toDateTimeString(),
+                                'last_seen' => optional($rows->max('last_seen_at'))->toDateTimeString(),
+                                'app_version' => $first->app_version,
+                            ];
+                        })->sortBy('user')->values()->all(),
                 ];
             })
             ->sortByDesc(fn ($t) => ($t['alert'] ? 1_000_000 : 0)
@@ -139,24 +157,50 @@ class ComplianceController extends Controller
         ]);
     }
 
-    /** Acknowledge (seen, stay quiet), Ignore (never alert here again), or reopen a flag. */
+    /**
+     * Acknowledge (seen, stay quiet), Ignore (never alert here again), or reopen.
+     *
+     * Accepts optional `ids` so ONE click can clear a tool across every browser
+     * profile it was found in on that person's machine. Flags are stored per
+     * profile — that is what makes a reinstall in a different profile alert again —
+     * but nobody wants to press Acknowledge four times for one scraper.
+     */
     public function updateFlag(Request $request, MachineFlag $flag): RedirectResponse
     {
         $data = $request->validate([
             'status' => ['required', 'in:open,acknowledged,ignored'],
+            'ids' => ['sometimes', 'array', 'max:200'],
+            'ids.*' => ['integer'],
         ]);
 
-        $flag->status = $data['status'];
-        if ($data['status'] === 'acknowledged') {
-            $flag->acknowledged_by = $request->user()->id;
-            $flag->acknowledged_at = now();
+        // Scope any bulk action to the SAME person, machine and tool as the flag in
+        // the URL, so a crafted id list can never touch another machine's ledger.
+        $targets = collect([$flag]);
+        if (! empty($data['ids'])) {
+            $targets = MachineFlag::whereIn('id', $data['ids'])
+                ->where('user_id', $flag->user_id)
+                ->where('device_name', $flag->device_name)
+                ->where('rule', $flag->rule)
+                ->where('label', $flag->label)
+                ->get();
+            if ($targets->isEmpty()) {
+                $targets = collect([$flag]);
+            }
         }
-        if ($data['status'] === 'open') {
-            $flag->acknowledged_by = null;
-            $flag->acknowledged_at = null;
-            $flag->resolved_at = null;
+
+        foreach ($targets as $target) {
+            $target->status = $data['status'];
+            if ($data['status'] === 'acknowledged') {
+                $target->acknowledged_by = $request->user()->id;
+                $target->acknowledged_at = now();
+            }
+            if ($data['status'] === 'open') {
+                $target->acknowledged_by = null;
+                $target->acknowledged_at = null;
+                $target->resolved_at = null;
+            }
+            $target->save();
         }
-        $flag->save();
 
         return back();
     }
@@ -344,9 +388,17 @@ class ComplianceController extends Controller
             $e['people'] = $users->pluck('user')->filter()->unique()->count();
             $e['machines'] = $users->pluck('device')->filter()->unique()->count();
             $e['profiles'] = $users->pluck('profile')->filter()->unique()->count();
-            // One row per (person, machine, profile) so a tool in three of someone's
-            // profiles lists three places to go, not one.
-            $e['users'] = $users->unique(fn ($u) => $u['user'].'|'.$u['device'].'|'.$u['profile'])->values()->all();
+            // ONE row per (person, machine) with the affected profiles listed on it.
+            // Four near-identical rows differing only in the profile column is what
+            // made this page unreadable; the profile names still all appear.
+            $e['users'] = $users->groupBy(fn ($u) => $u['user'].'|'.$u['device'])
+                ->map(fn ($g) => [
+                    'user' => $g->first()['user'],
+                    'device' => $g->first()['device'],
+                    'browser' => $g->pluck('browser')->filter()->unique()->implode(', '),
+                    'profiles' => $g->pluck('profile')->filter()->unique()->sort()->values()->all(),
+                    'unknown_profiles' => $g->whereNull('profile')->count(),
+                ])->sortBy('user')->values()->all();
 
             return $e;
         })

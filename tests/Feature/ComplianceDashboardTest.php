@@ -27,6 +27,56 @@ class ComplianceDashboardTest extends TestCase
         ], $over));
     }
 
+    /**
+     * One tool in several of a person's browser profiles is ONE row listing them all,
+     * and a single Acknowledge clears every profile behind it. Four near-identical
+     * rows differing only in the profile column is what made the page unreadable.
+     */
+    public function test_multi_profile_findings_collapse_to_one_row_and_acknowledge_together(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+        $jawad = User::factory()->create(['name' => 'Jawad']);
+
+        $f1 = $this->flag($jawad, 'PC-1', ['browser_profile' => 'Upwork Faryal', 'signature' => 's1']);
+        $f2 = $this->flag($jawad, 'PC-1', ['browser_profile' => 'Upwork Junaid', 'signature' => 's2']);
+        $f3 = $this->flag($jawad, 'PC-1', ['browser_profile' => 'Your Chrome', 'signature' => 's3']);
+
+        $this->actingAs($admin)->get('/monitoring/compliance')
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                ->where('tools.0.occurrences', fn ($occ) => count($occ) === 1)
+                ->where('tools.0.occurrences.0.profiles', ['Upwork Faryal', 'Upwork Junaid', 'Your Chrome'])
+                ->where('tools.0.profiles', 3)
+                ->etc());
+
+        // One Acknowledge, passing every id on the row, clears all three profiles.
+        $this->actingAs($admin)->patch(route('monitoring.compliance.flag', $f1), [
+            'status' => 'acknowledged',
+            'ids' => [$f1->id, $f2->id, $f3->id],
+        ])->assertRedirect();
+
+        $this->assertSame(3, MachineFlag::where('status', 'acknowledged')->count());
+    }
+
+    /** A crafted id list cannot reach another machine's ledger rows. */
+    public function test_bulk_acknowledge_cannot_touch_another_machine(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+        $a = User::factory()->create(['name' => 'Ali']);
+        $b = User::factory()->create(['name' => 'Bina']);
+
+        $mine = $this->flag($a, 'PC-1', ['browser_profile' => 'Upwork Faryal', 'signature' => 'm1']);
+        $theirs = $this->flag($b, 'PC-2', ['browser_profile' => 'Upwork Nimra', 'signature' => 't1']);
+
+        $this->actingAs($admin)->patch(route('monitoring.compliance.flag', $mine), [
+            'status' => 'ignored',
+            'ids' => [$mine->id, $theirs->id],
+        ])->assertRedirect();
+
+        $this->assertSame('ignored', $mine->fresh()->status);
+        $this->assertSame('open', $theirs->fresh()->status, 'another machine must be untouched');
+    }
+
     public function test_flags_are_grouped_by_tool_with_who_has_it(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
