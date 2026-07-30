@@ -197,6 +197,16 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                         {open && (
                                             <div className="bg-slate-950/40 px-5 pb-3 pl-12">
                                                 <table className="w-full text-xs">
+                                                    <thead>
+                                                        <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                                                            <th className="py-1 pr-3 font-medium">Signed in as</th>
+                                                            <th className="py-1 pr-3 font-medium">On PC</th>
+                                                            <th className="py-1 pr-3 font-medium">In profile</th>
+                                                            <th className="py-1 pr-3 font-medium">Still there on</th>
+                                                            <th className="py-1 pr-3 font-medium">Status</th>
+                                                            <th className="py-1 font-medium"></th>
+                                                        </tr>
+                                                    </thead>
                                                     <tbody className="divide-y divide-slate-800/60">
                                                         {t.occurrences.map((o) => (
                                                             <tr key={o.id}>
@@ -205,7 +215,12 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                                 <td className="py-1.5 pr-3">
                                                                     <ProfileList profiles={o.profiles} unknown={o.unknown_profiles} />
                                                                 </td>
-                                                                <td className="py-1.5 pr-3 text-slate-500">{o.first_seen?.slice(0, 10) || '—'}</td>
+                                                                {/* LAST seen, not first seen: this date moves every time the tool
+                                                                    is still found, so today's date means it is still on that PC
+                                                                    today — i.e. they were told to remove it and haven't. */}
+                                                                <td className="py-1.5 pr-3 whitespace-nowrap">
+                                                                    <DateSeen iso={o.last_seen} firstSeen={o.first_seen} />
+                                                                </td>
                                                                 <td className="py-1.5 pr-3">
                                                                     {o.status === 'acknowledged'
                                                                         ? <span className="text-emerald-400">acknowledged</span>
@@ -356,6 +371,9 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                                                                                         <td className="py-1.5 pl-9 pr-3">
                                                                                             <span className={x.flagged ? 'font-medium text-amber-300' : 'text-slate-200'}>{x.name}</span>
                                                                                         </td>
+                                                                                        <td className="py-1.5 pr-3 whitespace-nowrap text-[10px]">
+                                                                                            <DateSeen iso={x.last_seen} />
+                                                                                        </td>
                                                                                         <td className="py-1.5 pr-3 text-right">
                                                                                             {x.flagged && (
                                                                                                 <span className={['rounded border px-2 py-0.5 text-[10px] font-semibold uppercase', SEV[x.severity] || SEV.low].join(' ')}>
@@ -476,6 +494,29 @@ export default function Compliance({ auth, tools = [], machines = [], employees 
                 )}
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+/**
+ * The date a tool was LAST seen on a machine — the one that keeps moving.
+ *
+ * Today's date means it is still installed right now, so if someone was told to
+ * remove it yesterday and this still says today, they haven't. "Today" and
+ * "Yesterday" are spelled out because that is the distinction being made at a
+ * glance; anything older shows the plain date and reads as stale.
+ */
+function DateSeen({ iso, firstSeen }) {
+    if (!iso) return <span className="text-slate-600">—</span>;
+    const day = iso.slice(0, 10);
+    const today = new Date();
+    const t = today.toISOString().slice(0, 10);
+    const y = new Date(today.getTime() - 86400000).toISOString().slice(0, 10);
+    const label = day === t ? 'Today' : day === y ? 'Yesterday' : day;
+    return (
+        <span className={day === t ? 'font-medium text-amber-300' : 'text-slate-400'}
+            title={firstSeen ? `First seen ${firstSeen.slice(0, 10)} · last seen ${iso}` : `Last seen ${iso}`}>
+            {label}
+        </span>
     );
 }
 

@@ -138,9 +138,9 @@ class ComplianceController extends Controller
         return Inertia::render('Monitoring/Compliance', [
             'tools' => $tools,
             'machines' => $machines,
-            'employees' => fn () => Cache::remember($invKey.':emp3', now()->addMinutes(10),
+            'employees' => fn () => Cache::remember($invKey.':emp5', now()->addMinutes(10),
                 fn () => $this->employeeInventory($getInvReports(), $flagOf)),
-            'extensions' => fn () => Cache::remember($invKey.':ext3', now()->addMinutes(10),
+            'extensions' => fn () => Cache::remember($invKey.':ext5', now()->addMinutes(10),
                 fn () => $this->extensionInventory($getInvReports(), $flagOf)),
             'summary' => [
                 'machines' => $machines->count(),
@@ -267,6 +267,12 @@ class ComplianceController extends Controller
                         'flagged' => (bool) $hit,
                         'rule' => $hit['rule'] ?? null,
                         'severity' => $hit['severity'] ?? null,
+                        // When this was last confirmed present. It comes from the most
+                        // recent snapshot, so it moves forward every time the machine
+                        // reports and the item is still there — today's date means it
+                        // is on that PC right now. Anything uninstalled simply stops
+                        // appearing in the snapshot, so it drops off the page.
+                        'last_seen' => optional($r->collected_at)->toDateTimeString(),
                     ];
                 }
             }

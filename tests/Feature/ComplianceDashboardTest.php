@@ -58,6 +58,34 @@ class ComplianceDashboardTest extends TestCase
         $this->assertSame(3, MachineFlag::where('status', 'acknowledged')->count());
     }
 
+    /**
+     * The date on the page is LAST seen, not first seen.
+     *
+     * If someone was told to remove a scraper days ago and hasn't, the row has to read
+     * today — a first-seen date would look stale and suggest it was already dealt with.
+     */
+    public function test_the_date_shown_is_when_the_tool_was_last_seen_not_installed(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+        $ali = User::factory()->create(['name' => 'Ali']);
+
+        // Installed 5 days ago, told to remove it, still reporting today.
+        $this->flag($ali, 'PC-1', [
+            'browser_profile' => 'Upwork Faryal',
+            'first_seen_at' => now()->subDays(5),
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->get('/monitoring/compliance')
+            ->assertOk()
+            ->assertInertia(fn ($p) => $p
+                ->where('tools.0.occurrences.0.last_seen',
+                    fn ($d) => str_starts_with((string) $d, now()->toDateString()))
+                ->where('tools.0.occurrences.0.first_seen',
+                    fn ($d) => str_starts_with((string) $d, now()->subDays(5)->toDateString()))
+                ->etc());
+    }
+
     /** A crafted id list cannot reach another machine's ledger rows. */
     public function test_bulk_acknowledge_cannot_touch_another_machine(): void
     {
