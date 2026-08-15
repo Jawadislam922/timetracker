@@ -1,22 +1,31 @@
-# Project Documentation
+# SA Track — documentation index
 
-Start here:
+Ten files, no archaeology. If a document contradicts production, test
+production, then fix the document.
 
-- `CODEX_COMPLETE_CHAT_AND_PROJECT_HANDOFF.md`
+## Start here
 
-That file is the canonical project and conversation handoff for another Codex
-session. It contains the current Git state, released work, local-only work,
-product decisions, production cautions, verification history, and next steps.
+| File | Question it answers |
+|---|---|
+| [STATUS.md](STATUS.md) | What is true **right now**? |
+| [HISTORY.md](HISTORY.md) | What happened, and what did it teach us? |
+| [ROADMAP.md](ROADMAP.md) | What happens next, in what order? |
 
-Supporting documents:
+## Reference
 
-- `APP_IMPROVEMENT_PLAN.md`: original application, interface, permissions, and
-  Slack improvement plan.
-- `FEATURE_ROADMAP_ATTENDANCE_REPORTS_MONITORING.md`: attendance, reporting,
-  and future screenshot-monitoring roadmap.
-- `PRODUCTION_DEPLOYMENT.md`: local, cPanel, and Hostinger deployment steps.
-- `SECURITY.md`: credential and production security rules.
-- `SLACK_INTEGRATION.md`: Slack webhook, manual report, and scheduler setup.
+| File | What it covers |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How the system fits together (web + desktop + S3 + deploy reality) |
+| [OPERATIONS.md](OPERATIONS.md) | Deploying, cron, Slack, desktop releases, the host's sharp edges |
+| [SECURITY.md](SECURITY.md) | Security policy |
+| [SANITIZATION_AUDIT.md](SANITIZATION_AUDIT.md) | Living security-audit record (append per pass) |
+| [ATTENDANCE_DAY_BUCKETING.md](ATTENDANCE_DAY_BUCKETING.md) | How a clock punch chooses its attendance day |
+| [BITDEFENDER_EXCLUSION_GUIDE.md](BITDEFENDER_EXCLUSION_GUIDE.md) | IT runbook: AV exclusions for the desktop app |
 
-These documents must not contain passwords, webhook URLs, API tokens, database
-credentials, or other secrets.
+User documentation lives **in the app** (Help section, seeded from
+`database/seeders/HelpArticleSeeder.php`) — not here.
+
+Everything else that used to be in this folder (dated audits, shipped plans,
+per-version build prompts, a giant session handoff) was deleted on 2026-08-09
+after an audit extracted the still-true facts into the files above. History is
+in git if it is ever missed.

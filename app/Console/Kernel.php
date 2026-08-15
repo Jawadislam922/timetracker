@@ -69,12 +69,17 @@ class Kernel extends ConsoleKernel
         }
 
         // Hostinger's git auto-deploy re-clones the tree and wipes
-        // bootstrap/cache, dropping the config cache (a large chunk of TTFB
-        // on shared hosting). Rebuild it whenever it's found missing.
-        // NOTE: route:cache must never be added here — closure routes.
+        // bootstrap/cache, dropping the config AND route caches (a large chunk
+        // of TTFB on shared hosting). Rebuild whichever is missing.
+        // route:cache is safe here: verified live 2026-08-09 (exit 0, all
+        // routes 200) — an older note claimed closure routes break it, which
+        // is no longer true on this Laravel version.
         $schedule->call(function () {
             if (! file_exists(base_path('bootstrap/cache/config.php'))) {
                 Artisan::call('config:cache');
+            }
+            if (! file_exists(base_path('bootstrap/cache/routes-v7.php'))) {
+                Artisan::call('route:cache');
             }
         })->name('config-cache-self-heal')->everyFiveMinutes();
 

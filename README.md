@@ -6,7 +6,7 @@ Slack summaries.
 
 > **New to the project, or need the plain-English "what does it do / how does it
 > work / where is the database" explainer?** Read
-> **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** first. Short answer on the
+> **[`documents/ARCHITECTURE.md`](documents/ARCHITECTURE.md)** first. Short answer on the
 > database: it's a **MySQL database named `u406855808_timetracker` on the Hostinger
 > server** — not on anyone's PC.
 
@@ -132,7 +132,7 @@ php artisan optimize:clear
 > **locally** and commit `public/build`, and run any `composer install` /
 > `php artisan migrate --force` / `php artisan optimize:clear` **manually over
 > SSH** after the push. Full details + the desktop-release steps are in
-> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#deploying-important-gotchas).
+> [`documents/ARCHITECTURE.md`](documents/ARCHITECTURE.md#deploying-important-gotchas).
 
 The steps below describe a *from-scratch* server bring-up:
 

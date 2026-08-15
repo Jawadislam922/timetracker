@@ -31,12 +31,4 @@ class WorkHour extends Model
         return $this->belongsTo(Client::class, 'client_id');
     }
 
-    /**
-     * Clock windows backing a manual entry. The summed window duration equals
-     * this row's `hours`; tracker-recorded rows have none.
-     */
-    public function windows()
-    {
-        return $this->hasMany(WorkHourWindow::class);
-    }
 }
