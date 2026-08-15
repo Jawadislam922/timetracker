@@ -4,6 +4,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { TraditionalPagination } from '../Components/Pagination';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
+import ClientFormModal from '../Components/ClientFormModal';
 
 function Toast({ message, onClose, type = 'success' }) {
     if (!message) return null;
@@ -20,16 +21,26 @@ function Toast({ message, onClose, type = 'success' }) {
     );
 }
 
-export default function ClientsList({ auth, clients, flash, filters = {}, filterOptions = {}, workTypes = {} }) {
+export default function ClientsList({ auth, clients, flash, filters = {}, filterOptions = {}, workTypes = {}, preferredContacts = {}, profileOptions = [], allClients = null }) {
     const canManage = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.manage');
     const canImportExport = auth.user?.is_super_admin || auth.user?.permissions?.includes('clients.import_export');
     const canViewReports = auth.user?.is_super_admin || auth.user?.permissions?.includes('reports.view');
     const [deleteId, setDeleteId] = useState(null);
+    // null = closed; 'new' = add; object = edit. Opening also lazy-loads the
+    // full client-name list used for live duplicate matching (partial reload:
+    // the normal page visit never ships ~1,100 names).
+    const [modalClient, setModalClient] = useState(null);
+    const openClientModal = (subject) => {
+        setModalClient(subject);
+        if (allClients === null) {
+            router.reload({ only: ['allClients'] });
+        }
+    };
     const [toast, setToast] = useState(flash?.success || flash?.error || '');
     const [toastType, setToastType] = useState(flash?.success ? 'success' : 'error');
     const [selectedPerPage, setSelectedPerPage] = useState(Number(filters.perPage || clients?.per_page || 10));
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
-    const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
+    const [statusFilter, setStatusFilter] = useState(filters.status || 'active');
     const [selectedClients, setSelectedClients] = useState(new Set());
     const [selectAll, setSelectAll] = useState(false);
     const [selectAllMatching, setSelectAllMatching] = useState(false);
@@ -329,9 +340,9 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                         title="Clients"
                         description="Manage client records, work types, profiles, and tags."
                         actions={canManage && (
-                            <Link href={route('clients.create')} className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                            <button type="button" onClick={() => openClientModal('new')} className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
                                 Add Client
-                            </Link>
+                            </button>
                         )}
                     />
                     
@@ -502,8 +513,8 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                                                     className="w-4 h-4 text-purple-600 bg-white/20 border-white/30 rounded focus:ring-purple-500 focus:ring-2"
                                                 />
                                             </th>}
-                                            <th className="w-16 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">ID</th>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Name</th>
+                                            <th className="w-56 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Contact</th>
                                             <th className="w-32 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Work Type</th>
                                             <th className="w-40 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Upwork Profile</th>
                                             <th className="w-48 px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">Tags</th>
@@ -522,12 +533,11 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                                                         className="w-4 h-4 text-orange-500 bg-slate-800 border-slate-600 rounded focus:ring-orange-500 focus:ring-2"
                                                     />
                                                 </td>}
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-orange-400">{client.id}</td>
                                                 <td className="px-6 py-4 text-sm text-slate-100 font-medium">
                                                     <div className="flex items-center gap-2">
                                                         {canViewReports ? (
                                                             <Link
-                                                                href={route('work-hours.report', { clients: [client.name] })}
+                                                                href={route('work-hours.report', { clients: [client.id] })}
                                                                 className="hover:text-orange-400 hover:underline"
                                                                 title={`View ${client.name}'s report`}
                                                             >
@@ -540,6 +550,21 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                                                             <span className="inline-flex px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-slate-700/60 text-slate-300 rounded border border-slate-600">
                                                                 Archived
                                                             </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm">
+                                                    <div className="space-y-0.5">
+                                                        {client.email && <div className="text-slate-200">{client.email}</div>}
+                                                        {client.phone && <div className="text-slate-400 text-xs">{client.phone}</div>}
+                                                        {client.preferred_contact && (
+                                                            <span className="inline-flex px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-sky-500/15 text-sky-300 rounded border border-sky-500/25"
+                                                                title={client.contact_notes || undefined}>
+                                                                {preferredContacts[client.preferred_contact] || client.preferred_contact}
+                                                            </span>
+                                                        )}
+                                                        {!client.email && !client.phone && !client.preferred_contact && (
+                                                            <span className="text-slate-500 text-xs">&mdash;</span>
                                                         )}
                                                     </div>
                                                 </td>
@@ -600,9 +625,9 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                                                 </td>
                                                 {canManage && <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-inherit border-l border-slate-800">
                                                     <div className="flex space-x-2">
-                                                        <Link href={editClientHref(client.id)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
+                                                        <button type="button" onClick={() => openClientModal(client)} className="inline-flex items-center px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                             Edit
-                                                        </Link>
+                                                        </button>
                                                         {client.is_active ? (
                                                             <button onClick={() => handleSetStatus(client)} className="inline-flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-all shadow-md">
                                                                 Archive
@@ -694,6 +719,15 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                     </div>
                 </div>
             )}
+            <ClientFormModal
+                open={modalClient !== null}
+                onClose={() => setModalClient(null)}
+                client={modalClient === 'new' ? null : modalClient}
+                workTypes={workTypes}
+                preferredContacts={preferredContacts}
+                profileOptions={profileOptions}
+                allClients={allClients}
+            />
         </AuthenticatedLayout>
     );
 }

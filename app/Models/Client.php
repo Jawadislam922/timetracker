@@ -11,10 +11,28 @@ class Client extends Model
 
     protected $fillable = [
         'name',
+        'email',
+        'phone',
+        'preferred_contact',
+        'contact_notes',
         'tags',
         'work_type',
         'is_active',
         'upwork_profile_id', // Keep for backward compatibility during transition
+    ];
+
+    /**
+     * How a client prefers to be approached. Order matters: it is the display
+     * order in the UI, and Upwork leads because most clients live there — and
+     * contacting an Upwork client off-platform can itself breach Upwork ToS,
+     * so the preferred channel is genuinely operational information.
+     */
+    public const PREFERRED_CONTACTS = [
+        'upwork' => 'Upwork messages',
+        'email' => 'Email',
+        'phone' => 'Phone call',
+        'whatsapp' => 'WhatsApp',
+        'slack' => 'Slack',
     ];
 
     protected $casts = [

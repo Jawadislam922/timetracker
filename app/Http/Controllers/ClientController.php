@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\MonitoringSetting;
 use App\Models\UpworkProfile;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ClientController extends Controller
@@ -15,16 +16,18 @@ class ClientController extends Controller
         try {
             $perPage = $request->get('perPage', 10);
             $search = $request->get('search', '');
-            $status = $request->get('status', 'all');
+            $status = $request->get('status', 'active');
 
             // Validate perPage to ensure it's within reasonable limits
             if (! in_array($perPage, [10, 25, 50, 100])) {
                 $perPage = 10;
             }
 
-            // Validate status filter
+            // Validate status filter. Default is ACTIVE: with ~935 archived
+            // (finished-contract) clients, opening on "all" buried the ~160
+            // that matter under everything that doesn't.
             if (! in_array($status, ['all', 'active', 'archived'])) {
-                $status = 'all';
+                $status = 'active';
             }
 
             // Weekly hours per client come from one correlated SUM on the
@@ -78,6 +81,15 @@ class ClientController extends Controller
                     ],
                 ],
                 'workTypes' => Client::getWorkTypes(),
+                'preferredContacts' => Client::PREFERRED_CONTACTS,
+                'profileOptions' => UpworkProfile::active()->orderBy('name')->get(['id', 'name']),
+                // Every client name + status, for the add-modal's live duplicate
+                // check. Optional (lazy): only loaded when the modal requests it
+                // via a partial reload, so the normal page visit never pays for
+                // shipping ~1,100 names.
+                'allClients' => Inertia::lazy(
+                    fn () => Client::orderBy('name')->get(['id', 'name', 'is_active'])
+                ),
             ]);
         } catch (\Exception $e) {
             \Log::error('ClientController index error: '.$e->getMessage());
@@ -101,6 +113,10 @@ class ClientController extends Controller
     {
         $rules = [
             'name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:40',
+            'preferred_contact' => 'nullable|string|in:'.implode(',', array_keys(Client::PREFERRED_CONTACTS)),
+            'contact_notes' => 'nullable|string|max:500',
             'tags' => 'nullable|array',
             'tags.*' => 'string|max:50',
             'work_type' => 'required|string|in:'.implode(',', array_keys(Client::getWorkTypes())),
@@ -126,9 +142,29 @@ class ClientController extends Controller
 
         $validated = $request->validate($rules);
 
+        // Duplicate guard: prod accumulated triple "Brad Pugh"s because nothing
+        // ever checked. An exact name match (case-insensitive, trimmed) blocks
+        // creation unless the user explicitly confirms it is a DIFFERENT client
+        // who happens to share the name. Archived matches get a restore hint
+        // instead of a second record.
+        if (! $request->boolean('allow_duplicate')) {
+            $existing = Client::whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($validated['name']))])->first();
+            if ($existing) {
+                throw ValidationException::withMessages([
+                    'name' => $existing->is_active
+                        ? "A client named \"{$existing->name}\" already exists. Select it instead — or tick \"different client with the same name\" if this really is someone else."
+                        : "An archived client named \"{$existing->name}\" already exists. Restore it from the Archived filter instead of creating a duplicate.",
+                ]);
+            }
+        }
+
         // Create the client first
         $clientData = [
-            'name' => $validated['name'],
+            'name' => trim($validated['name']),
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['phone'] ?? null,
+            'preferred_contact' => $validated['preferred_contact'] ?? null,
+            'contact_notes' => $validated['contact_notes'] ?? null,
             'tags' => $validated['tags'] ?? [],
             'work_type' => $validated['work_type'],
             'upwork_profile_id' => $validated['upwork_profile_id'] ?? null, // Keep for backward compatibility
@@ -161,6 +197,10 @@ class ClientController extends Controller
     {
         $rules = [
             'name' => 'required|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:40',
+            'preferred_contact' => 'nullable|string|in:'.implode(',', array_keys(Client::PREFERRED_CONTACTS)),
+            'contact_notes' => 'nullable|string|max:500',
             'tags' => 'nullable|array',
             'tags.*' => 'string|max:50',
             'work_type' => 'required|string|in:'.implode(',', array_keys(Client::getWorkTypes())),
@@ -186,9 +226,27 @@ class ClientController extends Controller
 
         $validated = $request->validate($rules);
 
+        // Same duplicate guard as store(), excluding this client itself.
+        if (! $request->boolean('allow_duplicate')) {
+            $existing = Client::whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($validated['name']))])
+                ->whereKeyNot($client->id)
+                ->first();
+            if ($existing) {
+                throw ValidationException::withMessages([
+                    'name' => "Another client named \"{$existing->name}\" already exists"
+                        .($existing->is_active ? '.' : ' (archived).')
+                        .' Tick "different client with the same name" if this rename is intentional.',
+                ]);
+            }
+        }
+
         // Update the client data
         $clientData = [
-            'name' => $validated['name'],
+            'name' => trim($validated['name']),
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['phone'] ?? null,
+            'preferred_contact' => $validated['preferred_contact'] ?? null,
+            'contact_notes' => $validated['contact_notes'] ?? null,
             'tags' => $validated['tags'] ?? [],
             'work_type' => $validated['work_type'],
             'upwork_profile_id' => $validated['upwork_profile_id'] ?? null, // Keep for backward compatibility
