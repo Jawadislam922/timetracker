@@ -73,6 +73,25 @@ class WorkHourClientFilterTest extends TestCase
             );
     }
 
+    /** Archived (finished-contract) clients stay out of the report dropdown. */
+    public function test_archived_clients_are_excluded_from_the_options(): void
+    {
+        $admin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);
+        $worker = User::factory()->create();
+
+        $live = Client::create(['name' => 'Live Co', 'work_type' => 'fixed', 'is_active' => true]);
+        $gone = Client::create(['name' => 'Gone LLC', 'work_type' => 'fixed', 'is_active' => false]);
+        WorkHour::create(['user_id' => $worker->id, 'client_id' => $live->id, 'date' => '2026-08-01', 'hours' => 1.0, 'description' => 'live work', 'work_type' => 'fixed', 'source' => 'manual']);
+        WorkHour::create(['user_id' => $worker->id, 'client_id' => $gone->id, 'date' => '2026-08-01', 'hours' => 1.0, 'description' => 'old work', 'work_type' => 'fixed', 'source' => 'manual']);
+
+        $this->reportFor($admin)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('filterOptions.clients', 1)
+                ->where('filterOptions.clients.0.name', 'Live Co')
+            );
+    }
+
     public function test_client_options_are_id_name_pairs(): void
     {
         $admin = User::factory()->create(['role' => 'super_admin', 'permissions' => []]);

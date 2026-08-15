@@ -206,7 +206,10 @@ class WorkHourController extends Controller
         // id + name pairs (same shape as the report page) so duplicate client
         // names stay distinguishable, and one indexed query instead of
         // hydrating every work_hours row just to list the client names.
+        // Active only — archived (finished-contract) clients stay out of the
+        // filter; their historical rows still render in the table.
         $availableClients = Client::query()
+            ->active()
             ->whereIn('id', WorkHour::where('user_id', $user->id)
                 ->whereNotNull('client_id')->select('client_id')->distinct())
             ->orderBy('name')
@@ -588,7 +591,12 @@ class WorkHourController extends Controller
         // One indexed query for the dropdown. id + name pairs, not bare names:
         // duplicate client names exist in prod, and a name can only ever select
         // "all clients called that", which mixed unrelated clients in reports.
+        // ACTIVE only: ~935 finished-contract clients are archived (owner's
+        // 2026-08-16 cleanup) — offering them here would defeat it. Restoring a
+        // client from the Clients page puts it straight back in this dropdown;
+        // existing rows for archived clients still render in the table.
         $availableClients = Client::query()
+            ->active()
             ->whereIn('id', WorkHour::whereNotNull('client_id')->select('client_id')->distinct())
             ->orderBy('name')
             ->get(['id', 'name'])
