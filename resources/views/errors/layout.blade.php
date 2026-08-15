@@ -79,5 +79,23 @@
         <a class="btn" href="{{ url('/dashboard') }}">Back to Dashboard</a>
         <div class="brand">SA Track · Sparking Asia</div>
     </div>
+    @if (trim($__env->yieldContent('code')) === '500')
+    <script>
+        // The host's database intermittently refuses connections for a moment,
+        // and a plain reload always recovers. Retry ONCE automatically, ~1.5s
+        // in, so most people never see this page settle. The sessionStorage
+        // guard (cleared after 20s) stops a genuine outage from reload-looping.
+        (function () {
+            try {
+                var key = 'satrack-500-retry';
+                var last = Number(sessionStorage.getItem(key) || 0);
+                if (Date.now() - last > 20000) {
+                    sessionStorage.setItem(key, String(Date.now()));
+                    setTimeout(function () { location.reload(); }, 1500);
+                }
+            } catch (e) { /* storage blocked: keep the page static */ }
+        })();
+    </script>
+    @endif
 </body>
 </html>

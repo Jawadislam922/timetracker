@@ -170,7 +170,7 @@ class AutoCloseAttendance extends Command
                 // close does — otherwise a shift-end auto clock-out is silent and
                 // reads as a missing clock-out to managers. (The clock notifier
                 // deliberately skips Auto-clock-out entries so we post here.)
-                $this->announceLockout($slack, $user, $closeAt, $reason);
+                $this->announceLockout($slack, $user, $closeAt, $reason, $clockIn->action_date);
             }
             $closed++;
         }
@@ -185,7 +185,7 @@ class AutoCloseAttendance extends Command
      * why — mirrors StillWorkingCheck::announceLockout so both auto-close paths
      * announce identically. Time shown in the business timezone the channel reads.
      */
-    private function announceLockout(SlackBotService $slack, User $user, Carbon $at, string $reason): void
+    private function announceLockout(SlackBotService $slack, User $user, Carbon $at, string $reason, ?string $actionDate = null): void
     {
         $channel = config('services.attendance.lockout_channel')
             ?: config('services.attendance.clockin_channel');
@@ -193,12 +193,25 @@ class AutoCloseAttendance extends Command
             return;
         }
 
-        $slack->postToChannel($channel, sprintf(
+        $message = sprintf(
             ":lock: *%s* was automatically clocked out at %s.\n> %s",
             $user->name,
             $at->copy()->setTimezone(BusinessTime::tz())->format('g:i A'),
             $reason,
-        ));
+        );
+
+        // Post under the person's own clock-in thread for the day when one
+        // exists, so a manager reading the channel sees one thread per person
+        // per day instead of loose lockout messages between everyone's events.
+        $threadTs = $actionDate
+            ? \App\Services\AttendanceClockNotifier::dayThreadTs($user->id, $actionDate)
+            : null;
+
+        if ($threadTs) {
+            $slack->postToThread($channel, $message, $threadTs);
+        } else {
+            $slack->postToChannel($channel, $message);
+        }
     }
 
     /**

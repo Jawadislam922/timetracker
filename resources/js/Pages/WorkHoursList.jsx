@@ -181,10 +181,18 @@ export default function WorkHoursList({
         label: tracker,
     }));
 
-    const clientOptions = (filterOptions.clients || []).map((client) => ({
-        value: client,
-        label: client,
+    // Client IDs, not names: names are not unique in this data, so a name-based
+    // filter mixed different clients' hours. Duplicates get "Name (#id)" labels.
+    const clientNameCounts = (filterOptions.clients || []).reduce((acc, c) => {
+        acc[c.name] = (acc[c.name] || 0) + 1;
+        return acc;
+    }, {});
+    const clientOptions = (filterOptions.clients || []).map((c) => ({
+        value: String(c.id),
+        label: clientNameCounts[c.name] > 1 ? `${c.name} (#${c.id})` : c.name,
     }));
+    const clientLabel = (value) =>
+        clientOptions.find((o) => o.value === String(value))?.label ?? value;
 
     const buildFilterParams = (overrides = {}) => {
         const nextDateFilter = overrides.dateFilter !== undefined ? overrides.dateFilter : dateFilter;
@@ -278,7 +286,7 @@ export default function WorkHoursList({
         })),
         ...selectedClients.map((value) => ({
             key: `clients-${value}`,
-            label: `Client: ${value}`,
+            label: `Client: ${clientLabel(value)}`,
             onRemove: () => removeFilterValue('clients', value),
         })),
     ];

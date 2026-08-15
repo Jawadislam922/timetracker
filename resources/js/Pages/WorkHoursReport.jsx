@@ -145,10 +145,19 @@ export default function WorkHoursReport({
         label: formatWorkType(type),
     }));
 
-    const clientOptions = (filterOptions.clients || []).map((clientName) => ({
-        value: clientName,
-        label: clientName,
+    // Options carry the client ID (names are NOT unique in this data — several
+    // clients share a name), with duplicates labelled "Name (#id)" so two
+    // clients called Brad Pugh are tellable apart in the dropdown.
+    const clientNameCounts = (filterOptions.clients || []).reduce((acc, c) => {
+        acc[c.name] = (acc[c.name] || 0) + 1;
+        return acc;
+    }, {});
+    const clientOptions = (filterOptions.clients || []).map((c) => ({
+        value: String(c.id),
+        label: clientNameCounts[c.name] > 1 ? `${c.name} (#${c.id})` : c.name,
     }));
+    const clientLabel = (value) =>
+        clientOptions.find((o) => o.value === String(value))?.label ?? value;
 
     const trackerOptions = (filterOptions.trackers || []).map((tracker) => ({
         value: tracker,
@@ -279,7 +288,8 @@ export default function WorkHoursReport({
         })),
         ...selectedClients.map((value) => ({
             key: `clients-${value}`,
-            label: `Client: ${value}`,
+            // Values are client IDs now — show the human name on the chip.
+            label: `Client: ${clientLabel(value)}`,
             onRemove: () => removeFilterValue('clients', value),
         })),
         ...selectedTrackers.map((value) => ({

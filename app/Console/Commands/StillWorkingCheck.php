@@ -130,7 +130,7 @@ class StillWorkingCheck extends Command
                 if (! $dry) {
                     $closer->close($user->id, $now, $reason);
                     $check->update(['resolved_at' => $now, 'resolution' => 'no_response']);
-                    $this->announceLockout($slack, $user, $now, $reason);
+                    $this->announceLockout($slack, $user, $now, $reason, $clockInDate);
                 }
                 $closed++;
 
@@ -202,7 +202,7 @@ class StillWorkingCheck extends Command
     }
 
     /** Tell the team channel that someone was auto clocked-out, and why. */
-    private function announceLockout(SlackBotService $slack, User $user, Carbon $at, string $reason): void
+    private function announceLockout(SlackBotService $slack, User $user, Carbon $at, string $reason, ?string $actionDate = null): void
     {
         $channel = config('services.attendance.lockout_channel')
             ?: config('services.attendance.clockin_channel');
@@ -211,12 +211,24 @@ class StillWorkingCheck extends Command
             return;
         }
 
-        $slack->postToChannel($channel, sprintf(
+        $message = sprintf(
             ":lock: *%s* was automatically clocked out at %s.\n> %s",
             $user->name,
             $at->format('g:i A'),
             $reason,
-        ));
+        );
+
+        // Under the person's clock-in thread when it exists — one thread per
+        // person per day, mirroring AutoCloseAttendance::announceLockout.
+        $threadTs = $actionDate
+            ? \App\Services\AttendanceClockNotifier::dayThreadTs($user->id, $actionDate)
+            : null;
+
+        if ($threadTs) {
+            $slack->postToThread($channel, $message, $threadTs);
+        } else {
+            $slack->postToChannel($channel, $message);
+        }
     }
 
     private function humanHours(float $hours): string

@@ -12,6 +12,7 @@ use App\Models\WorkHour;
 use App\Services\SlackReportService;
 use App\Services\TrackingSessionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -94,8 +95,21 @@ class WorkHourController extends Controller
         }
 
         if (! empty($filters['clients'])) {
-            $query->whereHas('client', function ($q) use ($filters) {
-                $q->whereIn('name', $filters['clients']);
+            // Filter by client ID, not name: prod has duplicate client names
+            // ("Brad Pugh" x3), so a name filter silently mixed different
+            // clients' hours into one report. Numeric values are ids; anything
+            // non-numeric is a legacy name (old bookmarked URLs) and still works.
+            $ids = array_values(array_filter($filters['clients'], 'is_numeric'));
+            $names = array_values(array_filter($filters['clients'], fn ($v) => ! is_numeric($v)));
+            $query->whereHas('client', function ($q) use ($ids, $names) {
+                $q->where(function ($qq) use ($ids, $names) {
+                    if ($ids) {
+                        $qq->whereIn('id', $ids);
+                    }
+                    if ($names) {
+                        $qq->orWhereIn('name', $names);
+                    }
+                });
             });
         }
 
@@ -189,14 +203,14 @@ class WorkHourController extends Controller
         // Preserve query parameters in pagination links
         $workHours->appends($request->query());
 
-        $availableClients = WorkHour::with('client')
-            ->where('user_id', $user->id)
-            ->whereHas('client')
-            ->get()
-            ->pluck('client.name')
-            ->unique()
-            ->filter()
-            ->sort()
+        // id + name pairs (same shape as the report page) so duplicate client
+        // names stay distinguishable, and one indexed query instead of
+        // hydrating every work_hours row just to list the client names.
+        $availableClients = Client::query()
+            ->whereIn('id', WorkHour::where('user_id', $user->id)
+                ->whereNotNull('client_id')->select('client_id')->distinct())
+            ->orderBy('name')
+            ->get(['id', 'name'])
             ->values();
 
         $availableTrackers = WorkHour::where('user_id', $user->id)
@@ -571,12 +585,13 @@ class WorkHourController extends Controller
             ->pluck('name')
             ->toArray();
 
-        // One indexed query for the dropdown — the previous shape hydrated
-        // every work_hours row with its client just to list distinct names.
+        // One indexed query for the dropdown. id + name pairs, not bare names:
+        // duplicate client names exist in prod, and a name can only ever select
+        // "all clients called that", which mixed unrelated clients in reports.
         $availableClients = Client::query()
             ->whereIn('id', WorkHour::whereNotNull('client_id')->select('client_id')->distinct())
             ->orderBy('name')
-            ->pluck('name')
+            ->get(['id', 'name'])
             ->values();
 
         // Page size. "all" shows everything on one page, capped so a huge
@@ -631,7 +646,15 @@ class WorkHourController extends Controller
             $workHours = $query
                 ->leftJoin('users', 'work_hours.user_id', '=', 'users.id')
                 ->leftJoin('clients', 'work_hours.client_id', '=', 'clients.id')
-                ->selectRaw("MIN(work_hours.id) as id, work_hours.date, work_hours.user_id, users.name as user_name, work_hours.client_id, clients.name as client_name, work_hours.work_type, work_hours.tracker, work_hours.source, SUM(work_hours.hours) as hours, COUNT(*) as entry_count, GROUP_CONCAT(NULLIF(work_hours.description, '') SEPARATOR ' · ') as description")
+                ->selectRaw(sprintf(
+                    "MIN(work_hours.id) as id, work_hours.date, work_hours.user_id, users.name as user_name, work_hours.client_id, clients.name as client_name, work_hours.work_type, work_hours.tracker, work_hours.source, SUM(work_hours.hours) as hours, COUNT(*) as entry_count, %s as description",
+                    // SEPARATOR is MySQL-only syntax; SQLite (the in-memory test
+                    // database) takes the separator as a second argument. Without
+                    // this split the report page could never be covered by a test.
+                    DB::connection()->getDriverName() === 'sqlite'
+                        ? "GROUP_CONCAT(NULLIF(work_hours.description, ''), ' · ')"
+                        : "GROUP_CONCAT(NULLIF(work_hours.description, '') SEPARATOR ' · ')"
+                ))
                 ->groupBy('work_hours.date', 'work_hours.user_id', 'users.name', 'work_hours.client_id', 'clients.name', 'work_hours.work_type', 'work_hours.tracker', 'work_hours.source')
                 ->orderByDesc('work_hours.date')->orderBy('users.name')->orderBy('clients.name')
                 ->paginate($perPage);
@@ -640,7 +663,9 @@ class WorkHourController extends Controller
                 'id' => (int) $r->id,
                 'date' => substr((string) $r->date, 0, 10),
                 'user' => ['name' => $r->user_name],
-                'client' => $r->client_id ? ['name' => $r->client_name] : null,
+                // id included so rows are attributable to ONE client even when
+                // two clients share a display name (they do, in production).
+                'client' => $r->client_id ? ['id' => (int) $r->client_id, 'name' => $r->client_name] : null,
                 'work_type' => $r->work_type,
                 'tracker' => $r->tracker,
                 'source' => $r->source,

@@ -83,6 +83,22 @@ class AttendanceClockNotifier
     }
 
     /**
+     * The Slack thread anchor for one person's attendance day, if the day's
+     * first clock-in has been announced. Used by the auto clock-out commands so
+     * their lockout messages land in the SAME thread as the person's clock
+     * events instead of as standalone channel messages.
+     */
+    public static function dayThreadTs(int $userId, string $actionDate): ?string
+    {
+        return TimeEntry::where('user_id', $userId)
+            ->where('action_date', $actionDate)
+            ->where('action', 'clock_in')
+            ->whereNotNull('slack_thread_ts')
+            ->orderBy('action_timestamp')
+            ->value('slack_thread_ts');
+    }
+
+    /**
      * Return the day's thread anchor (the first clock-in's Slack ts), posting
      * the parent clock-in message now if it hasn't been announced yet.
      */
