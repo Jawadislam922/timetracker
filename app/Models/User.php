@@ -340,6 +340,56 @@ class User extends Authenticatable
     }
 
     /**
+     * Is the shift-history table actually there yet?
+     *
+     * Deploys land CODE before migrations are run by hand, so for a window the
+     * new resolver exists while `user_shift_assignments` does not. Querying it
+     * then would 500 every authenticated page. When it is missing we simply fall
+     * back to the users.* columns — exactly the pre-history behaviour — and the
+     * feature switches itself on the moment the migration runs.
+     *
+     * Memoised per request; a schema lookup per user would be far worse than the
+     * problem it guards against.
+     */
+    private static ?bool $shiftHistoryAvailable = null;
+
+    public static function shiftHistoryAvailable(): bool
+    {
+        if (self::$shiftHistoryAvailable === null) {
+            try {
+                self::$shiftHistoryAvailable = \Illuminate\Support\Facades\Schema::hasTable('user_shift_assignments');
+            } catch (\Throwable) {
+                self::$shiftHistoryAvailable = false;
+            }
+        }
+
+        return self::$shiftHistoryAvailable;
+    }
+
+    /** Drop the memo — for tests that create or drop the table mid-run. */
+    public static function forgetShiftHistoryAvailability(): void
+    {
+        self::$shiftHistoryAvailable = null;
+    }
+
+    /**
+     * Relations every shift consumer should eager-load. Skips the history table
+     * while it does not exist so a pre-migration deploy cannot break the page.
+     *
+     * @return array<int, string>
+     */
+    public static function shiftEagerLoads(string $prefix = ''): array
+    {
+        $relations = [$prefix.'shiftOverrides'];
+
+        if (self::shiftHistoryAvailable()) {
+            $relations[] = $prefix.'shiftAssignments';
+        }
+
+        return $relations;
+    }
+
+    /**
      * The curated shift (Morning/Noon/Evening/Night/…) this person is assigned
      * to — a filter/grouping LABEL, separate from the shift timing. Nullable.
      */
@@ -411,9 +461,11 @@ class User extends Authenticatable
         //    shift edit retroactively re-judged the past — on-time days became
         //    "late". Rows are ordered newest-first, so the first era that
         //    started on or before the date is the one that applies.
-        $assignment = $this->shiftAssignments->first(
-            fn ($a) => optional($a->effective_from)->toDateString() <= $dateStr
-        );
+        $assignment = self::shiftHistoryAvailable()
+            ? $this->shiftAssignments->first(
+                fn ($a) => optional($a->effective_from)->toDateString() <= $dateStr
+            )
+            : null;
 
         // 2. Fall back to the current columns when no era covers the date —
         //    pre-backfill rows and factory-built users in tests. This is what

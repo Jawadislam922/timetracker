@@ -55,7 +55,7 @@ class StillWorkingCheck extends Command
         // walking every user (2+ queries each) for a handful of open clock-ins.
         $users = User::query()
             ->active()
-            ->with('shiftOverrides', 'shiftAssignments')
+            ->with(User::shiftEagerLoads())
             ->whereExists(fn ($q) => $q->select(DB::raw(1))
                 ->from('time_entries')
                 ->whereColumn('time_entries.user_id', 'users.id')

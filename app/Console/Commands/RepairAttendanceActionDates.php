@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\TimeEntry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use App\Models\User;
 
 /**
  * One-off repair for clock punches filed under the wrong attendance day. A
@@ -37,7 +38,7 @@ class RepairAttendanceActionDates extends Command
         $query = TimeEntry::query()
             ->whereIn('action_type', ['clock_in', 'clock_out', 'break_start', 'break_end'])
             ->whereNotNull('action_timestamp')
-            ->with(['user', 'user.shiftOverrides', 'user.shiftAssignments']);
+            ->with(array_merge(['user'], User::shiftEagerLoads('user.')));
 
         if ($since) {
             $query->whereDate('action_timestamp', '>=', $since);

@@ -396,7 +396,7 @@ class EmployeeAttendanceController extends Controller
         $employeesQuery = User::query()
             // Eager-load the shift history + overrides: the grid resolves a shift
             // for every user x every day, which otherwise lazy-loads per user.
-            ->with(['shift:id,name', 'shiftOverrides', 'shiftAssignments'])
+            ->with(array_merge(['shift:id,name'], User::shiftEagerLoads()))
             ->where(function ($query) use ($usersWithHistory) {
                 $query->active();
                 if ($usersWithHistory->isNotEmpty()) {

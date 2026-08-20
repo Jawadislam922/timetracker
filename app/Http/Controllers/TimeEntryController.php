@@ -215,7 +215,7 @@ class TimeEntryController extends Controller
             // effectiveShiftFor() per employee without an N+1 (one extra query
             // for the whole team instead of one per person). Non-tracking staff
             // (HR etc.) are excluded so they don't dilute the KPIs at 0%.
-            $employeesQuery = User::active()->tracksTime()->with(['shiftOverrides', 'shiftAssignments', 'shift:id,name,sort_order']);
+            $employeesQuery = User::active()->tracksTime()->with(array_merge(User::shiftEagerLoads(), ['shift:id,name,sort_order']));
             \App\Support\ShiftFilter::apply($employeesQuery, request());
             $employees = $employeesQuery->get();
             $ids = $employees->pluck('id')->all();

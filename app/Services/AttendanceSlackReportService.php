@@ -53,7 +53,7 @@ class AttendanceSlackReportService
 
         $users = User::query()
             ->whereIn('id', $userIds)
-            ->with('shiftOverrides', 'shiftAssignments')
+            ->with(User::shiftEagerLoads())
             ->orderBy('name')
             ->get(['id', 'name', 'joining_date', 'shift_start_time', 'shift_grace_minutes', 'shift_hours']);
 
