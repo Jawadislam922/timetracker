@@ -8,6 +8,8 @@ use Inertia\Inertia;
 
 class UpworkProfileController extends Controller
 {
+    use Concerns\RedirectsToReturnPath;
+
     /**
      * Display a listing of the resource.
      */
@@ -94,9 +96,11 @@ class UpworkProfileController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
-        return Inertia::render('UpworkProfiles/Create');
+        return Inertia::render('UpworkProfiles/Create', [
+            'returnTo' => $request->input('return_to'),
+        ]);
     }
 
     /**
@@ -113,17 +117,19 @@ class UpworkProfileController extends Controller
 
         UpworkProfile::create($validated);
 
-        return redirect()->route('upwork-profiles.index')
-            ->with('success', 'Upwork profile created successfully.');
+        return $this->redirectToReturnPath($request, 'upwork-profiles.index', [
+            'success' => 'Upwork profile created successfully.',
+        ]);
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(UpworkProfile $upworkProfile)
+    public function edit(Request $request, UpworkProfile $upworkProfile)
     {
         return Inertia::render('UpworkProfiles/Edit', [
             'profile' => $upworkProfile,
+            'returnTo' => $request->input('return_to'),
         ]);
     }
 
@@ -141,8 +147,9 @@ class UpworkProfileController extends Controller
 
         $upworkProfile->update($validated);
 
-        return redirect()->route('upwork-profiles.index')
-            ->with('success', 'Upwork profile updated successfully.');
+        return $this->redirectToReturnPath($request, 'upwork-profiles.index', [
+            'success' => 'Upwork profile updated successfully.',
+        ]);
     }
 
     /**
@@ -152,7 +159,8 @@ class UpworkProfileController extends Controller
     {
         $upworkProfile->delete();
 
-        return redirect()->route('upwork-profiles.index')
+        // Fired from the list itself — back() keeps the current filter/view.
+        return redirect()->back()
             ->with('success', 'Upwork profile deleted successfully.');
     }
 }

@@ -6,6 +6,7 @@ use App\Models\ManualAttendanceMark;
 use App\Models\TimeEntry;
 use App\Models\User;
 use App\Services\Concerns\FormatsSlackBlocks;
+use App\Support\AttendanceHours;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -52,7 +53,7 @@ class AttendanceSlackReportService
 
         $users = User::query()
             ->whereIn('id', $userIds)
-            ->with('shiftOverrides')
+            ->with('shiftOverrides', 'shiftAssignments')
             ->orderBy('name')
             ->get(['id', 'name', 'joining_date', 'shift_start_time', 'shift_grace_minutes', 'shift_hours']);
 
@@ -219,51 +220,18 @@ class AttendanceSlackReportService
         $firstClockIn = $entries->where('action_type', 'clock_in')->first();
 
         if ($firstClockIn) {
-            return $this->isLateClockIn($user, $date, $firstClockIn) ? 'LC' : 'P';
+            return AttendanceHours::isLateClockIn($user, $date, $firstClockIn, config('services.slack_reports.timezone')) ? 'LC' : 'P';
         }
 
         if ($date->isSunday()) {
             return 'H';
         }
 
-        return $date->isSameDay($today) && ! $this->isShiftAbsenceDue($user, $date, $now)
+        return $date->isSameDay($today) && ! AttendanceHours::isShiftAbsenceDue($user, $date, $now, config('services.slack_reports.timezone'))
             ? null
             : 'A';
     }
 
-    private function isLateClockIn(User $user, Carbon $date, TimeEntry $firstClockIn): bool
-    {
-        $timezone = config('services.slack_reports.timezone');
-        $localDate = $date->copy()->setTimezone($timezone);
-
-        $shiftStartTime = $user->effectiveShiftFor($localDate->toDateString())['start_time'];
-        if (! $shiftStartTime) {
-            return false;
-        }
-
-        $shiftStart = $localDate->copy()->setTimeFromTimeString($shiftStartTime->format('H:i:s'));
-        $allowedClockIn = $shiftStart->copy()->addMinutes((int) ($user->shift_grace_minutes ?? 0));
-        $clockInTime = Carbon::parse($firstClockIn->action_timestamp)->setTimezone($timezone);
-
-        return $clockInTime->greaterThan($allowedClockIn);
-    }
-
-    private function isShiftAbsenceDue(User $user, Carbon $date, Carbon $now): bool
-    {
-        $timezone = config('services.slack_reports.timezone');
-        $localDate = $date->copy()->setTimezone($timezone);
-
-        $shiftStartTime = $user->effectiveShiftFor($localDate->toDateString())['start_time'];
-        if (! $shiftStartTime) {
-            return false;
-        }
-
-        $absenceDueAt = $localDate->copy()
-            ->setTimeFromTimeString($shiftStartTime->format('H:i:s'))
-            ->addMinutes((int) ($user->shift_grace_minutes ?? 0));
-
-        return $now->greaterThan($absenceDueAt);
-    }
 
     private function addStatusToSummary(array &$summary, string $statusCode): void
     {

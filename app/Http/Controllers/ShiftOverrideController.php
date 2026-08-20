@@ -38,7 +38,7 @@ class ShiftOverrideController extends Controller
             'standingShift' => [
                 'start_time' => $user->shift_start_time?->format('H:i'),
                 'hours' => $user->shift_hours !== null ? (float) $user->shift_hours : null,
-                'grace_minutes' => (int) ($user->shift_grace_minutes ?? 0),
+                'grace_minutes' => $user->effectiveShiftFor(now($user->workTimezone())->toDateString())['grace_minutes'],
             ],
             'overrides' => $overrides,
             'canEdit' => $user->hasPermission('shift.edit_own') || $user->hasPermission('shift.manage_all'),

@@ -112,32 +112,69 @@ class AttendanceHours
     }
 
     /**
-     * Did the day's first clock-in land after the user's shift start + grace?
-     * Mirrors AttendanceSlackReportService::isLateClockIn.
+     * Did the day's first clock-in land after the shift start + grace?
+     *
+     * The single implementation — the monthly grid, the Slack report and the
+     * weekly digest each had their own copy, and they disagreed on timezone.
+     * They now all call this and pass the timezone THEY have always used, so
+     * behaviour is unchanged while the algorithm lives in one place.
+     *
+     * Both the shift start AND the grace come from effectiveShiftFor(), which
+     * resolves them for that DATE. Reading $user->shift_grace_minutes directly
+     * (as every copy used to) re-judges history whenever HR edits the shift.
+     *
+     * @param  string|null  $timezone  null = the worker's own timezone
      */
-    public static function isLateClockIn(User $user, Carbon $date, ?TimeEntry $firstClockIn): bool
+    public static function isLateClockIn(User $user, Carbon $date, ?TimeEntry $firstClockIn, ?string $timezone = null): bool
     {
         if (! $firstClockIn) {
             return false;
         }
 
         // Late detection compares the clock-in's wall-clock time-of-day to the
-        // shift start, so it must use the WORKER's own timezone (a 9am shift for
-        // a New York VA means 9am New York, not 9am Karachi).
-        $tz = $user->workTimezone();
+        // shift start, so by default it uses the WORKER's own timezone (a 9am
+        // shift for a New York VA means 9am New York, not 9am Karachi).
+        $shift = $user->effectiveShiftFor($date->toDateString());
+        $tz = $timezone ?: $shift['timezone'];
         $localDate = $date->copy()->setTimezone($tz);
 
-        // Resolve the shift start for THIS day (one-day override aware), so an
-        // approved early/late start isn't flagged late.
-        $shiftStartTime = $user->effectiveShiftFor($localDate->toDateString())['start_time'];
-        if (! $shiftStartTime) {
+        // Re-resolve against the local date: converting the timezone can move
+        // the calendar day, and the era/override must match the day being judged.
+        $shift = $user->effectiveShiftFor($localDate->toDateString());
+        if (! $shift['start_time']) {
             return false;
         }
 
-        $shiftStart = $localDate->copy()->setTimeFromTimeString($shiftStartTime->format('H:i:s'));
-        $allowed = $shiftStart->copy()->addMinutes((int) ($user->shift_grace_minutes ?? 0));
+        $shiftStart = $localDate->copy()->setTimeFromTimeString($shift['start_time']->format('H:i:s'));
+        $allowed = $shiftStart->copy()->addMinutes($shift['grace_minutes']);
 
         return Carbon::parse($firstClockIn->action_timestamp)->setTimezone($tz)->greaterThan($allowed);
+    }
+
+    /**
+     * Has the shift start + grace already passed for this date — i.e. is a
+     * missing clock-in now an absence rather than "not in yet"?
+     *
+     * Same consolidation story as isLateClockIn(): one implementation, the
+     * caller supplies the timezone it has always used.
+     *
+     * @param  string|null  $timezone  null = the worker's own timezone
+     */
+    public static function isShiftAbsenceDue(User $user, Carbon $date, Carbon $now, ?string $timezone = null): bool
+    {
+        $shift = $user->effectiveShiftFor($date->toDateString());
+        $tz = $timezone ?: $shift['timezone'];
+        $localDate = $date->copy()->setTimezone($tz);
+
+        $shift = $user->effectiveShiftFor($localDate->toDateString());
+        if (! $shift['start_time']) {
+            return false;
+        }
+
+        $shiftStart = $localDate->copy()->setTimeFromTimeString($shift['start_time']->format('H:i:s'));
+        $due = $shiftStart->copy()->addMinutes($shift['grace_minutes']);
+
+        return $now->copy()->setTimezone($tz)->greaterThan($due);
     }
 
     private static function positiveMinutes(Carbon $start, Carbon $end): int

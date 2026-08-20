@@ -4,7 +4,7 @@ import { Head, useForm, Link } from '@inertiajs/react';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
 
-export default function WorkHourEdit({ auth, workHour, trackers = [], clients = [] }) {
+export default function WorkHourEdit({ auth, workHour, trackers = [], clients = [] , returnTo = null }) {
     // Tracker-recorded entries have locked hours — the time always reflects what
     // the desktop measured, so it can't be edited up/down. Description, client,
     // and work type stay editable. (The server enforces this too.)
@@ -187,6 +187,9 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
         // Round to 2 decimal places for precision
         const roundedTotal = Math.round(totalHours * 100) / 100;
         
+        // Carry the originating list URL so the save returns to that exact
+        // page/filters instead of dumping the user on page 1.
+        form.transform((data) => ({ ...data, return_to: returnTo || undefined }));
         form.put(route('work-hours.update', workHour.id), { 
             ...form.data,
             hours: roundedTotal 
@@ -690,7 +693,7 @@ export default function WorkHourEdit({ auth, workHour, trackers = [], clients = 
 
                                 <div className="flex items-center justify-between">
                                     <Link
-                                        href={route('work-hours.index')}
+                                        href={returnTo || route('work-hours.index')}
                                         className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900 px-5 py-2.5 font-semibold text-slate-200 hover:bg-slate-800"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

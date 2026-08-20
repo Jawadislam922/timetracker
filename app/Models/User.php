@@ -330,6 +330,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Standing-shift history, newest era first — {@see effectiveShiftFor()}
+     * walks this to answer "which shift was in force on that date". Ordered in
+     * the relation so the resolver can take the first match without sorting.
+     */
+    public function shiftAssignments()
+    {
+        return $this->hasMany(UserShiftAssignment::class)->orderByDesc('effective_from');
+    }
+
+    /**
      * The curated shift (Morning/Noon/Evening/Night/…) this person is assigned
      * to — a filter/grouping LABEL, separate from the shift timing. Nullable.
      */
@@ -348,8 +358,15 @@ class User extends Authenticatable
      * The effective shift for an attendance date: a one-day override when the
      * user set one, otherwise their standing shift. Single source of truth for
      * every shift consumer — bucketing, auto-close, "still working?" nudges and
-     * late detection all read this, so a per-day change applies everywhere at
-     * once. Returns ['start_time' => ?Carbon, 'hours' => ?float].
+     * late detection all read this, so a change applies everywhere at once.
+     *
+     * Resolution order: a one-day override, then the standing-shift ERA in force
+     * on that date, then the live users.* columns. The era layer is what keeps
+     * history stable — see UserShiftAssignment.
+     *
+     * Returns ['start_time' => ?Carbon, 'hours' => ?float, 'grace_minutes' => int,
+     * 'timezone' => string]. Grace and timezone are era-resolved; callers must
+     * NOT read $user->shift_grace_minutes directly or they reintroduce the drift.
      */
     /**
      * Only employees expected to track time. Excludes non-tracking staff (HR,
@@ -386,14 +403,36 @@ class User extends Authenticatable
     {
         $dateStr = $date instanceof Carbon ? $date->toDateString() : (string) $date;
 
-        // Property access lazy-loads the overrides once and caches them on the
+        // Property access lazy-loads each relation once and caches it on the
         // instance, so the repeated calls in attendanceDateFor() stay in-memory.
+
+        // 1. The standing-shift ERA in force on this date. Without this the
+        //    live users.* columns were used for every historical date, so any
+        //    shift edit retroactively re-judged the past — on-time days became
+        //    "late". Rows are ordered newest-first, so the first era that
+        //    started on or before the date is the one that applies.
+        $assignment = $this->shiftAssignments->first(
+            fn ($a) => optional($a->effective_from)->toDateString() <= $dateStr
+        );
+
+        // 2. Fall back to the current columns when no era covers the date —
+        //    pre-backfill rows and factory-built users in tests. This is what
+        //    makes the change a no-op at cutover.
+        $startTime = $assignment ? $assignment->shift_start_time : $this->shift_start_time;
+        $hoursSource = $assignment ? $assignment->shift_hours : $this->shift_hours;
+        $hours = $hoursSource !== null ? (float) $hoursSource : null;
+        $grace = (int) ($assignment
+            ? ($assignment->shift_grace_minutes ?? $this->shift_grace_minutes ?? 0)
+            : ($this->shift_grace_minutes ?? 0));
+        $timezone = ($assignment && $assignment->work_timezone)
+            ? $assignment->work_timezone
+            : $this->workTimezone();
+
+        // 3. A one-day exception beats the era for its exact date. Overrides
+        //    carry no grace or timezone, so those stay era-resolved.
         $override = $this->shiftOverrides->first(
             fn ($o) => optional($o->date)->toDateString() === $dateStr
         );
-
-        $startTime = $this->shift_start_time;
-        $hours = $this->shift_hours !== null ? (float) $this->shift_hours : null;
 
         if ($override) {
             if ($override->shift_start_time) {
@@ -404,6 +443,11 @@ class User extends Authenticatable
             }
         }
 
-        return ['start_time' => $startTime, 'hours' => $hours];
+        return [
+            'start_time' => $startTime,
+            'hours' => $hours,
+            'grace_minutes' => $grace,
+            'timezone' => $timezone,
+        ];
     }
 }

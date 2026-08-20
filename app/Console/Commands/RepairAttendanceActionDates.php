@@ -37,7 +37,7 @@ class RepairAttendanceActionDates extends Command
         $query = TimeEntry::query()
             ->whereIn('action_type', ['clock_in', 'clock_out', 'break_start', 'break_end'])
             ->whereNotNull('action_timestamp')
-            ->with(['user', 'user.shiftOverrides']);
+            ->with(['user', 'user.shiftOverrides', 'user.shiftAssignments']);
 
         if ($since) {
             $query->whereDate('action_timestamp', '>=', $since);

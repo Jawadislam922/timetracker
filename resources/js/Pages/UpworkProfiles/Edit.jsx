@@ -4,8 +4,8 @@ import { Head, useForm, Link } from '@inertiajs/react';
 import PageHeader from '../../Components/Layout/PageHeader';
 import PageShell from '../../Components/Layout/PageShell';
 
-export default function Edit({ auth, profile }) {
-    const { data, setData, put, processing, errors } = useForm({
+export default function Edit({ auth, profile, returnTo = null }) {
+    const { data, setData, put, transform, processing, errors } = useForm({
         name: profile.name || '',
         email: profile.email || '',
         description: profile.description || '',
@@ -14,6 +14,7 @@ export default function Edit({ auth, profile }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        transform((d) => ({ ...d, return_to: returnTo || undefined }));
         put(route('upwork-profiles.update', profile.id));
     };
 
@@ -143,7 +144,7 @@ export default function Edit({ auth, profile }) {
                                 {/* Action Buttons */}
                                 <div className="flex items-center justify-between pt-6 border-t-2 border-slate-800">
                                     <Link
-                                        href={route('upwork-profiles.index')}
+                                        href={returnTo || route('upwork-profiles.index')}
                                         className="inline-flex items-center px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium transition-all duration-200"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

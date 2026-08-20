@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 
-export default function TagInput({ tags = [], onChange, placeholder = 'Add tags...' }) {
+// `compact` tightens the input and drops the helper line so the control fits a
+// modal's field rhythm; the full-size form pages keep the roomier default.
+export default function TagInput({ tags = [], onChange, placeholder = 'Add tags...', compact = false }) {
     const [inputValue, setInputValue] = useState('');
 
     const addTag = (tagText) => {
@@ -32,7 +34,7 @@ export default function TagInput({ tags = [], onChange, placeholder = 'Add tags.
 
     return (
         <div className="w-full">
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className={compact ? "mb-2 flex flex-wrap gap-1.5" : "mb-3 flex flex-wrap gap-2"}>
                 {tags.map((tag, index) => (
                     <span
                         key={`${tag}-${index}`}
@@ -59,11 +61,13 @@ export default function TagInput({ tags = [], onChange, placeholder = 'Add tags.
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
                 placeholder={placeholder}
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-200 transition-all placeholder-slate-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500"
+                className={`w-full rounded-lg border border-slate-700 text-sm text-slate-200 transition-all placeholder-slate-500 focus:border-orange-500 focus:ring-2 focus:ring-orange-500 ${compact ? "bg-slate-950 px-3 py-2" : "bg-slate-900 px-4 py-3"}`}
             />
+{!compact && (
             <p className="mt-2 text-xs text-slate-400">
                 Press Enter or comma to add a tag. Click x to remove tags.
             </p>
+            )}
         </div>
     );
 }

@@ -19,6 +19,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use RuntimeException;
+use App\Support\AttendanceHours;
 
 class EmployeeAttendanceController extends Controller
 {
@@ -393,7 +394,9 @@ class EmployeeAttendanceController extends Controller
         // who has entries/manual marks in the viewed month still renders so the
         // historical period stays intact.
         $employeesQuery = User::query()
-            ->with('shift:id,name')
+            // Eager-load the shift history + overrides: the grid resolves a shift
+            // for every user x every day, which otherwise lazy-loads per user.
+            ->with(['shift:id,name', 'shiftOverrides', 'shiftAssignments'])
             ->where(function ($query) use ($usersWithHistory) {
                 $query->active();
                 if ($usersWithHistory->isNotEmpty()) {
@@ -1062,7 +1065,7 @@ class EmployeeAttendanceController extends Controller
         }
 
         if ($firstClockIn) {
-            if ($this->isLateClockIn($employee, $date, $firstClockIn)) {
+            if (AttendanceHours::isLateClockIn($employee, $date, $firstClockIn, 'Asia/Karachi')) {
                 return [
                     'code' => 'LC',
                     'label' => self::ATTENDANCE_STATUSES['LC'],
@@ -1085,7 +1088,7 @@ class EmployeeAttendanceController extends Controller
             ];
         }
 
-        if ($date->isSameDay($today) && ! $this->isShiftAbsenceDue($employee, $date, $now)) {
+        if ($date->isSameDay($today) && ! AttendanceHours::isShiftAbsenceDue($employee, $date, $now, 'Asia/Karachi')) {
             return [
                 'code' => null,
                 'label' => 'Shift not started',
@@ -1138,33 +1141,6 @@ class EmployeeAttendanceController extends Controller
         return $date->toDateString() < $employee->joining_date->toDateString();
     }
 
-    private function isLateClockIn(User $employee, Carbon $date, TimeEntry $firstClockIn): bool
-    {
-        $shiftStartTime = $employee->effectiveShiftFor($date->toDateString())['start_time'];
-        if (! $shiftStartTime) {
-            return false;
-        }
-
-        $shiftStart = $date->copy()->setTimeFromTimeString($shiftStartTime->format('H:i:s'));
-        $allowedClockIn = $shiftStart->copy()->addMinutes((int) ($employee->shift_grace_minutes ?? 0));
-        $clockInTime = Carbon::parse($firstClockIn->action_timestamp)->setTimezone('Asia/Karachi');
-
-        return $clockInTime->greaterThan($allowedClockIn);
-    }
-
-    private function isShiftAbsenceDue(User $employee, Carbon $date, Carbon $now): bool
-    {
-        $shiftStartTime = $employee->effectiveShiftFor($date->toDateString())['start_time'];
-        if (! $shiftStartTime) {
-            return false;
-        }
-
-        $absenceDueAt = $date->copy()
-            ->setTimeFromTimeString($shiftStartTime->format('H:i:s'))
-            ->addMinutes((int) ($employee->shift_grace_minutes ?? 0));
-
-        return $now->greaterThan($absenceDueAt);
-    }
 
     private function canManuallyMarkAttendance(?User $user): bool
     {

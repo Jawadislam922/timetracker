@@ -135,7 +135,7 @@ export default function Authenticated({ user, header, children }) {
     // Admin — people, clients, and system configuration (was Management + System).
     const adminItems = useMemo(() => [
         can('users.view') && { label: 'Users', href: route('users.index'), icon: Users, active: ['users.index', 'users.create', 'users.edit'] },
-        can('clients.view') && { label: 'Clients', href: route('clients.index'), icon: Briefcase, active: ['clients.index', 'clients.create', 'clients.edit'] },
+        can('clients.view') && { label: 'Clients', href: route('clients.index'), icon: Briefcase, active: ['clients.index'] },
         can('profiles.view') && { label: 'Profiles', href: route('upwork-profiles.index'), icon: UserCircle, active: ['upwork-profiles.index', 'upwork-profiles.create', 'upwork-profiles.edit'] },
         can('monitoring.settings') && { label: 'Compliance', href: route('monitoring.compliance'), icon: Activity, active: ['monitoring.compliance'] },
         can('monitoring.settings') && { label: 'Settings', href: route('settings.index'), icon: SettingsIcon, active: ['settings.index'] },

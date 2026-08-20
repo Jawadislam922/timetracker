@@ -61,11 +61,6 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
             : `${window.location.pathname}${window.location.search}`
     );
 
-    const editClientHref = (clientId) => {
-        const returnTo = currentListUrl();
-        return `${route('clients.edit', clientId)}?return_to=${encodeURIComponent(returnTo)}`;
-    };
-
     const confirmDelete = (id) => setDeleteId(id);
     const handleDelete = () => {
         if (!deleteId) return;
@@ -654,15 +649,16 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                                                         <h3 className="text-lg font-medium text-slate-100 mb-2">No clients found</h3>
                                                         <p className="text-slate-300 mb-4">Get started by adding your first client.</p>
                                                         {canManage && (
-                                                            <Link
-                                                                href={route('clients.create')}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openClientModal('new')}
                                                                 className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-700"
                                                             >
                                                                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                                                 </svg>
                                                                 Add First Client
-                                                            </Link>
+                                                            </button>
                                                         )}
                                                     </div>
                                                 </td>

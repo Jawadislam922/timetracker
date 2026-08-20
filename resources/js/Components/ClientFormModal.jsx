@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useForm } from '@inertiajs/react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useForm } from '@inertiajs/react';
 import SearchableMultiSelect from './Filters/SearchableMultiSelect';
+import TagInput from './TagInput';
 
 /**
  * Add / edit a client in place — no page navigation for the common case.
@@ -31,6 +32,7 @@ export default function ClientFormModal({
         phone: '',
         preferred_contact: '',
         contact_notes: '',
+        tags: [],
         work_type: '',
         upwork_profile_ids: [],
         allow_duplicate: false,
@@ -46,8 +48,15 @@ export default function ClientFormModal({
             phone: client?.phone ?? '',
             preferred_contact: client?.preferred_contact ?? '',
             contact_notes: client?.contact_notes ?? '',
+            tags: client?.tags ?? [],
             work_type: client?.work_type ?? '',
-            upwork_profile_ids: (client?.upwork_profiles ?? []).map((p) => p.id),
+            // Fall back to the legacy single-profile column when the pivot is
+            // empty. Every CSV-imported client is in exactly that state, and
+            // without this they open with an empty selector and cannot be saved
+            // again until someone re-picks the profile by hand.
+            upwork_profile_ids: (client?.upwork_profiles ?? []).length
+                ? client.upwork_profiles.map((p) => p.id)
+                : (client?.upwork_profile_id ? [client.upwork_profile_id] : []),
             allow_duplicate: false,
         });
         setTimeout(() => nameRef.current?.focus(), 50);
@@ -55,6 +64,16 @@ export default function ClientFormModal({
     }, [open, client?.id]);
 
     const profileRequired = ['tracker_manual', 'fixed'].includes(form.data.work_type);
+
+    // Switching to a work type that needs no profile must CLEAR the selection —
+    // merely hiding the picker still synced the stale ids to the pivot on save.
+    useEffect(() => {
+        if (!open) return;
+        if (!profileRequired && form.data.upwork_profile_ids.length > 0) {
+            form.setData('upwork_profile_ids', []);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [form.data.work_type]);
 
     // Live duplicate matching against every client, self excluded when editing.
     const q = form.data.name.trim().toLowerCase();
@@ -74,6 +93,12 @@ export default function ClientFormModal({
             preserveScroll: true,
             onSuccess: () => { form.reset(); onClose(); },
         };
+        // Come back to THIS list view — same page, search and filters. Without
+        // it the save redirects to a bare /clients and dumps you on page 1.
+        form.transform((data) => ({
+            ...data,
+            return_to: window.location.pathname + window.location.search,
+        }));
         if (isEdit) {
             form.put(route('clients.update', client.id), opts);
         } else {
@@ -209,12 +234,17 @@ export default function ClientFormModal({
                             placeholder="e.g. Replies fastest on Upwork mornings US time; never call without booking" />
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-                        {isEdit ? (
-                            <Link href={route('clients.edit', client.id)} className="text-xs text-slate-400 underline hover:text-slate-200">
-                                Full edit page (tags…)
-                            </Link>
-                        ) : <span />}
+                    <div>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-400">Tags</label>
+                        <TagInput
+                            tags={form.data.tags}
+                            onChange={(tags) => form.setData('tags', tags)}
+                            placeholder="Add tags to categorise this client…"
+                            compact
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end border-t border-slate-800 pt-4">
                         <div className="flex gap-2">
                             <button type="button" onClick={onClose}
                                 className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800">

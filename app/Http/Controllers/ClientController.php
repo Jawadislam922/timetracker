@@ -11,6 +11,8 @@ use Inertia\Inertia;
 
 class ClientController extends Controller
 {
+    use Concerns\RedirectsToReturnPath;
+
     public function index(Request $request)
     {
         try {
@@ -98,16 +100,6 @@ class ClientController extends Controller
         }
     }
 
-    public function create()
-    {
-        $upworkProfiles = UpworkProfile::active()->orderBy('name')->get();
-        $workTypes = Client::getWorkTypes();
-
-        return Inertia::render('ClientCreate', [
-            'upworkProfiles' => $upworkProfiles,
-            'workTypes' => $workTypes,
-        ]);
-    }
 
     public function store(Request $request)
     {
@@ -177,21 +169,12 @@ class ClientController extends Controller
             $client->upworkProfiles()->attach($validated['upwork_profile_ids']);
         }
 
-        return redirect()->route('clients.index')->with('success', 'Client created.');
-    }
-
-    public function edit(Client $client)
-    {
-        $upworkProfiles = UpworkProfile::active()->orderBy('name')->get();
-        $workTypes = Client::getWorkTypes();
-
-        return Inertia::render('ClientEdit', [
-            'client' => $client->load(['upworkProfile', 'upworkProfiles']),
-            'upworkProfiles' => $upworkProfiles,
-            'workTypes' => $workTypes,
-            'returnTo' => request('return_to'),
+        // Back to the list the user was on (page, search, filters intact).
+        return $this->redirectToReturnPath($request, 'clients.index', [
+            'success' => 'Client created.',
         ]);
     }
+
 
     public function update(Request $request, Client $client)
     {
@@ -240,17 +223,20 @@ class ClientController extends Controller
             }
         }
 
-        // Update the client data
-        $clientData = [
-            'name' => trim($validated['name']),
-            'email' => $validated['email'] ?? null,
-            'phone' => $validated['phone'] ?? null,
-            'preferred_contact' => $validated['preferred_contact'] ?? null,
-            'contact_notes' => $validated['contact_notes'] ?? null,
-            'tags' => $validated['tags'] ?? [],
-            'work_type' => $validated['work_type'],
-            'upwork_profile_id' => $validated['upwork_profile_id'] ?? null, // Keep for backward compatibility
-        ];
+        // Update ONLY the fields this request actually carried.
+        //
+        // Blanket `?? null` writes here silently destroyed data whenever a form
+        // submitted a subset of the record: saving from the contact modal (which
+        // sends no `tags`) wiped every tag, and saving from the old edit page
+        // (which sent no contact fields) nulled email/phone/preferred contact.
+        // An absent key now means "leave it alone"; an explicitly-sent empty
+        // value still clears the field.
+        $clientData = ['name' => trim($validated['name'])];
+        foreach (['email', 'phone', 'preferred_contact', 'contact_notes', 'tags', 'work_type', 'upwork_profile_id'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $clientData[$field] = $validated[$field];
+            }
+        }
 
         $client->update($clientData);
 
@@ -426,6 +412,7 @@ class ClientController extends Controller
             if (($handle = fopen($path, 'r')) !== false) {
                 $header = fgetcsv($handle); // Skip header row
                 $imported = 0;
+                $skipped = 0;
                 $errors = [];
 
                 while (($data = fgetcsv($handle)) !== false) {
@@ -450,12 +437,31 @@ class ClientController extends Controller
                                 $tags = array_map('trim', explode(',', $data[3]));
                             }
 
-                            Client::create([
-                                'name' => $data[0],
+                            // Skip names that already exist. This path calls
+                            // Client::create() directly, so it bypasses the
+                            // duplicate guard in store() — re-uploading the same
+                            // CSV used to silently clone every client in it.
+                            $name = trim((string) $data[0]);
+                            $exists = Client::whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($name)])->exists();
+                            if ($exists) {
+                                $skipped++;
+
+                                continue;
+                            }
+
+                            $client = Client::create([
+                                'name' => $name,
                                 'work_type' => $workType,
                                 'upwork_profile_id' => $upworkProfileId,
                                 'tags' => $tags,
                             ]);
+
+                            // Write the pivot too, not just the legacy column —
+                            // otherwise imported clients open in the edit modal
+                            // with an empty profile selector.
+                            if ($upworkProfileId) {
+                                $client->upworkProfiles()->attach($upworkProfileId);
+                            }
 
                             $imported++;
                         }
@@ -467,11 +473,16 @@ class ClientController extends Controller
 
                 if ($imported > 0) {
                     $message = "Successfully imported {$imported} clients.";
+                    if ($skipped > 0) {
+                        $message .= " Skipped {$skipped} that already existed.";
+                    }
                     if (count($errors) > 0) {
                         $message .= ' Errors: '.implode(', ', array_slice($errors, 0, 3));
                     }
 
                     return redirect()->back()->with('success', $message);
+                } elseif ($skipped > 0) {
+                    return redirect()->back()->with('success', "Nothing imported — all {$skipped} rows already exist as clients.");
                 } else {
                     return redirect()->back()->with('error', 'No valid clients found in the file.');
                 }
@@ -484,19 +495,4 @@ class ClientController extends Controller
         }
     }
 
-    private function redirectToReturnPath(Request $request, string $fallbackRoute, array $flash = [])
-    {
-        $returnTo = $request->input('return_to');
-        $redirect = is_string($returnTo)
-            && str_starts_with($returnTo, '/')
-            && ! str_starts_with($returnTo, '//')
-                ? redirect($returnTo)
-                : redirect()->route($fallbackRoute);
-
-        foreach ($flash as $key => $value) {
-            $redirect->with($key, $value);
-        }
-
-        return $redirect;
-    }
 }

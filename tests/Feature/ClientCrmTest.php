@@ -93,6 +93,111 @@ class ClientCrmTest extends TestCase
         $this->assertSame('Mornings US time; Upwork messages only.', $c->contact_notes);
     }
 
+    /**
+     * A partial save must not wipe the fields it didn't send.
+     *
+     * The contact modal sends no `tags`; the old edit page sent no contact
+     * fields. Blanket `?? null` writes meant each one silently destroyed the
+     * other's data on every save.
+     */
+    public function test_saving_without_tags_keeps_existing_tags(): void
+    {
+        $client = Client::create([
+            'name' => 'Tagged Co', 'work_type' => 'outside_of_upwork',
+            'tags' => ['vip', 'retainer'], 'email' => 'a@b.com',
+        ]);
+
+        $this->actingAs($this->admin())
+            ->put(route('clients.update', $client), [
+                'name' => 'Tagged Co', 'work_type' => 'outside_of_upwork',
+                'email' => 'changed@b.com',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $fresh = $client->fresh();
+        $this->assertSame(['vip', 'retainer'], $fresh->tags, 'tags survived a contact-only save');
+        $this->assertSame('changed@b.com', $fresh->email);
+    }
+
+    public function test_saving_without_contact_fields_keeps_them(): void
+    {
+        $client = Client::create([
+            'name' => 'Contactable', 'work_type' => 'outside_of_upwork',
+            'email' => 'keep@me.com', 'phone' => '+1 555', 'preferred_contact' => 'upwork',
+            'contact_notes' => 'mornings only', 'tags' => ['old'],
+        ]);
+
+        // A tags-only save, as the retired edit page used to send.
+        $this->actingAs($this->admin())
+            ->put(route('clients.update', $client), [
+                'name' => 'Contactable', 'work_type' => 'outside_of_upwork',
+                'tags' => ['new'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $fresh = $client->fresh();
+        $this->assertSame('keep@me.com', $fresh->email);
+        $this->assertSame('+1 555', $fresh->phone);
+        $this->assertSame('upwork', $fresh->preferred_contact);
+        $this->assertSame('mornings only', $fresh->contact_notes);
+        $this->assertSame(['new'], $fresh->tags, 'the field that WAS sent still updates');
+    }
+
+    /** An explicitly-sent empty value still clears the field. */
+    public function test_explicitly_clearing_a_field_still_works(): void
+    {
+        $client = Client::create([
+            'name' => 'Clearable', 'work_type' => 'outside_of_upwork', 'email' => 'gone@soon.com',
+        ]);
+
+        $this->actingAs($this->admin())
+            ->put(route('clients.update', $client), [
+                'name' => 'Clearable', 'work_type' => 'outside_of_upwork', 'email' => '',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertNull($client->fresh()->email);
+    }
+
+    /** Saving from the list returns to that exact page/filters, not page 1. */
+    public function test_update_returns_to_the_originating_list_view(): void
+    {
+        $client = Client::create(['name' => 'Somewhere', 'work_type' => 'outside_of_upwork']);
+
+        $this->actingAs($this->admin())
+            ->put(route('clients.update', $client), [
+                'name' => 'Somewhere', 'work_type' => 'outside_of_upwork',
+                'return_to' => '/clients?page=4&perPage=50&search=some',
+            ])
+            ->assertRedirect('/clients?page=4&perPage=50&search=some');
+    }
+
+    /** A crafted off-site return_to is ignored. */
+    public function test_offsite_return_to_is_rejected(): void
+    {
+        $client = Client::create(['name' => 'Safe', 'work_type' => 'outside_of_upwork']);
+
+        $this->actingAs($this->admin())
+            ->put(route('clients.update', $client), [
+                'name' => 'Safe', 'work_type' => 'outside_of_upwork',
+                'return_to' => '//evil.example.com/steal',
+            ])
+            ->assertRedirect(route('clients.index'));
+    }
+
+    /** The retired add/edit pages redirect to the list instead of 404ing. */
+    public function test_retired_client_pages_redirect_to_the_list(): void
+    {
+        $client = Client::create(['name' => 'Bookmarked', 'work_type' => 'outside_of_upwork']);
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get(route('clients.create'))
+            ->assertRedirect(route('clients.index'));
+
+        $this->actingAs($admin)->get(route('clients.edit', $client))
+            ->assertRedirect(route('clients.index', ['search' => 'Bookmarked']));
+    }
+
     public function test_client_list_defaults_to_active_only(): void
     {
         Client::create(['name' => 'Active One', 'work_type' => 'outside_of_upwork', 'is_active' => true]);

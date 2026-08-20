@@ -6,6 +6,7 @@ use App\Models\Designation;
 use App\Models\Shift;
 use App\Models\MonitoringSetting;
 use App\Models\User;
+use App\Models\UserShiftAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +17,8 @@ use Inertia\Inertia;
 
 class UserController extends Controller
 {
+    use Concerns\RedirectsToReturnPath;
+
     public function index(Request $request)
     {
         $perPage = $request->get('perPage', 10);
@@ -206,6 +209,12 @@ class UserController extends Controller
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
             'is_active' => 'nullable|boolean',
+            // When a shift field changes, this is the date the new shift STARTS
+            // applying. Days before it keep being judged by the previous shift.
+            // Backdating is allowed (the change really did happen last Monday);
+            // future dates are not, because the users.* cache would be wrong
+            // until that day arrived.
+            'shift_effective_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.now()->addDay()->toDateString()],
         ];
 
         // Only add avatar validation if file is present
@@ -285,6 +294,10 @@ class UserController extends Controller
                 'is_active' => (bool) $user->is_active,
                 'return_to' => request('return_to'),
             ],
+            // Also exposed top-level: UserEdit destructures `return_to` from the
+            // page props, and only kept working because UserForm fell back to
+            // digging it out of the nested user object.
+            'return_to' => request('return_to'),
             ...$this->accessFormProps(),
         ]);
     }
@@ -315,6 +328,11 @@ class UserController extends Controller
             'clockout_reminder_minutes' => ['nullable', 'integer', 'min:0', 'max:240'],
             'allow_multiple_devices' => 'nullable|boolean',
             'is_active' => 'nullable|boolean',
+            // When a shift field changes, this is the date the new shift STARTS
+            // applying. Days before it keep being judged by the previous shift.
+            // Backdating is allowed (the change really did happen last Monday);
+            // future dates are not — the users.* cache would be wrong until then.
+            'shift_effective_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:'.now()->addDay()->toDateString()],
         ];
 
         // Only add avatar validation if file is present
@@ -332,6 +350,11 @@ class UserController extends Controller
                 'role' => 'You cannot remove Super Admin access from your own account.',
             ]);
         }
+
+        // Snapshot the shift config BEFORE the edit so we can tell whether this
+        // request actually changed it (an unrelated profile edit must not add a
+        // history row).
+        $shiftBefore = $this->shiftSnapshot($user);
 
         $user->name = $validated['name'];
         $user->email = $validated['email'];
@@ -374,6 +397,17 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        // Record the new standing-shift era if this edit actually changed one of
+        // the shift fields. Without it, the change would silently re-judge every
+        // past attendance day against the new times.
+        $this->recordShiftEra(
+            $user,
+            $shiftBefore,
+            $validated['shift_effective_from'] ?? null,
+            $request->user()->id
+        );
+
         $this->rememberDesignation($user->designation);
 
         if (! $user->isActive()) {
@@ -515,6 +549,74 @@ class UserController extends Controller
             ->get(['id', 'name']);
     }
 
+    /**
+     * The shift fields that define an era, as a comparable array.
+     */
+    private function shiftSnapshot(User $user): array
+    {
+        return [
+            'shift_start_time' => optional($user->shift_start_time)->format('H:i'),
+            'shift_grace_minutes' => $user->shift_grace_minutes === null ? null : (int) $user->shift_grace_minutes,
+            'shift_hours' => $user->shift_hours === null ? null : (float) $user->shift_hours,
+            'work_timezone' => $user->work_timezone,
+            'shift_id' => $user->shift_id,
+        ];
+    }
+
+    /**
+     * Open a new standing-shift era when the shift actually changed.
+     *
+     * Attendance status is computed live, so without an era boundary a shift
+     * edit silently re-judges the person's ENTIRE past - days they arrived on
+     * time start reading as "late". The era row freezes history before
+     * `effective_from` and applies the new shift from that date on.
+     *
+     * Nothing is written when the shift is untouched, so ordinary profile edits
+     * don't accumulate rows. A second change on the same date updates that era
+     * rather than stacking another row.
+     *
+     * @param  array<string, mixed>  $before  snapshot taken before the edit
+     */
+    private function recordShiftEra(User $user, array $before, ?string $effectiveFrom, ?int $actorId): void
+    {
+        $after = $this->shiftSnapshot($user->refresh());
+        if ($before == $after) {
+            return;
+        }
+
+        $date = $effectiveFrom ?: now($user->workTimezone())->toDateString();
+
+        $values = [
+            'shift_start_time' => $after['shift_start_time'],
+            'shift_grace_minutes' => $after['shift_grace_minutes'],
+            'shift_hours' => $after['shift_hours'],
+            'work_timezone' => $after['work_timezone'],
+            'shift_id' => $after['shift_id'],
+            'created_by' => $actorId,
+            'reason' => 'Shift updated',
+        ];
+
+        // Look the era up with whereDate rather than updateOrCreate's exact
+        // match: the `date` cast writes "2026-08-16 00:00:00" into the column,
+        // so an equality match on "2026-08-16" misses the row and then trips
+        // the unique index. whereDate compares the date part on both MySQL and
+        // SQLite, so a second change on the same day updates that era.
+        $era = UserShiftAssignment::where('user_id', $user->id)
+            ->whereDate('effective_from', $date)
+            ->first();
+
+        if ($era) {
+            $era->update($values);
+
+            return;
+        }
+
+        UserShiftAssignment::create($values + [
+            'user_id' => $user->id,
+            'effective_from' => $date,
+        ]);
+    }
+
     private function rememberDesignation(?string $designation): void
     {
         $name = $this->normalizeDesignationName($designation ?? '');
@@ -531,21 +633,6 @@ class UserController extends Controller
         return trim((string) preg_replace('/\s+/', ' ', $name));
     }
 
-    private function redirectToReturnPath(Request $request, string $fallbackRoute, array $flash = [])
-    {
-        $returnTo = $request->input('return_to');
-        $redirect = is_string($returnTo)
-            && str_starts_with($returnTo, '/')
-            && ! str_starts_with($returnTo, '//')
-                ? redirect($returnTo)
-                : redirect()->route($fallbackRoute);
-
-        foreach ($flash as $key => $value) {
-            $redirect->with($key, $value);
-        }
-
-        return $redirect;
-    }
 
     /**
      * Bulk edit selected users. Only the sections the admin explicitly

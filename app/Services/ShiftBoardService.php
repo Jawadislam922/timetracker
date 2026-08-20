@@ -276,14 +276,16 @@ class ShiftBoardService
     /** True when the worker's shift start (+ grace) has passed today and they have no clock-in. */
     private function shiftStarted(User $emp, Carbon $now, string $today): bool
     {
-        $startTime = $emp->effectiveShiftFor($today)['start_time'];
-        if (! $startTime) {
+        $shift = $emp->effectiveShiftFor($today);
+        if (! $shift['start_time']) {
             return false;
         }
 
+        // Grace comes from the resolver, not the model column — a raw read here
+        // would judge the day against whatever grace HR has set right now.
         $tz = $emp->workTimezone();
-        $dueAt = Carbon::parse($today.' '.$startTime->format('H:i:s'), $tz)
-            ->addMinutes((int) ($emp->shift_grace_minutes ?? 0));
+        $dueAt = Carbon::parse($today.' '.$shift['start_time']->format('H:i:s'), $tz)
+            ->addMinutes($shift['grace_minutes']);
 
         return $now->copy()->setTimezone($tz)->greaterThan($dueAt);
     }

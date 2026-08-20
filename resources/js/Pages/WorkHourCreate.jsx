@@ -4,7 +4,7 @@ import { Head, useForm, Link } from '@inertiajs/react';
 import PageHeader from '../Components/Layout/PageHeader';
 import PageShell from '../Components/Layout/PageShell';
 
-export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
+export default function WorkHourCreate({ auth, clients = [], trackers = [], returnTo = null }) {
     const form = useForm({
         date: (() => {
             // Get current date in Pakistan timezone (Asia/Karachi)
@@ -202,6 +202,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
         // Round to 2 decimal places for precision
         const roundedTotal = Math.round(totalHours * 100) / 100;
         
+        form.transform((data) => ({ ...data, return_to: returnTo || undefined }));
         form.post(route('work-hours.store'));
     };
 
@@ -757,7 +758,7 @@ export default function WorkHourCreate({ auth, clients = [], trackers = [] }) {
 
                                 <div className="flex items-center justify-between">
                                     <Link
-                                        href={route('work-hours.index')}
+                                        href={returnTo || route('work-hours.index')}
                                         className="inline-flex items-center px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded-xl font-medium transition-all border border-slate-700"
                                     >
                                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

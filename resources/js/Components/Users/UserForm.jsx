@@ -46,8 +46,21 @@ export default function UserForm({
         is_active: user?.is_active ?? true,
         allow_multiple_devices: user?.allow_multiple_devices ?? false,
         avatar: null,
+        shift_effective_from: '',
         return_to: returnTo || user?.return_to || '',
     });
+
+    // Editing a shift field opens a new history era, so HR needs to say WHEN it
+    // takes effect — otherwise a correction made today would silently re-judge
+    // every past day against the new times.
+    const today = new Date().toISOString().slice(0, 10);
+    const shiftChanged = [
+        ['shift_start_time', user?.shift_start_time || ''],
+        ['shift_grace_minutes', user?.shift_grace_minutes ?? 15],
+        ['shift_hours', user?.shift_hours ?? ''],
+        ['work_timezone', user?.work_timezone || 'Asia/Karachi'],
+        ['shift_id', user?.shift_id ?? ''],
+    ].some(([key, original]) => String(form.data[key] ?? '') !== String(original ?? ''));
 
     const togglePermission = (permission) => {
         const selected = form.data.permissions.includes(permission);
@@ -213,6 +226,21 @@ export default function UserForm({
                                 ))}
                             </select>
                         </Field>
+                        {editing && shiftChanged && (
+                            <Field
+                                label="Shift change effective from"
+                                hint="Days before this date keep being judged by the previous shift, so past attendance never changes. Pick an earlier date to backdate the change."
+                                error={form.errors.shift_effective_from}
+                            >
+                                <input
+                                    type="date"
+                                    max={today}
+                                    value={form.data.shift_effective_from || today}
+                                    onChange={(event) => form.setData('shift_effective_from', event.target.value)}
+                                    className="w-full rounded-lg border-slate-700 bg-slate-900 text-sm text-slate-200 [color-scheme:dark] focus:border-orange-500 focus:ring-orange-500"
+                                />
+                            </Field>
+                        )}
                         <Field label="Work timezone" hint="The country/zone this person's day and shift are measured in. Their clock-in/out, attendance day and auto-close use this zone. Leave Asia/Karachi for local staff." error={form.errors.work_timezone}>
                             <select
                                 value={form.data.work_timezone}

@@ -397,7 +397,7 @@ export default function WorkHoursList({
                         description="Review, filter, and manage your personal work entries."
                         actions={(
                             <Link
-                                href={route('work-hours.create')}
+                                href={`${route('work-hours.create')}?return_to=${encodeURIComponent(currentListUrl())}`}
                                 className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
                             >
                                 <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -650,7 +650,7 @@ export default function WorkHoursList({
                                                     <h3 className="text-lg font-medium text-white mb-2">No work hours found</h3>
                                                     <p className="text-slate-400 mb-4">Start tracking your work hours</p>
                                                     <Link 
-                                                        href={route('work-hours.create')}
+                                                        href={`${route('work-hours.create')}?return_to=${encodeURIComponent(currentListUrl())}`}
                                                         className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-700"
                                                     >
                                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -713,7 +713,7 @@ export default function WorkHoursList({
                                                 <td className="px-4 py-3 text-sm">
                                                     <div className="flex gap-2">
                                                         <Link 
-                                                            href={route('work-hours.edit', entry.id)}
+                                                            href={`${route('work-hours.edit', entry.id)}?return_to=${encodeURIComponent(currentListUrl())}`}
                                                             className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg transition-all"
                                                         >
                                                             Edit

@@ -19,6 +19,8 @@ use Inertia\Inertia;
 
 class WorkHourController extends Controller
 {
+    use Concerns\RedirectsToReturnPath;
+
     private const WORK_TYPES = [
         'tracker',
         'manual',
@@ -129,22 +131,6 @@ class WorkHourController extends Controller
         return $values[0] ?? 'all';
     }
 
-    private function redirectToReturnPath(Request $request, string $fallbackRoute, array $flash = [])
-    {
-        $returnTo = $request->input('return_to');
-        $redirect = is_string($returnTo)
-            && str_starts_with($returnTo, '/')
-            && ! str_starts_with($returnTo, '//')
-                ? redirect($returnTo)
-                : redirect()->route($fallbackRoute);
-
-        foreach ($flash as $key => $value) {
-            $redirect->with($key, $value);
-        }
-
-        return $redirect;
-    }
-
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -252,7 +238,7 @@ class WorkHourController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $this->ensureCanCreateManual();
 
@@ -268,6 +254,7 @@ class WorkHourController extends Controller
             ->toArray();
 
         return Inertia::render('WorkHourCreate', [
+            'returnTo' => $request->input('return_to'),
             'trackers' => $trackers,
             'clients' => $clients,
         ]);
@@ -299,11 +286,13 @@ class WorkHourController extends Controller
         unset($validated['minutes']);
         WorkHour::create($validated);
 
-        return redirect()->route('work-hours.index')
-            ->with('success', 'Work hour entry created successfully.');
+        // Back to the list view the user came from (page, filters, search).
+        return $this->redirectToReturnPath($request, 'work-hours.index', [
+            'success' => 'Work hour entry created successfully.',
+        ]);
     }
 
-    public function edit(WorkHour $workHour)
+    public function edit(Request $request, WorkHour $workHour)
     {
         $this->authorizeWorkHourAccess($workHour);
 
@@ -327,6 +316,7 @@ class WorkHourController extends Controller
             ->toArray();
 
         return Inertia::render('WorkHourEdit', [
+            'returnTo' => $request->input('return_to'),
             'workHour' => $workHour,
             'trackers' => $trackers,
             'clients' => $clients,
@@ -368,8 +358,9 @@ class WorkHourController extends Controller
         unset($validated['minutes']);
         $workHour->update($validated);
 
-        return redirect()->route('work-hours.index')
-            ->with('success', 'Work hour entry updated successfully.');
+        return $this->redirectToReturnPath($request, 'work-hours.index', [
+            'success' => 'Work hour entry updated successfully.',
+        ]);
     }
 
     /**

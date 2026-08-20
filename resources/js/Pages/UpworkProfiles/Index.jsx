@@ -10,6 +10,10 @@ const STATUS_OPTIONS = [
     { value: 'archived', label: 'Inactive' },
 ];
 
+const currentListUrl = () => (
+    typeof window === 'undefined' ? '/upwork-profiles' : `${window.location.pathname}${window.location.search}`
+);
+
 export default function Index({ auth, profiles, status = 'all' }) {
     const canManage = auth.user?.is_super_admin || auth.user?.permissions?.includes('profiles.manage');
     const { delete: destroy } = useForm();
@@ -95,7 +99,7 @@ export default function Index({ auth, profiles, status = 'all' }) {
                     description="Manage profile names used for client assignments and time tracking."
                     actions={canManage && (
                                 <Link
-                                    href={route('upwork-profiles.create')}
+                                    href={`${route('upwork-profiles.create')}?return_to=${encodeURIComponent(currentListUrl())}`}
                                     className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
                                 >
                                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,7 +193,7 @@ export default function Index({ auth, profiles, status = 'all' }) {
                                 <p className="mt-1 text-sm text-slate-400">Create a profile to assign it to clients and work entries.</p>
                                 {canManage && (
                                     <Link
-                                        href={route('upwork-profiles.create')}
+                                        href={`${route('upwork-profiles.create')}?return_to=${encodeURIComponent(currentListUrl())}`}
                                         className="mt-4 inline-flex items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                                     >
                                         Add first profile
@@ -277,7 +281,7 @@ export default function Index({ auth, profiles, status = 'all' }) {
                                                     <td className="whitespace-nowrap px-4 py-3 text-right">
                                                         <div className="flex justify-end gap-2">
                                                             <Link
-                                                                href={route('upwork-profiles.edit', profile.id)}
+                                                                href={`${route('upwork-profiles.edit', profile.id)}?return_to=${encodeURIComponent(currentListUrl())}`}
                                                                 className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm font-semibold text-slate-200 hover:bg-slate-800"
                                                             >
                                                                 Edit

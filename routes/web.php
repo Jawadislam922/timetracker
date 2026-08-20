@@ -142,9 +142,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:clients.manage')
         ->name('clients.set-status');
     Route::get('/clients', [ClientController::class, 'index'])->middleware('permission:clients.view')->name('clients.index');
-    Route::get('/clients/create', [ClientController::class, 'create'])->middleware('permission:clients.manage')->name('clients.create');
+    // Client add/edit is a modal on the list page — these two routes exist only
+    // so old bookmarks (and any cached Ziggy route names) keep working.
+    Route::get('/clients/create', fn () => redirect()->route('clients.index'))
+        ->middleware('permission:clients.manage')->name('clients.create');
     Route::post('/clients', [ClientController::class, 'store'])->middleware('permission:clients.manage')->name('clients.store');
-    Route::get('/clients/{client}/edit', [ClientController::class, 'edit'])->middleware('permission:clients.manage')->name('clients.edit');
+    Route::get('/clients/{client}/edit', fn (\App\Models\Client $client) => redirect()->route('clients.index', ['search' => $client->name]))
+        ->middleware('permission:clients.manage')->name('clients.edit');
     Route::match(['put', 'patch'], '/clients/{client}', [ClientController::class, 'update'])->middleware('permission:clients.manage')->name('clients.update');
     Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->middleware('permission:clients.manage')->name('clients.destroy');
 
