@@ -64,9 +64,13 @@ export default function SearchableMultiSelect({
         setQuery('');
     };
 
-    const buttonText = selectedOptions.length
-        ? `${selectedOptions.length} selected`
-        : placeholder;
+    // Name the selection rather than counting it: "1 selected" forced the user
+    // to open the panel (and scroll it) just to see what was already chosen.
+    const buttonText = selectedOptions.length === 0
+        ? placeholder
+        : selectedOptions.length <= 2
+            ? selectedOptions.map((option) => option.label).join(', ')
+            : `${selectedOptions[0].label} +${selectedOptions.length - 1} more`;
 
     return (
         <div className="relative" ref={containerRef}>
@@ -107,6 +111,35 @@ export default function SearchableMultiSelect({
                         />
                     </div>
 
+                    {/* What is already selected, ABOVE the list: with ~30 options
+                        the chips used to sit below a scrolling panel, so you had
+                        to scroll to the bottom to see what you had picked. */}
+                    {selectedOptions.length > 0 && (
+                        <div className="border-b border-slate-800 p-2">
+                            <div className="mb-1.5 flex flex-wrap gap-1.5">
+                                {selectedOptions.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => toggleValue(option.value)}
+                                        className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-1 text-xs font-medium text-blue-300 hover:bg-blue-500/25"
+                                        title={`Remove ${option.label}`}
+                                    >
+                                        <span className="max-w-36 truncate">{option.label}</span>
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={clearAll}
+                                className="w-full rounded-md px-2 py-1 text-xs font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-slate-100"
+                            >
+                                Clear {label}
+                            </button>
+                        </div>
+                    )}
+
                     <div className={inline ? 'py-1' : 'max-h-64 overflow-y-auto py-1'}>
                         {filteredOptions.length === 0 ? (
                             <div className="px-3 py-3 text-sm text-slate-400">No options found</div>
@@ -141,31 +174,6 @@ export default function SearchableMultiSelect({
                         )}
                     </div>
 
-                    {selectedOptions.length > 0 && (
-                        <div className="border-t border-slate-800 p-2">
-                            <div className="mb-2 flex flex-wrap gap-1.5">
-                                {selectedOptions.map((option) => (
-                                    <button
-                                        key={option.value}
-                                        type="button"
-                                        onClick={() => toggleValue(option.value)}
-                                        className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-1 text-xs font-medium text-blue-300 hover:bg-blue-500/25"
-                                        title={`Remove ${option.label}`}
-                                    >
-                                        <span className="max-w-36 truncate">{option.label}</span>
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                ))}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={clearAll}
-                                className="w-full rounded-md px-3 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-slate-100"
-                            >
-                                Clear {label}
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
         </div>

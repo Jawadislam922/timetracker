@@ -5,8 +5,6 @@ namespace App\Console;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 class Kernel extends ConsoleKernel
 {
@@ -84,34 +82,6 @@ class Kernel extends ConsoleKernel
                 Artisan::call('route:cache');
             }
         })->name('config-cache-self-heal')->everyFiveMinutes();
-
-        // ONE-SHOT, REMOVE AFTER IT RUNS. The shift-history migration could not
-        // be applied by hand: Hostinger's firewall blocked our SSH IP right
-        // after the deploy, and the feature stays inactive until its table
-        // exists. Scoped to that single migration file (never a blanket
-        // `migrate`), guarded on the table being absent so it runs at most
-        // once, and logged either way.
-        //
-        // Auto-migrating from the scheduler is NOT a pattern to keep — delete
-        // this block once the table is confirmed present.
-        $schedule->call(function () {
-            if (Schema::hasTable('user_shift_assignments')) {
-                return;
-            }
-
-            try {
-                Artisan::call('migrate', [
-                    '--force' => true,
-                    '--path' => 'database/migrations/2026_08_16_000002_create_user_shift_assignments_table.php',
-                ]);
-                Log::warning('shift-history migration applied by scheduler', [
-                    'output' => trim(Artisan::output()),
-                    'table_now_present' => Schema::hasTable('user_shift_assignments'),
-                ]);
-            } catch (\Throwable $e) {
-                Log::error('shift-history migration failed from scheduler', ['message' => $e->getMessage()]);
-            }
-        })->name('shift-history-migration')->everyFiveMinutes()->withoutOverlapping();
 
         // Liveness marker: this file's mtime shows when the scheduler last
         // ran, regardless of what drives it (host cron or the HTTP trigger).
