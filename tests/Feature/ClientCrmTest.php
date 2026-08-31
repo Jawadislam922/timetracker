@@ -198,6 +198,30 @@ class ClientCrmTest extends TestCase
             ->assertRedirect(route('clients.index', ['search' => 'Bookmarked']));
     }
 
+    /**
+     * The add-client popup can restore an archived match in place.
+     *
+     * Warning someone that "Ivo Peeters is archived" and then making them close
+     * the dialog, switch the list filter to Archived and search again is a dead
+     * end — the popup now calls this endpoint directly.
+     */
+    public function test_an_archived_match_can_be_restored_from_the_add_dialog(): void
+    {
+        $archived = Client::create([
+            'name' => 'Ivo Peeters', 'work_type' => 'outside_of_upwork', 'is_active' => false,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->patch(route('clients.set-status', $archived), [
+                'is_active' => true,
+                'return_to' => '/clients?page=2&search=ivo',
+            ])
+            ->assertRedirect('/clients?page=2&search=ivo');
+
+        $this->assertTrue($archived->fresh()->is_active, 'the client is active again');
+        $this->assertSame(1, Client::where('name', 'Ivo Peeters')->count(), 'restored, not duplicated');
+    }
+
     public function test_client_list_defaults_to_active_only(): void
     {
         Client::create(['name' => 'Active One', 'work_type' => 'outside_of_upwork', 'is_active' => true]);

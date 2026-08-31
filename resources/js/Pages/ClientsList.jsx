@@ -723,6 +723,7 @@ export default function ClientsList({ auth, clients, flash, filters = {}, filter
                 preferredContacts={preferredContacts}
                 profileOptions={profileOptions}
                 allClients={allClients}
+                onEditExisting={(c) => openClientModal(clients?.data?.find((row) => row.id === c.id) || c)}
             />
         </AuthenticatedLayout>
     );

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { useForm } from '@inertiajs/react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useForm } from '@inertiajs/react';
 import SearchableMultiSelect from './Filters/SearchableMultiSelect';
 import TagInput from './TagInput';
 
@@ -22,9 +22,11 @@ export default function ClientFormModal({
     preferredContacts = {},
     profileOptions = [],
     allClients = null,        // lazy: null until the parent partial-reloads it
+    onEditExisting = null,    // open an existing client that the name matched
 }) {
     const isEdit = !!client?.id;
     const nameRef = useRef(null);
+    const [restoringId, setRestoringId] = useState(null);
 
     const form = useForm({
         name: '',
@@ -86,6 +88,20 @@ export default function ClientFormModal({
     const exactMatch = matches.find((c) => c.name.trim().toLowerCase() === q) || null;
     const blocked = !!exactMatch && !form.data.allow_duplicate;
 
+    // Restore an archived match in place, then close: the person's goal was to
+    // have this client available, and it now is.
+    const restoreClient = (c) => {
+        setRestoringId(c.id);
+        router.patch(route('clients.set-status', c.id), {
+            is_active: true,
+            return_to: window.location.pathname + window.location.search,
+        }, {
+            preserveScroll: true,
+            onFinish: () => setRestoringId(null),
+            onSuccess: () => { form.reset(); onClose(); },
+        });
+    };
+
     const submit = (e) => {
         e.preventDefault();
         if (blocked) return;
@@ -138,19 +154,41 @@ export default function ClientFormModal({
                                 <p className={`mb-1 font-semibold ${exactMatch ? 'text-rose-300' : 'text-amber-300'}`}>
                                     {exactMatch ? 'This client already exists:' : 'Similar clients already exist — is it one of these?'}
                                 </p>
-                                <ul className="space-y-0.5">
+                                <ul className="space-y-1">
                                     {matches.map((c) => (
                                         <li key={c.id} className="flex items-center gap-2 text-slate-200">
-                                            <span>{c.name}</span>
+                                            <span className="min-w-0 truncate">{c.name}</span>
                                             {!c.is_active && (
-                                                <span className="rounded border border-slate-600 bg-slate-700/60 px-1.5 text-[10px] uppercase text-slate-300">archived</span>
+                                                <span className="shrink-0 rounded border border-slate-600 bg-slate-700/60 px-1.5 text-[10px] uppercase text-slate-300">archived</span>
+                                            )}
+                                            {/* Act on the match right here. Telling someone their
+                                                client already exists and then making them close the
+                                                dialog, switch the list to Archived and search again
+                                                is the dead end this whole warning created. */}
+                                            {!c.is_active ? (
+                                                <button
+                                                    type="button"
+                                                    disabled={restoringId === c.id}
+                                                    onClick={() => restoreClient(c)}
+                                                    className="ml-auto shrink-0 rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                                >
+                                                    {restoringId === c.id ? 'Restoring…' : 'Restore'}
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onEditExisting?.(c)}
+                                                    className="ml-auto shrink-0 rounded border border-slate-600 px-2 py-0.5 text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
+                                                >
+                                                    Open
+                                                </button>
                                             )}
                                         </li>
                                     ))}
                                 </ul>
                                 {exactMatch && !exactMatch.is_active && (
                                     <p className="mt-1.5 text-slate-300">
-                                        It's archived — <Link href={route('clients.index', { status: 'archived', search: exactMatch.name })} className="text-orange-300 underline">restore it</Link> instead of creating a duplicate.
+                                        It&apos;s archived — hit <strong>Restore</strong> above instead of creating a duplicate.
                                     </p>
                                 )}
                                 {exactMatch && (
