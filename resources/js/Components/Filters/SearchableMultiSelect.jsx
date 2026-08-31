@@ -80,7 +80,7 @@ export default function SearchableMultiSelect({
                 onClick={() => setOpen((current) => !current)}
                 className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm text-slate-200 shadow-sm transition hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
-                <span className={selectedOptions.length ? 'font-medium text-slate-100' : 'text-slate-400'}>
+                <span className={['truncate', selectedOptions.length ? 'font-medium text-slate-100' : 'text-slate-400'].join(' ')}>
                     {buttonText}
                 </span>
                 <svg
@@ -98,7 +98,12 @@ export default function SearchableMultiSelect({
                     className={
                         inline
                             ? 'relative mt-1.5 w-full rounded-lg border border-slate-800 bg-slate-900'
-                            : 'absolute z-40 mt-1.5 w-full rounded-lg border border-slate-800 bg-slate-900 shadow-xl'
+                            // The floating panel used to be w-full, i.e. exactly as
+                            // wide as its trigger — so on a narrow control like
+                            // "All shifts" the search box and the option labels
+                            // clipped to "Search shi" / "Morni…". Give it a floor
+                            // width of its own, capped so it can't run off a phone.
+                            : 'absolute z-40 mt-1.5 w-full min-w-56 max-w-[min(20rem,90vw)] rounded-lg border border-slate-800 bg-slate-900 shadow-xl'
                     }
                 >
                     <div className="border-b border-slate-800 p-2">
