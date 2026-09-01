@@ -484,6 +484,9 @@ class TimeEntryController extends Controller
     {
         $buffer = (int) config('services.attendance.auto_close_buffer_minutes', 20);
         $defaultHours = (float) config('services.attendance.prompt_after_hours', 8);
+        // Warning types the admin hid in Settings (e.g. "not tracking" while
+        // the whole company deliberately runs on web clock-in only).
+        $hidden = MonitoringSetting::current()->hiddenAttentionTypes();
 
         $present = 0;
         $working = 0;
@@ -594,6 +597,9 @@ class TimeEntryController extends Controller
             }
 
             foreach ($flags as $f) {
+                if (in_array($f['type'], $hidden, true)) {
+                    continue;
+                }
                 $attention[] = $base + $f + ['is_live' => $isLive];
             }
         }

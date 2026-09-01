@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\MonitoringSetting;
 use App\Models\TimeEntry;
 use App\Models\User;
 use App\Support\AttendanceHours;
@@ -120,6 +121,17 @@ class ShiftBoardService
     }
 
     /**
+     * Same show/hide choices as the Needs Attention panel: an exception the
+     * admin hid there must not resurface as board text on the Team page.
+     * MonitoringSetting::current() is memoized per request, so per-row calls
+     * are free.
+     */
+    private function show(string $type): bool
+    {
+        return ! in_array($type, MonitoringSetting::current()->hiddenAttentionTypes(), true);
+    }
+
+    /**
      * Classify one employee into a single shift-board row.
      *
      * @param  Collection<int,TimeEntry>  $entries  this user's chronological entries (spans the loaded window)
@@ -179,29 +191,39 @@ class ShiftBoardService
             if ($pastShiftEnd && ! $isLive) {
                 // The headline case: forgot to clock out (works across midnight).
                 $status = 'still_in';
-                $severity = 'red';
-                $exception = 'Still clocked in since '.$openTs->format('g:i A').' — likely forgot to clock out';
+                if ($this->show('stale_clock_out')) {
+                    $severity = 'red';
+                    $exception = 'Still clocked in since '.$openTs->format('g:i A').' — likely forgot to clock out';
+                }
             } elseif ($openType === 'break_start') {
                 $status = 'on_break';
                 $breakMins = (int) Carbon::parse($globalLast->action_timestamp)->setTimezone($tz)->diffInMinutes($localNow);
-                if ($breakMins > 90) {
+                if ($breakMins > 90 && $this->show('long_break')) {
                     $severity = 'amber';
                     $exception = 'On break '.$breakMins.'m';
                 }
             } else {
                 $status = 'working';
                 if (AttendanceHours::isLateClockIn($emp, $now, $firstClockInToday)) {
-                    $severity = 'amber';
-                    $exception = 'Late clock-in';
+                    if ($this->show('late')) {
+                        $severity = 'amber';
+                        $exception = 'Late clock-in';
+                    }
                 } elseif ($isLive && ! $firstClockInToday) {
-                    $severity = 'amber';
-                    $exception = 'Tracking without clocking in';
+                    if ($this->show('no_clock_in')) {
+                        $severity = 'amber';
+                        $exception = 'Tracking without clocking in';
+                    }
                 } elseif (! $isLive && $tracked < 0.1) {
-                    $severity = 'amber';
-                    $exception = 'Clocked in but not tracking';
+                    if ($this->show('not_tracking')) {
+                        $severity = 'amber';
+                        $exception = 'Clocked in but not tracking';
+                    }
                 } elseif ($tracked > 0 && $activity < 30) {
-                    $severity = 'amber';
-                    $exception = 'Low activity ('.$activity.'%)';
+                    if ($this->show('low_activity')) {
+                        $severity = 'amber';
+                        $exception = 'Low activity ('.$activity.'%)';
+                    }
                 }
             }
         } elseif ($todayEntries->isNotEmpty()) {

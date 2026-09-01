@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import {
     Activity,
+    AlertTriangle,
     Bell,
     Calendar,
     Camera,
@@ -33,6 +34,7 @@ const CATEGORIES = [
     { key: 'auto_pause', label: 'Auto-pause tracking after', icon: PauseCircle, summary: (t) => `${t.auto_pause_minutes} min` },
     { key: 'offline_time', label: 'Allow adding Offline Time', icon: Clock, summary: (t) => (t.allow_offline_time ? 'Yes' : 'No') },
     { key: 'notify_screenshot', label: 'Notify when screenshot is taken', icon: Bell, summary: (t) => (t.notify_on_screenshot ? 'Yes' : 'No') },
+    { key: 'needs_attention', label: 'Needs Attention warnings', icon: AlertTriangle, summary: (t) => { const h = (t.attention_hidden_types || []).length; return h ? `${6 - h} of 6 shown` : 'All shown'; } },
     { key: 'attendance_slack', label: 'Attendance Slack alerts', icon: MessageSquare, summary: (t) => [t.slack_clockin_enabled && 'in', t.slack_clockout_enabled && 'out'].filter(Boolean).join(' + ') || 'Off' },
     { key: 'week_starts_on', label: 'Week starts on', icon: Calendar, summary: (t) => (t.week_starts_on === 'sunday' ? 'Sun' : 'Mon') },
     { key: 'currency', label: 'Currency symbol', icon: DollarSign, summary: (t) => t.currency_symbol },
@@ -670,6 +672,52 @@ function DesktopAppSection({ team, users, setTeam }) {
     );
 }
 
+/**
+ * Which warning types the dashboard's Needs Attention panel (and the Team
+ * page's shift-board exception line) may show. Hiding a type removes it for
+ * every admin/HR viewer. Exists because with the desktop trackers deliberately
+ * off, "Clocked in but not tracking" fires for the entire company and reads as
+ * a crisis when it is policy.
+ */
+const ATTENTION_WARNINGS = [
+    { type: 'stale_clock_out', label: 'Forgot to clock out', desc: 'Still clocked in past shift end.' },
+    { type: 'late', label: 'Late clock-in', desc: 'Clocked in after shift start plus grace time.' },
+    { type: 'long_break', label: 'Long break', desc: 'On break for more than 90 minutes.' },
+    { type: 'not_tracking', label: 'Not tracking', desc: 'Clocked in but the desktop tracker is not running. Turn off while the company works on web clock-in only.' },
+    { type: 'low_activity', label: 'Low activity', desc: 'Tracker activity below 30%.' },
+    { type: 'no_clock_in', label: 'Tracking without clocking in', desc: 'The desktop tracker is running but the person never clocked in.' },
+];
+
+function NeedsAttentionSection({ team, setTeam }) {
+    const hidden = team.attention_hidden_types || [];
+    const setShown = (type, shown) => {
+        const next = {
+            ...team,
+            attention_hidden_types: shown ? hidden.filter((t) => t !== type) : [...new Set([...hidden, type])],
+        };
+        setTeam(next);
+        patchTeam(next);
+    };
+    return (
+        <SectionShell
+            title="Needs Attention warnings"
+            blurb={<>Choose which warnings appear in the dashboard's <strong>Needs Attention</strong> panel and on the Team shift board. Hidden warnings disappear for everyone — attendance records themselves are not affected.</>}
+        >
+            <div className="space-y-4 text-sm">
+                {ATTENTION_WARNINGS.map((w) => (
+                    <label key={w.type} className="flex items-start gap-3">
+                        <Toggle checked={!hidden.includes(w.type)} onChange={(v) => setShown(w.type, v)} />
+                        <span className="flex flex-col">
+                            <span className="font-medium text-slate-100">{w.label}</span>
+                            <span className="text-xs text-slate-400">{w.desc}</span>
+                        </span>
+                    </label>
+                ))}
+            </div>
+        </SectionShell>
+    );
+}
+
 function AttendanceSlackSection({ team, setTeam }) {
     const set = (patch) => {
         const next = { ...team, ...patch };
@@ -859,6 +907,7 @@ export default function SettingsIndex({ auth, team: initialTeam, users: initialU
                                     offLabel="Do not notify"
                                 />
                             )}
+                            {active === 'needs_attention' && <NeedsAttentionSection team={team} setTeam={setTeam} />}
                             {active === 'attendance_slack' && <AttendanceSlackSection team={team} setTeam={setTeam} />}
                             {active === 'display' && <DisplaySection team={team} users={users} setTeam={setTeam} />}
                             {active === 'week_starts_on' && <WeekStartsSection team={team} setTeam={setTeam} />}

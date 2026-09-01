@@ -79,6 +79,10 @@ class SettingsController extends Controller
             'slack_clockin_enabled' => ['required', 'boolean'],
             'slack_clockout_enabled' => ['required', 'boolean'],
             'slack_attendance_channel' => ['nullable', 'string', 'max:100'],
+            // 'present' not 'required': an empty array (= show every warning)
+            // must pass validation; 'required' rejects [].
+            'attention_hidden_types' => ['present', 'array'],
+            'attention_hidden_types.*' => ['string', Rule::in(MonitoringSetting::ATTENTION_TYPES)],
         ]);
 
         $team = MonitoringSetting::current();

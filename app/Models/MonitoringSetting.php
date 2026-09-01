@@ -33,6 +33,7 @@ class MonitoringSetting extends Model
         'slack_clockin_enabled',
         'slack_clockout_enabled',
         'slack_attendance_channel',
+        'attention_hidden_types',
         'branding_logo_path',
     ];
 
@@ -57,7 +58,33 @@ class MonitoringSetting extends Model
         'desktop_force_quit_on_idle' => 'boolean',
         'slack_clockin_enabled' => 'boolean',
         'slack_clockout_enabled' => 'boolean',
+        'attention_hidden_types' => 'array',
     ];
+
+    /**
+     * Every warning type the dashboard's Needs Attention panel (and the Team
+     * shift board's exception line) can emit. The Settings page offers one
+     * show/hide toggle per entry; anything NOT listed in attention_hidden_types
+     * stays visible, so a newly added type defaults to shown.
+     */
+    public const ATTENTION_TYPES = [
+        'stale_clock_out',
+        'not_tracking',
+        'no_clock_in',
+        'low_activity',
+        'late',
+        'long_break',
+    ];
+
+    /** Warning types the admin chose to hide, [] until the column exists. */
+    public function hiddenAttentionTypes(): array
+    {
+        try {
+            return (array) ($this->attention_hidden_types ?? []);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
 
     /**
      * Carbon day-of-week constant for the configured week start, for use with
@@ -191,6 +218,7 @@ class MonitoringSetting extends Model
             'slack_clockin_enabled' => (bool) $this->slack_clockin_enabled,
             'slack_clockout_enabled' => (bool) $this->slack_clockout_enabled,
             'slack_attendance_channel' => $this->slack_attendance_channel,
+            'attention_hidden_types' => $this->hiddenAttentionTypes(),
         ];
     }
 
