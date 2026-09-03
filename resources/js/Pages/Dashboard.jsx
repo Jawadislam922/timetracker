@@ -1058,7 +1058,6 @@ export default function Dashboard({ auth, shiftOptions = [] }) {
 
                                     {shiftOptions.length > 0 && (
                                         <SearchableMultiSelect
-                                            label="Shift"
                                             options={shiftFilterOptions}
                                             selectedValues={shiftIds}
                                             onChange={setShiftIds}

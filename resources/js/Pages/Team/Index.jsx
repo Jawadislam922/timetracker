@@ -154,7 +154,6 @@ export default function TeamIndex({ auth, start, end, range, rows, totals, chart
                             </div>
                             {shiftOptions.length > 0 && (
                                 <SearchableMultiSelect
-                                    label="Shift"
                                     options={shiftFilterOptions}
                                     selectedValues={shiftIds}
                                     onChange={applyShiftFilter}

@@ -74,9 +74,13 @@ export default function SearchableMultiSelect({
 
     return (
         <div className="relative" ref={containerRef}>
-            <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-400">{label}</label>
+            {/* Caption is optional: in compact toolbars (dashboard team header,
+                attendance filters) the neighbours are uncaptioned, and a lone
+                caption pushes this control below their centerline. */}
+            {label ? <label className="mb-1.5 block text-xs font-semibold uppercase text-slate-400">{label}</label> : null}
             <button
                 type="button"
+                aria-label={label || placeholder}
                 onClick={() => setOpen((current) => !current)}
                 className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm text-slate-200 shadow-sm transition hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >

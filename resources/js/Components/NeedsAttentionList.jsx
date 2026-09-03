@@ -39,7 +39,9 @@ export default function NeedsAttentionList({ items = [], canViewAnalytics = fals
                 <div className="flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-400" />
                     <h3 className="text-sm font-semibold text-slate-100">Needs attention</h3>
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">{items.length}</span>
+                    {/* Count what the list below actually shows — with "Active only" on,
+                        a header stuck at the unfiltered total contradicted the rows. */}
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">{shown.length}</span>
                 </div>
                 <button
                     type="button"
